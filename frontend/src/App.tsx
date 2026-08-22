@@ -166,6 +166,10 @@ export function App() {
           <p className="run-status">
             {selectedRun.status === "completed" ? "已完成" : "执行失败"}
           </p>
+          <p>
+            进度：{selectedRun.events.length}/5（
+            {selectedRun.events.length * 20}%）
+          </p>
           <h3>阶段</h3>
           <p>
             {selectedRun.events

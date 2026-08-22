@@ -200,6 +200,7 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
     await screen.findByRole("heading", { name: "运行 #9" }),
   ).toBeInTheDocument();
   expect(screen.getByText("已完成")).toBeInTheDocument();
+  expect(screen.getByText("进度：5/5（100%）")).toBeInTheDocument();
   expect(
     screen.getByText("排队 → 生成数据 → 执行检查 → 汇总结果 → 已完成"),
   ).toBeInTheDocument();
