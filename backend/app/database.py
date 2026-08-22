@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 2
+LATEST_SCHEMA_VERSION = 5
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -23,7 +23,7 @@ def migrate_database(connection: sqlite3.Connection) -> None:
         )
         current_version = 1
 
-    if current_version < LATEST_SCHEMA_VERSION:
+    if current_version < 2:
         connection.executescript(
             """
             CREATE TABLE collection_tasks (
@@ -38,12 +38,62 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             PRAGMA user_version = 2;
             """
         )
+        current_version = 2
+
+    if current_version < 3:
+        connection.executescript(
+            """
+            CREATE TABLE runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                collection_task_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                configuration_snapshot TEXT NOT NULL,
+                events TEXT NOT NULL,
+                artifacts TEXT NOT NULL,
+                checks TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                completed_at TEXT,
+                error TEXT
+            );
+            INSERT INTO schema_migrations (version) VALUES (3);
+            PRAGMA user_version = 3;
+            """
+        )
+        current_version = 3
+
+    if current_version < 4:
+        connection.executescript(
+            """
+            ALTER TABLE collection_tasks ADD COLUMN configuration TEXT;
+            UPDATE collection_tasks
+            SET configuration = '{"mode":"quick","scenario":"normal","duration_seconds":2,'
+                || '"video":{"channels":1,"resolution":"640x360","fps":15,"container":"mp4","codec":"h264"},'
+                || '"imu":{"format":"csv","sample_rate_hz":50},"random_seed":20260822}'
+            WHERE configuration IS NULL;
+            INSERT INTO schema_migrations (version) VALUES (4);
+            PRAGMA user_version = 4;
+            """
+        )
+        current_version = 4
+
+    if current_version < LATEST_SCHEMA_VERSION:
+        connection.executescript(
+            """
+            ALTER TABLE runs ADD COLUMN generation_metadata TEXT NOT NULL DEFAULT '{}';
+            INSERT INTO schema_migrations (version) VALUES (5);
+            PRAGMA user_version = 5;
+            """
+        )
+
+
+def get_data_dir() -> Path:
+    return Path(os.getenv("APP_DATA_DIR", "data"))
 
 
 @contextmanager
 def open_database() -> Iterator[sqlite3.Connection]:
     """打开项目内数据库，并保证调用方始终使用最新 schema。"""
-    data_dir = Path(os.getenv("APP_DATA_DIR", "data"))
+    data_dir = get_data_dir()
     data_dir.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(data_dir / "platform.sqlite3") as connection:
         connection.row_factory = sqlite3.Row

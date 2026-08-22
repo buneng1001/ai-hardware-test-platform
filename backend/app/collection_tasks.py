@@ -3,17 +3,38 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.database import open_database
+from app.run_models import ImuConfiguration, RunConfigurationSnapshot, VideoConfiguration
 
 router = APIRouter(prefix="/api/collection-tasks", tags=["collection tasks"])
 
 
+PRESET_CONFIGURATIONS = {
+    "quick": {
+        "duration_seconds": 2,
+        "video": {"channels": 1, "resolution": "640x360", "fps": 15, "container": "mp4"},
+        "imu": {"format": "csv", "sample_rate_hz": 50},
+        "random_seed": 20260822,
+    },
+    "standard": {
+        "duration_seconds": 5,
+        "video": {"channels": 4, "resolution": "1280x720", "fps": 30, "container": "mp4"},
+        "imu": {"format": "csv", "sample_rate_hz": 100},
+        "random_seed": 20260822,
+    },
+}
+
+
 class CollectionTaskCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    mode: Literal["quick"]
+    mode: Literal["quick", "standard", "custom"]
     scenario: Literal["normal"]
+    duration_seconds: int | None = None
+    video: VideoConfiguration | None = None
+    imu: ImuConfiguration | None = None
+    random_seed: int | None = None
 
     @field_validator("name")
     @classmethod
@@ -23,13 +44,6 @@ class CollectionTaskCreate(BaseModel):
             raise ValueError("任务名称不能为空")
         return normalized_name
 
-    @field_validator("mode", mode="before")
-    @classmethod
-    def validate_mode(cls, value: object) -> object:
-        if value != "quick":
-            raise ValueError("当前只支持快速模式")
-        return value
-
     @field_validator("scenario", mode="before")
     @classmethod
     def validate_scenario(cls, value: object) -> object:
@@ -37,18 +51,41 @@ class CollectionTaskCreate(BaseModel):
             raise ValueError("当前只支持正常采集场景")
         return value
 
+    @model_validator(mode="after")
+    def apply_preset_and_validate(self) -> "CollectionTaskCreate":
+        if self.mode in PRESET_CONFIGURATIONS:
+            preset = PRESET_CONFIGURATIONS[self.mode]
+            self.duration_seconds = preset["duration_seconds"]
+            self.video = VideoConfiguration(**preset["video"])
+            self.imu = ImuConfiguration(**preset["imu"])
+            self.random_seed = preset["random_seed"]
+        elif None in (self.duration_seconds, self.video, self.imu, self.random_seed):
+            raise ValueError("自定义模式必须提供完整数据参数")
+
+        self.snapshot()
+        return self
+
+    def snapshot(self) -> RunConfigurationSnapshot:
+        return RunConfigurationSnapshot.model_validate(self.model_dump(exclude={"name"}))
+
 
 class CollectionTask(BaseModel):
     id: int
     name: str
-    mode: Literal["quick"]
+    mode: Literal["quick", "standard", "custom"]
     scenario: Literal["normal"]
+    duration_seconds: int
+    video: VideoConfiguration
+    imu: ImuConfiguration
+    random_seed: int
     status: Literal["draft"]
     created_at: datetime
 
 
 def task_from_row(row: sqlite3.Row) -> CollectionTask:
-    return CollectionTask.model_validate(dict(row))
+    values = dict(row)
+    snapshot = RunConfigurationSnapshot.model_validate_json(values.pop("configuration"))
+    return CollectionTask.model_validate(values | snapshot.model_dump())
 
 
 @router.post("", response_model=CollectionTask, status_code=status.HTTP_201_CREATED)
@@ -57,10 +94,16 @@ def create_collection_task(command: CollectionTaskCreate) -> CollectionTask:
     with open_database() as connection:
         cursor = connection.execute(
             """
-            INSERT INTO collection_tasks (name, mode, scenario, status, created_at)
-            VALUES (?, ?, ?, 'draft', ?)
+            INSERT INTO collection_tasks (name, mode, scenario, status, created_at, configuration)
+            VALUES (?, ?, ?, 'draft', ?, ?)
             """,
-            (command.name, command.mode, command.scenario, created_at.isoformat()),
+            (
+                command.name,
+                command.mode,
+                command.scenario,
+                created_at.isoformat(),
+                command.snapshot().model_dump_json(),
+            ),
         )
         task_id = cursor.lastrowid
         row = connection.execute("SELECT * FROM collection_tasks WHERE id = ?", (task_id,)).fetchone()

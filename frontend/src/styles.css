@@ -44,7 +44,8 @@ h1 {
 }
 
 .task-panel,
-.task-list {
+.task-list,
+.run-detail {
   max-width: 760px;
   margin-top: 40px;
   padding: 28px;
@@ -60,6 +61,7 @@ form,
 }
 
 input,
+select,
 button {
   box-sizing: border-box;
   min-height: 44px;
@@ -67,7 +69,8 @@ button {
   font: inherit;
 }
 
-input {
+input,
+select {
   padding: 8px 12px;
   border: 1px solid #49717a;
   color: inherit;
@@ -101,6 +104,17 @@ button:disabled {
   margin: 4px 0 0;
 }
 
+.configuration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.configuration-grid label {
+  display: grid;
+  gap: 6px;
+}
+
 .task-card {
   margin-top: 16px;
   padding: 16px 20px;
@@ -110,4 +124,20 @@ button:disabled {
 
 .task-card h3 {
   margin: 0;
+}
+
+.task-card button {
+  margin-top: 8px;
+}
+
+.run-status {
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #071719;
+  background: #60d6c4;
+}
+
+.run-detail li {
+  margin: 8px 0;
 }
