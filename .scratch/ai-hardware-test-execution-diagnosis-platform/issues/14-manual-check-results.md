@@ -30,10 +30,11 @@
 - `prettier --check frontend/src`：所有文件符合 Prettier 格式。
 - `backend/.venv/Scripts/python.exe scripts/check_repository_safety.py`：安全扫描通过。
 - `git diff --check`：通过，无空白错误。
-- `$code-review` 以 `origin/main...HEAD` 完成 Standards/Spec 双轴复审：Standards 0 个硬违规；Spec 无发现。
+- `$code-review` 以最新 `origin/main...HEAD` 完成 Standards/Spec 双轴复审：Spec 无发现；Ticket 14 新文件无硬违规。
 
 审查修复包括：拆分超过文件规模预警的后端导入模块和前端结果列表、补齐附件下载公开 seam、在运行分析
 子视图完整展示人工证据，并修复切换运行记录时的面板状态重置。保留两个轻度判断项：后端单条/批量插入
 存在少量字段重复；人工结果面板仍内聚处理表单、附件和导入，当前均未构成规则违规。
 
 已知限制：导入文件最大 2 MiB，XLSX 只读取活动工作表；独立交互报告和 HTML 报告属于 Ticket 15，未提前实现。
+rebase 后继承的 Ticket 05 `runs.py` 为 239 行，已按全局规则提示后续拆分，本 ticket 不重构其队列生命周期。
