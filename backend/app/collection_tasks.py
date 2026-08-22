@@ -23,6 +23,20 @@ class CollectionTaskCreate(BaseModel):
             raise ValueError("任务名称不能为空")
         return normalized_name
 
+    @field_validator("mode", mode="before")
+    @classmethod
+    def validate_mode(cls, value: object) -> object:
+        if value != "quick":
+            raise ValueError("当前只支持快速模式")
+        return value
+
+    @field_validator("scenario", mode="before")
+    @classmethod
+    def validate_scenario(cls, value: object) -> object:
+        if value != "normal":
+            raise ValueError("当前只支持正常采集场景")
+        return value
+
 
 class CollectionTask(BaseModel):
     id: int

@@ -25,7 +25,7 @@
 | 5. AI接口自动化测试 | Swagger 文档测试分析 | 使用 FastAPI OpenAPI 文档检查接口契约 | 已实现 | [FastAPI 应用与公开健康 API](../backend/app/main.py)；OpenAPI 契约测试留待后续 ticket |
 | 5. AI接口自动化测试 | CSV、JSON、YAML 数据驱动 | 场景、任务、人工结果和证据包数据驱动 | 已规划 | 示例配置、参数化测试 |
 | 5. AI接口自动化测试 | 复杂返回值检查 | 校验结构化 AI 诊断与证据引用 | 已规划 | Schema 测试、异常样例 |
-| 6. AI测试与企业工程化落地 | Pytest 企业级设计 | 分层测试确定性生成器、检查器、API 和流程 | 开发中 | [API 外部行为测试](../backend/tests)；本地 Pytest 4 项通过 |
+| 6. AI测试与企业工程化落地 | Pytest 企业级设计 | 分层测试确定性生成器、检查器、API 和流程 | 开发中 | [API 外部行为测试](../backend/tests)；本地 Pytest 6 项通过 |
 | 6. AI测试与企业工程化落地 | Fixture 与 parametrize | 复用场景夹具并覆盖正常、边界和故障数据 | 已规划 | Fixture、参数化用例 |
 | 6. AI测试与企业工程化落地 | skip、smoke、用例集提取 | 区分快速 CI、标准演示和扩展测试 | 已规划 | Pytest 标记 |
 | 6. AI测试与企业工程化落地 | Allure 测试报告 | 展示自动化框架自身的验证结果 | 已规划 | Allure 产物 |

@@ -43,12 +43,20 @@ def test_saved_collection_task_remains_visible_in_task_list(client):
     assert list_response.json() == [created_task]
 
 
-def test_invalid_collection_task_is_rejected_without_being_saved(client):
+@pytest.mark.parametrize(
+    ("payload", "expected_error"),
+    [
+        ({"name": "   ", "mode": "quick", "scenario": "normal"}, "任务名称不能为空"),
+        ({"name": "错误模式", "mode": "standard", "scenario": "normal"}, "当前只支持快速模式"),
+        ({"name": "错误场景", "mode": "quick", "scenario": "video_drop"}, "当前只支持正常采集场景"),
+    ],
+)
+def test_invalid_collection_task_is_rejected_without_being_saved(client, payload, expected_error):
     invalid_response = client.post(
         "/api/collection-tasks",
-        json={"name": "   ", "mode": "quick", "scenario": "normal"},
+        json=payload,
     )
 
     assert invalid_response.status_code == 422
-    assert "任务名称不能为空" in invalid_response.text
+    assert expected_error in invalid_response.text
     assert client.get("/api/collection-tasks").json() == []
