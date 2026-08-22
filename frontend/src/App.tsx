@@ -155,7 +155,8 @@ export function App() {
             <h3>{task.name}</h3>
             <p>
               {{ quick: "快速", standard: "标准", custom: "自定义" }[task.mode]}{" "}
-              · 正常采集 · 草稿
+              · {task.scenario === "normal" ? "正常采集" : "单路视频掉帧"} ·
+              草稿
             </p>
             <button
               type="button"

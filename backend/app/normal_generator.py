@@ -11,7 +11,6 @@ import imageio_ffmpeg
 from app.run_models import (
     MAX_ACTUAL_DURATION_SECONDS,
     Artifact,
-    BasicCheck,
     GenerationMetadata,
     RunConfigurationSnapshot,
 )
@@ -23,17 +22,18 @@ def generate_normal_artifacts(
     """生成短媒体文件；长稳资源趋势使用虚拟时间控制成本。"""
     run_dir.mkdir(parents=True, exist_ok=False)
     actual_duration = min(snapshot.duration_seconds, MAX_ACTUAL_DURATION_SECONDS)
+    fault_truth = _build_fault_truth(snapshot, actual_duration)
+    _write_fault_truth(run_dir / "fault_truth.json", fault_truth)
     video_paths = [
         run_dir / f"camera_{channel}.{snapshot.video.container}" for channel in range(1, snapshot.video.channels + 1)
     ]
     for channel, video_path in enumerate(video_paths, start=1):
-        _generate_video(video_path, snapshot, actual_duration, channel)
+        _generate_video(video_path, snapshot, actual_duration, channel, fault_truth)
     imu_path = run_dir / f"imu.{snapshot.imu.format}"
     _generate_imu(imu_path, snapshot, actual_duration)
     timeline_source = "virtual_time_simulated" if snapshot.duration_seconds > actual_duration else "actual_generated"
     _generate_device_status(run_dir / "device_status.csv", snapshot)
     _generate_device_log(run_dir / "device.log")
-    _generate_fault_truth(run_dir / "fault_truth.json", snapshot)
 
     artifacts = [
         *[_artifact("video", video_path, run_dir) for video_path in video_paths],
@@ -54,34 +54,13 @@ def generate_normal_artifacts(
     return artifacts, metadata
 
 
-def run_basic_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfigurationSnapshot) -> list[BasicCheck]:
-    required_kinds = {"video", "imu", "device_status", "device_log", "fault_truth"}
-    actual_kinds = {artifact.kind for artifact in artifacts if artifact.size_bytes > 0}
-    video_count = sum(artifact.kind == "video" for artifact in artifacts)
-    required_files_passed = actual_kinds == required_kinds and video_count == snapshot.video.channels
-    video_artifacts = [artifact for artifact in artifacts if artifact.kind == "video"]
-    video_h264_passed = all(_read_video_codec(data_dir / artifact.path) == "h264" for artifact in video_artifacts)
-    normal_scenario_passed = required_files_passed and video_h264_passed
-    return [
-        BasicCheck(
-            name="required_artifacts",
-            status="passed" if required_files_passed else "failed",
-            message=f"{video_count} 路视频及 4 类配套产物均已生成" if required_files_passed else "必需产物缺失",
-        ),
-        BasicCheck(
-            name="video_h264",
-            status="passed" if video_h264_passed else "failed",
-            message="视频编码为 H.264" if video_h264_passed else "视频编码不是 H.264",
-        ),
-        BasicCheck(
-            name="normal_scenario",
-            status="passed" if normal_scenario_passed else "failed",
-            message="正常场景未发现基础异常" if normal_scenario_passed else "正常场景存在基础异常",
-        ),
-    ]
-
-
-def _generate_video(path: Path, snapshot: RunConfigurationSnapshot, actual_duration_seconds: int, channel: int) -> None:
+def _generate_video(
+    path: Path,
+    snapshot: RunConfigurationSnapshot,
+    actual_duration_seconds: int,
+    channel: int,
+    fault_truth: dict,
+) -> None:
     command = [
         imageio_ffmpeg.get_ffmpeg_exe(),
         "-v",
@@ -93,7 +72,7 @@ def _generate_video(path: Path, snapshot: RunConfigurationSnapshot, actual_durat
         "-t",
         str(actual_duration_seconds),
         "-vf",
-        f"hue=h={(snapshot.random_seed + channel * 17) % 360}",
+        _video_filter(snapshot, channel, fault_truth),
         "-c:v",
         "libx264",
         "-fflags",
@@ -107,6 +86,8 @@ def _generate_video(path: Path, snapshot: RunConfigurationSnapshot, actual_durat
     ]
     if snapshot.video.container == "mp4":
         command.extend(["-movflags", "+faststart"])
+    if snapshot.scenario == "video_drop" and channel == fault_truth["faults"][0]["channel"]:
+        command.extend(["-fps_mode", "vfr"])
     command.extend(["-y", str(path)])
     subprocess.run(command, check=True, capture_output=True)
 
@@ -156,14 +137,41 @@ def _generate_device_log(path: Path) -> None:
     )
 
 
-def _generate_fault_truth(path: Path, snapshot: RunConfigurationSnapshot) -> None:
-    truth = {
-        "scenario": "normal",
+def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_seconds: int) -> dict:
+    truth: dict = {
+        "scenario": snapshot.scenario,
         "random_seed": snapshot.random_seed,
         "faults": [],
         "expected_basic_result": "passed",
     }
+    if snapshot.scenario == "video_drop":
+        start_s = round(actual_duration_seconds * 0.4, 3)
+        dropped_frames = max(1, round(snapshot.video.fps * actual_duration_seconds * 0.2))
+        end_s = round(start_s + dropped_frames / snapshot.video.fps, 3)
+        truth["faults"] = [
+            {
+                "type": "video_frame_drop",
+                "channel": snapshot.random_seed % snapshot.video.channels + 1,
+                "start_s": start_s,
+                "end_s": end_s,
+                "dropped_frames": dropped_frames,
+            }
+        ]
+        truth["expected_basic_result"] = "video_frame_drop"
+    return truth
+
+
+def _write_fault_truth(path: Path, truth: dict) -> None:
     path.write_text(json.dumps(truth, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _video_filter(snapshot: RunConfigurationSnapshot, channel: int, fault_truth: dict) -> str:
+    hue = f"hue=h={(snapshot.random_seed + channel * 17) % 360}"
+    if snapshot.scenario != "video_drop" or channel != fault_truth["faults"][0]["channel"]:
+        return hue
+    fault = fault_truth["faults"][0]
+    upper_bound = fault["end_s"] - 1 / (snapshot.video.fps * 100)
+    return f"{hue},select=not(between(t\\,{fault['start_s']}\\,{upper_bound:.6f}))"
 
 
 def _artifact(kind: str, path: Path, run_dir: Path, source: str = "actual_generated") -> Artifact:
@@ -177,11 +185,3 @@ def _artifact(kind: str, path: Path, run_dir: Path, source: str = "actual_genera
         sha256=hashlib.sha256(content).hexdigest(),
         codec="h264" if kind == "video" else None,
     )
-
-
-def _read_video_codec(path: Path) -> str | None:
-    video_reader = imageio_ffmpeg.read_frames(path)
-    try:
-        return next(video_reader).get("codec")
-    finally:
-        video_reader.close()

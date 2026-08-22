@@ -30,7 +30,7 @@ PRESET_CONFIGURATIONS = {
 class CollectionTaskCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     mode: Literal["quick", "standard", "custom"]
-    scenario: Literal["normal"]
+    scenario: Literal["normal", "video_drop"]
     duration_seconds: int | None = None
     video: VideoConfiguration | None = None
     imu: ImuConfiguration | None = None
@@ -47,8 +47,8 @@ class CollectionTaskCreate(BaseModel):
     @field_validator("scenario", mode="before")
     @classmethod
     def validate_scenario(cls, value: object) -> object:
-        if value != "normal":
-            raise ValueError("当前只支持正常采集场景")
+        if value not in {"normal", "video_drop"}:
+            raise ValueError("当前只支持正常采集或单路视频掉帧场景")
         return value
 
     @model_validator(mode="after")
@@ -73,7 +73,7 @@ class CollectionTask(BaseModel):
     id: int
     name: str
     mode: Literal["quick", "standard", "custom"]
-    scenario: Literal["normal"]
+    scenario: Literal["normal", "video_drop"]
     duration_seconds: int
     video: VideoConfiguration
     imu: ImuConfiguration

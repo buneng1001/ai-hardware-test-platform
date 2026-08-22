@@ -148,3 +148,54 @@ test("页面公开规格规定的选项和数值边界并拒绝越界时长", as
   expect(screen.getByLabelText("时长（秒）")).not.toBeValid();
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
+
+test("测试工程师能从页面创建单路视频掉帧场景", async () => {
+  const fetchMock = successfulPageLoad().mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        id: 13,
+        name: "固定种子掉帧",
+        mode: "quick",
+        scenario: "video_drop",
+        status: "draft",
+        duration_seconds: 2,
+        video: {
+          channels: 1,
+          resolution: "640x360",
+          fps: 15,
+          container: "mp4",
+          codec: "h264",
+        },
+        imu: { format: "csv", sample_rate_hz: 50 },
+        random_seed: 20260822,
+        created_at: "2026-08-22T12:00:00Z",
+      }),
+      { status: 201 },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("任务名称"), {
+    target: { value: "固定种子掉帧" },
+  });
+  fireEvent.change(screen.getByLabelText("场景"), {
+    target: { value: "video_drop" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(
+    await screen.findByText("快速 · 单路视频掉帧 · 草稿"),
+  ).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/collection-tasks",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        name: "固定种子掉帧",
+        mode: "quick",
+        scenario: "video_drop",
+      }),
+    }),
+  );
+});
