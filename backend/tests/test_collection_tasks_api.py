@@ -134,8 +134,8 @@ def _custom_payload(name):
         ({"name": "   ", "mode": "quick", "scenario": "normal"}, "任务名称不能为空"),
         ({"name": "缺参数", "mode": "custom", "scenario": "normal"}, "自定义模式必须提供完整数据参数"),
         (
-            {"name": "错误场景", "mode": "quick", "scenario": "imu_anomaly"},
-            "当前只支持正常采集或单路视频掉帧场景",
+            {"name": "错误场景", "mode": "quick", "scenario": "storage_exhaustion"},
+            "当前只支持正常采集、单路视频掉帧或 IMU 异常场景",
         ),
     ],
 )

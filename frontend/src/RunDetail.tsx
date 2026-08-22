@@ -116,6 +116,35 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
                       </p>
                     </>
                   )}
+                {check.category === "imu" && check.status === "failed" && (
+                  <>
+                    {check.anomaly_windows.length > 0 && (
+                      <p>
+                        异常位置：
+                        {check.anomaly_windows
+                          .map((position) => `样本 #${position.sample_index}`)
+                          .join("、")}
+                      </p>
+                    )}
+                    {check.name === "imu_interval_distribution" && (
+                      <p>
+                        间隔分布：最小 {check.metrics.minimum_interval_ms}{" "}
+                        ms，最大 {check.metrics.maximum_interval_ms} ms，平均{" "}
+                        {check.metrics.mean_interval_ms} ms，P95{" "}
+                        {check.metrics.p95_interval_ms} ms，异常{" "}
+                        {check.metrics.outlier_count} 个
+                      </p>
+                    )}
+                    {check.truth_comparison !== "not_applicable" && (
+                      <p>
+                        故障真值对照：
+                        {check.truth_comparison === "matched"
+                          ? "命中"
+                          : "未命中"}
+                      </p>
+                    )}
+                  </>
+                )}
               </li>
             );
           })}

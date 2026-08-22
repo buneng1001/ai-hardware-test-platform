@@ -155,8 +155,7 @@ export function App() {
             <h3>{task.name}</h3>
             <p>
               {{ quick: "快速", standard: "标准", custom: "自定义" }[task.mode]}{" "}
-              · {task.scenario === "normal" ? "正常采集" : "单路视频掉帧"} ·
-              草稿
+              · {scenarioLabels[task.scenario]} · 草稿
             </p>
             <button
               type="button"
@@ -180,3 +179,9 @@ export function App() {
     </main>
   );
 }
+
+const scenarioLabels = {
+  normal: "正常采集",
+  video_drop: "单路视频掉帧",
+  imu_anomaly: "IMU 异常",
+} as const;

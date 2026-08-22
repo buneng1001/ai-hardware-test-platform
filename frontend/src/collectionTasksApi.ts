@@ -14,7 +14,7 @@ export type CollectionTask = {
 };
 
 export type DataMode = "quick" | "standard" | "custom";
-export type Scenario = "normal" | "video_drop";
+export type Scenario = "normal" | "video_drop" | "imu_anomaly";
 export type VideoConfiguration = {
   channels: number;
   resolution: "640x360" | "1280x720" | "1920x1080";
@@ -77,11 +77,11 @@ export type RunRecord = {
   } | null;
   checks: Array<{
     name: string;
-    category: "video";
+    category: "video" | "imu";
     status: "passed" | "failed";
     message: string;
     metrics: Record<string, number | string>;
-    anomaly_windows: Array<{ channel: number; start_s: number; end_s: number }>;
+    anomaly_windows: Array<Record<string, number>>;
     truth_comparison: "matched" | "missed" | "not_applicable";
   }>;
   manual_check_results: ManualCheckResult[];

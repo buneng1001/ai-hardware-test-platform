@@ -30,7 +30,7 @@ def generate_normal_artifacts(
     for channel, video_path in enumerate(video_paths, start=1):
         _generate_video(video_path, snapshot, actual_duration, channel, fault_truth)
     imu_path = run_dir / f"imu.{snapshot.imu.format}"
-    _generate_imu(imu_path, snapshot, actual_duration)
+    _generate_imu(imu_path, snapshot, actual_duration, fault_truth)
     timeline_source = "virtual_time_simulated" if snapshot.duration_seconds > actual_duration else "actual_generated"
     _generate_device_status(run_dir / "device_status.csv", snapshot)
     _generate_device_log(run_dir / "device.log")
@@ -92,7 +92,12 @@ def _generate_video(
     subprocess.run(command, check=True, capture_output=True)
 
 
-def _generate_imu(path: Path, snapshot: RunConfigurationSnapshot, actual_duration_seconds: int) -> None:
+def _generate_imu(
+    path: Path,
+    snapshot: RunConfigurationSnapshot,
+    actual_duration_seconds: int,
+    fault_truth: dict,
+) -> None:
     sample_count = actual_duration_seconds * snapshot.imu.sample_rate_hz
     generator = random.Random(snapshot.random_seed)
     rows = []
@@ -100,12 +105,24 @@ def _generate_imu(path: Path, snapshot: RunConfigurationSnapshot, actual_duratio
         timestamp = index / snapshot.imu.sample_rate_hz
         rows.append(
             {
+                "sample_index": index,
                 "timestamp_s": f"{timestamp:.6f}",
                 "accel_x": f"{math.sin(timestamp) + generator.uniform(-0.001, 0.001):.6f}",
                 "accel_y": "0.000000",
                 "accel_z": "9.806650",
             }
         )
+
+    if snapshot.scenario == "imu_anomaly":
+        faults = {fault["type"]: fault for fault in fault_truth["faults"]}
+        missing_index = faults["imu_missing_sample"]["sample_index"]
+        rows = [row for row in rows if row["sample_index"] != missing_index]
+        duplicate_index = faults["imu_duplicate_sample"]["sample_index"]
+        duplicate_position = next(index for index, row in enumerate(rows) if row["sample_index"] == duplicate_index)
+        rows.insert(duplicate_position + 1, rows[duplicate_position].copy())
+        rollback_index = faults["imu_timestamp_rollback"]["sample_index"]
+        rollback_row = next(row for row in rows if row["sample_index"] == rollback_index)
+        rollback_row["timestamp_s"] = f"{(rollback_index - 2) / snapshot.imu.sample_rate_hz:.6f}"
 
     with path.open("w", encoding="utf-8", newline="") as file:
         if snapshot.imu.format == "csv":
@@ -158,6 +175,37 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
             }
         ]
         truth["expected_basic_result"] = "video_frame_drop"
+    elif snapshot.scenario == "imu_anomaly":
+        missing_index = 20 + snapshot.random_seed % 10
+        duplicate_index = 50 + (snapshot.random_seed // 10) % 10
+        rollback_index = 80 + (snapshot.random_seed // 100) % 10
+        truth["faults"] = [
+            {
+                "type": "imu_missing_sample",
+                "sample_index": missing_index,
+                "expected_check": "imu_missing_samples",
+                "expected_status": "failed",
+            },
+            {
+                "type": "imu_duplicate_sample",
+                "sample_index": duplicate_index,
+                "expected_check": "imu_duplicate_samples",
+                "expected_status": "failed",
+            },
+            {
+                "type": "imu_timestamp_rollback",
+                "sample_index": rollback_index,
+                "expected_check": "imu_timestamp_rollback",
+                "expected_status": "failed",
+            },
+        ]
+        truth["expected_interval_outlier_sample_indices"] = [
+            missing_index + 1,
+            duplicate_index,
+            rollback_index,
+            rollback_index + 1,
+        ]
+        truth["expected_basic_result"] = "imu_anomaly"
     return truth
 
 

@@ -65,6 +65,11 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
         "video_duration",
         "video_frame_drop",
         "video_corruption",
+        "imu_sample_rate",
+        "imu_missing_samples",
+        "imu_duplicate_samples",
+        "imu_timestamp_rollback",
+        "imu_interval_distribution",
     }
     assert all(check["status"] == "passed" for check in first_run["checks"])
     assert second_run["id"] != first_run["id"]
@@ -206,7 +211,7 @@ def test_engineer_sees_expected_video_drop_result_for_each_scenario(
             "dropped_frames": 6,
         }
         assert drop_check["anomaly_windows"] == [{"channel": 1, "start_s": 0.8, "end_s": 1.2}]
-    assert {check["name"] for check in run["checks"]} == {
+    assert {check["name"] for check in run["checks"] if check["category"] == "video"} == {
         "video_channel_count",
         "video_codec",
         "video_frame_rate",
@@ -233,3 +238,45 @@ def test_same_seed_repeats_equivalent_video_drop_fault(tmp_path, monkeypatch):
     second_truth = next(artifact for artifact in second["artifacts"] if artifact["kind"] == "fault_truth")
     assert first_drop == second_drop
     assert first_truth["sha256"] == second_truth["sha256"]
+
+
+def test_engineer_runs_imu_anomaly_scenario_and_sees_truth_matched_results(tmp_path, monkeypatch):
+    """公开 API 主 seam 应展示真实 IMU 产物计算出的异常和故障真值对照。"""
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task_response = client.post(
+            "/api/collection-tasks",
+            json={"name": "IMU 异常检查", "mode": "quick", "scenario": "imu_anomaly"},
+        )
+        assert task_response.status_code == 201
+        queued = client.post(f"/api/collection-tasks/{task_response.json()['id']}/runs").json()
+        run = wait_for_completion(client, queued["id"])
+
+    imu_checks = {check["name"]: check for check in run["checks"] if check["category"] == "imu"}
+    assert run["configuration_snapshot"]["scenario"] == "imu_anomaly"
+    assert set(imu_checks) == {
+        "imu_sample_rate",
+        "imu_missing_samples",
+        "imu_duplicate_samples",
+        "imu_timestamp_rollback",
+        "imu_interval_distribution",
+    }
+    assert imu_checks["imu_sample_rate"]["status"] == "passed"
+    assert imu_checks["imu_sample_rate"]["metrics"]["actual_rate_hz"] == 50.0
+    for check_name in ("imu_missing_samples", "imu_duplicate_samples", "imu_timestamp_rollback"):
+        assert imu_checks[check_name]["status"] == "failed"
+        assert imu_checks[check_name]["metrics"]["count"] == 1
+        assert len(imu_checks[check_name]["anomaly_windows"]) == 1
+        assert imu_checks[check_name]["truth_comparison"] == "matched"
+    assert imu_checks["imu_interval_distribution"]["status"] == "failed"
+    assert len(imu_checks["imu_interval_distribution"]["anomaly_windows"]) == 4
+    assert imu_checks["imu_interval_distribution"]["truth_comparison"] == "matched"
+    assert imu_checks["imu_interval_distribution"]["metrics"] == {
+        "expected_interval_ms": 20.0,
+        "minimum_interval_ms": -20.0,
+        "maximum_interval_ms": 60.0,
+        "mean_interval_ms": 20.0,
+        "p95_interval_ms": 20.0,
+        "outlier_count": 4,
+    }
