@@ -1,17 +1,17 @@
-import json
 import re
 import subprocess
 from pathlib import Path
 
 import imageio_ffmpeg
 
+from app.artifact_io import read_fault_truth
 from app.run_models import MAX_ACTUAL_DURATION_SECONDS, Artifact, BasicCheck, RunConfigurationSnapshot
 
 
 def run_video_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfigurationSnapshot) -> list[BasicCheck]:
     """通过真实媒体文件输出统一视频检测结果。"""
     videos = [artifact for artifact in artifacts if artifact.kind == "video"]
-    truth = _read_truth(artifacts, data_dir)
+    truth = read_fault_truth(artifacts, data_dir)
     probes = [_probe_video(data_dir / artifact.path, snapshot.video.fps) for artifact in videos]
     generated_duration = min(snapshot.duration_seconds, MAX_ACTUAL_DURATION_SECONDS)
     expected_frames = snapshot.video.fps * generated_duration
@@ -80,11 +80,6 @@ def _result(name: str, passed: bool, passed_message: str, metrics: dict[str, int
         message=passed_message if passed else f"{passed_message}检查失败",
         metrics=metrics,
     )
-
-
-def _read_truth(artifacts: list[Artifact], data_dir: Path) -> dict:
-    truth_artifact = next(artifact for artifact in artifacts if artifact.kind == "fault_truth")
-    return json.loads((data_dir / truth_artifact.path).read_text(encoding="utf-8"))
 
 
 def _probe_video(path: Path, expected_fps: int) -> dict[str, int | float | str | bool | None]:

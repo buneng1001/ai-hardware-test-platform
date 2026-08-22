@@ -45,10 +45,13 @@ def test_imu_contract_is_repeatable_for_csv_and_jsonl(tmp_path, monkeypatch, imu
     assert first_imu_artifact["sha256"] == second_imu_artifact["sha256"]
     assert first_truth["sha256"] == second_truth["sha256"]
     assert all(check["status"] == "failed" for check in first_imu if check["name"] != "imu_sample_rate")
+    interval_check = next(check for check in first_imu if check["name"] == "imu_interval_distribution")
+    assert len(interval_check["anomaly_windows"]) == 4
     assert all(
         check["truth_comparison"] == "matched"
         for check in first_imu
-        if check["name"] in {"imu_missing_samples", "imu_duplicate_samples", "imu_timestamp_rollback"}
+        if check["name"]
+        in {"imu_missing_samples", "imu_duplicate_samples", "imu_timestamp_rollback", "imu_interval_distribution"}
     )
 
 

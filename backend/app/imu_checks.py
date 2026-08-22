@@ -3,6 +3,7 @@ import json
 import math
 from pathlib import Path
 
+from app.artifact_io import read_fault_truth
 from app.run_models import Artifact, BasicCheck, RunConfigurationSnapshot
 
 
@@ -10,7 +11,7 @@ def run_imu_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfi
     """从公开 IMU 产物计算采样完整性和时间戳质量。"""
     imu_artifact = next(artifact for artifact in artifacts if artifact.kind == "imu")
     rows = _read_rows(data_dir / imu_artifact.path, snapshot.imu.format)
-    truth = _read_truth(artifacts, data_dir)
+    truth = read_fault_truth(artifacts, data_dir)
     expected_interval = 1 / snapshot.imu.sample_rate_hz
     indices = [int(row["sample_index"]) for row in rows]
     timestamps = [float(row["timestamp_s"]) for row in rows]
@@ -30,7 +31,14 @@ def run_imu_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfi
     ]
     positive_intervals = [interval for interval in intervals if interval > 0]
     actual_rate = 1 / _median(positive_intervals) if positive_intervals else 0.0
-    interval_metrics = _interval_metrics(intervals, expected_interval)
+    interval_metrics, interval_anomalies = _interval_analysis(intervals, indices, timestamps, expected_interval)
+    expected_interval_positions = truth.get("expected_interval_outlier_sample_indices", [])
+    detected_interval_positions = [anomaly["sample_index"] for anomaly in interval_anomalies]
+    interval_comparison = (
+        "not_applicable"
+        if not expected_interval_positions
+        else ("matched" if expected_interval_positions == detected_interval_positions else "missed")
+    )
 
     return [
         _check(
@@ -52,6 +60,8 @@ def run_imu_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfi
                 else "IMU 采样间隔分布稳定"
             ),
             metrics=interval_metrics,
+            anomaly_windows=interval_anomalies,
+            truth_comparison=interval_comparison,
         ),
     ]
 
@@ -61,11 +71,6 @@ def _read_rows(path: Path, imu_format: str) -> list[dict[str, str | int]]:
         if imu_format == "csv":
             return list(csv.DictReader(file))
         return [json.loads(line) for line in file if line.strip()]
-
-
-def _read_truth(artifacts: list[Artifact], data_dir: Path) -> dict:
-    truth_artifact = next(artifact for artifact in artifacts if artifact.kind == "fault_truth")
-    return json.loads((data_dir / truth_artifact.path).read_text(encoding="utf-8"))
 
 
 def _check(name: str, passed: bool, passed_message: str, metrics: dict[str, int | float | str]) -> BasicCheck:
@@ -97,18 +102,36 @@ def _anomaly_check(name: str, label: str, anomalies: list, truth: dict) -> Basic
     )
 
 
-def _interval_metrics(intervals: list[float], expected: float) -> dict[str, int | float]:
+def _interval_analysis(
+    intervals: list[float],
+    indices: list[int],
+    timestamps: list[float],
+    expected: float,
+) -> tuple[dict[str, int | float], list[dict[str, int | float]]]:
     sorted_intervals = sorted(intervals)
     p95_index = math.ceil(len(sorted_intervals) * 0.95) - 1
-    outliers = [interval for interval in intervals if not math.isclose(interval, expected, abs_tol=expected * 0.1)]
-    return {
+    outlier_positions = [
+        position
+        for position, interval in enumerate(intervals)
+        if not math.isclose(interval, expected, abs_tol=expected * 0.1)
+    ]
+    metrics = {
         "expected_interval_ms": round(expected * 1000, 3),
         "minimum_interval_ms": round(min(intervals) * 1000, 3),
         "maximum_interval_ms": round(max(intervals) * 1000, 3),
         "mean_interval_ms": round(sum(intervals) / len(intervals) * 1000, 3),
         "p95_interval_ms": round(sorted_intervals[p95_index] * 1000, 3),
-        "outlier_count": len(outliers),
+        "outlier_count": len(outlier_positions),
     }
+    anomalies = [
+        {
+            "sample_index": indices[position + 1],
+            "timestamp_s": timestamps[position + 1],
+            "interval_ms": round(intervals[position] * 1000, 3),
+        }
+        for position in outlier_positions
+    ]
+    return metrics, anomalies
 
 
 def _median(values: list[float]) -> float:

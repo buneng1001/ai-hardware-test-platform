@@ -270,6 +270,8 @@ def test_engineer_runs_imu_anomaly_scenario_and_sees_truth_matched_results(tmp_p
         assert len(imu_checks[check_name]["anomaly_windows"]) == 1
         assert imu_checks[check_name]["truth_comparison"] == "matched"
     assert imu_checks["imu_interval_distribution"]["status"] == "failed"
+    assert len(imu_checks["imu_interval_distribution"]["anomaly_windows"]) == 4
+    assert imu_checks["imu_interval_distribution"]["truth_comparison"] == "matched"
     assert imu_checks["imu_interval_distribution"]["metrics"] == {
         "expected_interval_ms": 20.0,
         "minimum_interval_ms": -20.0,

@@ -240,8 +240,13 @@ test("运行详情展示 IMU 异常指标、位置和故障真值命中", async 
           p95_interval_ms: 20,
           outlier_count: 4,
         },
-        anomaly_windows: [],
-        truth_comparison: "not_applicable",
+        anomaly_windows: [
+          { sample_index: 25 },
+          { sample_index: 54 },
+          { sample_index: 82 },
+          { sample_index: 83 },
+        ],
+        truth_comparison: "matched",
       },
     ],
     completed_at: "2026-08-23T12:00:01Z",
@@ -267,10 +272,13 @@ test("运行详情展示 IMU 异常指标、位置和故障真值命中", async 
     await screen.findByText("IMU 丢样检测到 1 处异常"),
   ).toBeInTheDocument();
   expect(screen.getByText("异常位置：样本 #24")).toBeInTheDocument();
-  expect(screen.getByText("故障真值对照：命中")).toBeInTheDocument();
+  expect(screen.getAllByText("故障真值对照：命中")).toHaveLength(2);
   expect(
     screen.getByText(
       "间隔分布：最小 -20 ms，最大 60 ms，平均 20 ms，P95 20 ms，异常 4 个",
     ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("异常位置：样本 #25、样本 #54、样本 #82、样本 #83"),
   ).toBeInTheDocument();
 });

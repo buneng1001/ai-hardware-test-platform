@@ -118,8 +118,13 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
                   )}
                 {check.category === "imu" && check.status === "failed" && (
                   <>
-                    {typeof anomaly?.sample_index === "number" && (
-                      <p>异常位置：样本 #{anomaly.sample_index}</p>
+                    {check.anomaly_windows.length > 0 && (
+                      <p>
+                        异常位置：
+                        {check.anomaly_windows
+                          .map((position) => `样本 #${position.sample_index}`)
+                          .join("、")}
+                      </p>
                     )}
                     {check.name === "imu_interval_distribution" && (
                       <p>

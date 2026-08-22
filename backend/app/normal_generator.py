@@ -176,8 +176,9 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
         ]
         truth["expected_basic_result"] = "video_frame_drop"
     elif snapshot.scenario == "imu_anomaly":
-        generator = random.Random(snapshot.random_seed)
-        missing_index, duplicate_index, rollback_index = sorted(generator.sample(range(10, 90), 3))
+        missing_index = 20 + snapshot.random_seed % 10
+        duplicate_index = 50 + (snapshot.random_seed // 10) % 10
+        rollback_index = 80 + (snapshot.random_seed // 100) % 10
         truth["faults"] = [
             {
                 "type": "imu_missing_sample",
@@ -197,6 +198,12 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
                 "expected_check": "imu_timestamp_rollback",
                 "expected_status": "failed",
             },
+        ]
+        truth["expected_interval_outlier_sample_indices"] = [
+            missing_index + 1,
+            duplicate_index,
+            rollback_index,
+            rollback_index + 1,
         ]
         truth["expected_basic_result"] = "imu_anomaly"
     return truth
