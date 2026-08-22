@@ -1,5 +1,12 @@
 export type ManualCheckStatus = "passed" | "failed" | "blocked" | "not_run";
 
+export const manualCheckStatusLabels: Record<ManualCheckStatus, string> = {
+  passed: "通过",
+  failed: "失败",
+  blocked: "阻塞",
+  not_run: "未执行",
+};
+
 export type ManualCheckResult = {
   id: number;
   run_id: number;

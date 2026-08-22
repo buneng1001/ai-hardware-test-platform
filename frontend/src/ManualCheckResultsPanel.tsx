@@ -1,23 +1,18 @@
 import { useState } from "react";
 
+import { ManualCheckResultList } from "./ManualCheckResultList";
 import {
   type ManualCheckResult,
   type ManualCheckStatus,
   createManualCheckResult,
   importManualCheckResults,
+  manualCheckStatusLabels,
   updateManualCheckResult,
 } from "./manualCheckResultsApi";
 
 type Props = {
   runId: number;
   initialResults: ManualCheckResult[];
-};
-
-const statusLabels: Record<ManualCheckStatus, string> = {
-  passed: "通过",
-  failed: "失败",
-  blocked: "阻塞",
-  not_run: "未执行",
 };
 
 export function ManualCheckResultsPanel({ runId, initialResults }: Props) {
@@ -129,40 +124,8 @@ export function ManualCheckResultsPanel({ runId, initialResults }: Props) {
 
   return (
     <section aria-labelledby="manual-results-title">
-      <h3 id="manual-results-title">人工检查结果</h3>
-      {results.length === 0 && <p>暂无人工检查结果。</p>}
-      <ul>
-        {results.map((result) => (
-          <li key={result.id}>
-            <strong>{result.name}</strong>
-            <span>
-              {statusLabels[result.status]} ·{" "}
-              {result.actual_result || "未填写实际结果"}
-            </span>
-            {result.notes && <span>备注：{result.notes}</span>}
-            {result.executed_at && (
-              <time dateTime={result.executed_at}>
-                执行时间：{result.executed_at}
-              </time>
-            )}
-            {result.attachment && (
-              <a
-                href={`/api/runs/${runId}/manual-check-results/${result.id}/attachment`}
-              >
-                附件：{result.attachment.filename}（
-                {result.attachment.size_bytes} 字节）
-              </a>
-            )}
-            <button
-              type="button"
-              aria-label={`修改${result.name}`}
-              onClick={() => edit(result)}
-            >
-              修改
-            </button>
-          </li>
-        ))}
-      </ul>
+      <h4 id="manual-results-title">人工检查结果</h4>
+      <ManualCheckResultList runId={runId} results={results} onEdit={edit} />
       <label htmlFor="manual-import">导入 CSV 或 Excel</label>
       <input
         id="manual-import"
@@ -188,7 +151,7 @@ export function ManualCheckResultsPanel({ runId, initialResults }: Props) {
             setCheckStatus(event.target.value as ManualCheckStatus)
           }
         >
-          {Object.entries(statusLabels).map(([value, label]) => (
+          {Object.entries(manualCheckStatusLabels).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
