@@ -1,5 +1,6 @@
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -165,29 +166,46 @@ def test_oversized_custom_generation_is_rejected_before_a_run_is_created(tmp_pat
     assert client.get("/api/collection-tasks").json() == []
 
 
-def test_engineer_can_run_video_drop_scenario_and_see_truth_matched_detection(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    ("scenario", "expected_status", "expected_dropped_frames", "expected_truth_comparison"),
+    [
+        ("normal", "passed", 0, "not_applicable"),
+        ("video_drop", "failed", 6, "matched"),
+    ],
+)
+def test_engineer_sees_expected_video_drop_result_for_each_scenario(
+    tmp_path,
+    monkeypatch,
+    scenario,
+    expected_status,
+    expected_dropped_frames,
+    expected_truth_comparison,
+):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
 
     with TestClient(app) as client:
         task_response = client.post(
             "/api/collection-tasks",
-            json={"name": "单路视频掉帧", "mode": "quick", "scenario": "video_drop"},
+            json={"name": "视频场景检查", "mode": "quick", "scenario": scenario},
         )
         assert task_response.status_code == 201
         queued = client.post(f"/api/collection-tasks/{task_response.json()['id']}/runs").json()
         run = wait_for_completion(client, queued["id"])
 
     drop_check = next(check for check in run["checks"] if check["name"] == "video_frame_drop")
-    assert run["configuration_snapshot"]["scenario"] == "video_drop"
-    assert drop_check == {
-        "name": "video_frame_drop",
-        "category": "video",
-        "status": "failed",
-        "message": "第 1 路视频在 0.800～1.200 秒检测到 6 帧缺失",
-        "metrics": {"channel": 1, "expected_frames": 30, "actual_frames": 24, "dropped_frames": 6},
-        "anomaly_windows": [{"channel": 1, "start_s": 0.8, "end_s": 1.2}],
-        "truth_comparison": "matched",
-    }
+    assert run["configuration_snapshot"]["scenario"] == scenario
+    assert drop_check["status"] == expected_status
+    assert drop_check["metrics"]["dropped_frames"] == expected_dropped_frames
+    assert drop_check["truth_comparison"] == expected_truth_comparison
+    if scenario == "video_drop":
+        assert drop_check["message"] == "第 1 路视频在 0.800～1.200 秒检测到 6 帧缺失"
+        assert drop_check["metrics"] == {
+            "channel": 1,
+            "expected_frames": 30,
+            "actual_frames": 24,
+            "dropped_frames": 6,
+        }
+        assert drop_check["anomaly_windows"] == [{"channel": 1, "start_s": 0.8, "end_s": 1.2}]
     assert {check["name"] for check in run["checks"]} == {
         "video_channel_count",
         "video_codec",

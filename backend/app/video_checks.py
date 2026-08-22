@@ -5,7 +5,7 @@ from pathlib import Path
 
 import imageio_ffmpeg
 
-from app.run_models import Artifact, BasicCheck, RunConfigurationSnapshot
+from app.run_models import MAX_ACTUAL_DURATION_SECONDS, Artifact, BasicCheck, RunConfigurationSnapshot
 
 
 def run_video_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfigurationSnapshot) -> list[BasicCheck]:
@@ -13,7 +13,8 @@ def run_video_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunCon
     videos = [artifact for artifact in artifacts if artifact.kind == "video"]
     truth = _read_truth(artifacts, data_dir)
     probes = [_probe_video(data_dir / artifact.path, snapshot.video.fps) for artifact in videos]
-    expected_frames = snapshot.video.fps * min(snapshot.duration_seconds, 5)
+    generated_duration = min(snapshot.duration_seconds, MAX_ACTUAL_DURATION_SECONDS)
+    expected_frames = snapshot.video.fps * generated_duration
     dropped_by_channel = [expected_frames - probe["frame_count"] for probe in probes]
     fault = truth["faults"][0] if truth["faults"] else None
     detected_channel = next((index + 1 for index, dropped in enumerate(dropped_by_channel) if dropped > 0), None)
@@ -33,7 +34,7 @@ def run_video_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunCon
     codec_passed = len(probes) == len(videos) and all(probe["codec"] == "h264" for probe in probes)
     fps_passed = len(probes) == len(videos) and all(probe["fps"] == snapshot.video.fps for probe in probes)
     duration_passed = len(probes) == len(videos) and all(
-        abs(probe["duration"] - min(snapshot.duration_seconds, 5)) <= 1 / snapshot.video.fps for probe in probes
+        abs(probe["duration"] - generated_duration) <= 1 / snapshot.video.fps for probe in probes
     )
     corruption_passed = len(probes) == len(videos) and all(not probe["decode_error"] for probe in probes)
     if detected_channel and detected_window:
@@ -53,7 +54,7 @@ def run_video_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunCon
             "video_duration",
             duration_passed,
             "视频时长符合配置",
-            {"expected_duration_s": min(snapshot.duration_seconds, 5)},
+            {"expected_duration_s": generated_duration},
         ),
         BasicCheck(
             name="video_frame_drop",
