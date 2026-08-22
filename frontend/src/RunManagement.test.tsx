@@ -208,3 +208,69 @@ test("运行详情展示掉帧失败指标、异常窗口和故障真值命中",
   ).toBeInTheDocument();
   expect(screen.getByText("故障真值对照：命中")).toBeInTheDocument();
 });
+
+test("运行详情展示 IMU 异常指标、位置和故障真值命中", async () => {
+  const imuTask = { ...task, name: "IMU 异常任务", scenario: "imu_anomaly" };
+  const completedRun = {
+    ...queuedRun,
+    status: "completed",
+    configuration_snapshot: {
+      ...queuedRun.configuration_snapshot,
+      scenario: "imu_anomaly",
+    },
+    checks: [
+      {
+        name: "imu_missing_samples",
+        category: "imu",
+        status: "failed",
+        message: "IMU 丢样检测到 1 处异常",
+        metrics: { count: 1 },
+        anomaly_windows: [{ sample_index: 24 }],
+        truth_comparison: "matched",
+      },
+      {
+        name: "imu_interval_distribution",
+        category: "imu",
+        status: "failed",
+        message: "IMU 采样间隔检测到 4 个异常",
+        metrics: {
+          minimum_interval_ms: -20,
+          maximum_interval_ms: 60,
+          mean_interval_ms: 20,
+          p95_interval_ms: 20,
+          outlier_count: 4,
+        },
+        anomaly_windows: [],
+        truth_comparison: "not_applicable",
+      },
+    ],
+    completed_at: "2026-08-23T12:00:01Z",
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([imuTask])))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(queuedRun), { status: 201 }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify(completedRun))),
+  );
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
+
+  expect(
+    await screen.findByText("IMU 丢样检测到 1 处异常"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("异常位置：样本 #24")).toBeInTheDocument();
+  expect(screen.getByText("故障真值对照：命中")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "间隔分布：最小 -20 ms，最大 60 ms，平均 20 ms，P95 20 ms，异常 4 个",
+    ),
+  ).toBeInTheDocument();
+});

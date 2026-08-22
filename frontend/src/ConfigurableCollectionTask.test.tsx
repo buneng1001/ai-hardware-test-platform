@@ -199,3 +199,52 @@ test("测试工程师能从页面创建单路视频掉帧场景", async () => {
     }),
   );
 });
+
+test("测试工程师能从页面创建固定种子的 IMU 异常场景", async () => {
+  const fetchMock = successfulPageLoad().mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        id: 14,
+        name: "固定种子 IMU 异常",
+        mode: "quick",
+        scenario: "imu_anomaly",
+        status: "draft",
+        duration_seconds: 2,
+        video: {
+          channels: 1,
+          resolution: "640x360",
+          fps: 15,
+          container: "mp4",
+          codec: "h264",
+        },
+        imu: { format: "csv", sample_rate_hz: 50 },
+        random_seed: 20260822,
+        created_at: "2026-08-23T12:00:00Z",
+      }),
+      { status: 201 },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("任务名称"), {
+    target: { value: "固定种子 IMU 异常" },
+  });
+  fireEvent.change(screen.getByLabelText("场景"), {
+    target: { value: "imu_anomaly" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(await screen.findByText("快速 · IMU 异常 · 草稿")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/collection-tasks",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        name: "固定种子 IMU 异常",
+        mode: "quick",
+        scenario: "imu_anomaly",
+      }),
+    }),
+  );
+});

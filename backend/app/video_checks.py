@@ -16,7 +16,7 @@ def run_video_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunCon
     generated_duration = min(snapshot.duration_seconds, MAX_ACTUAL_DURATION_SECONDS)
     expected_frames = snapshot.video.fps * generated_duration
     dropped_by_channel = [expected_frames - probe["frame_count"] for probe in probes]
-    fault = truth["faults"][0] if truth["faults"] else None
+    fault = next((item for item in truth["faults"] if item["type"] == "video_frame_drop"), None)
     detected_channel = next((index + 1 for index, dropped in enumerate(dropped_by_channel) if dropped > 0), None)
     detected_drops = dropped_by_channel[detected_channel - 1] if detected_channel else 0
     detected_window = probes[detected_channel - 1]["drop_windows"][0] if detected_channel else None
