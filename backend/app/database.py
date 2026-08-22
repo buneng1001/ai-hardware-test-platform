@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 2
+LATEST_SCHEMA_VERSION = 3
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -23,7 +23,7 @@ def migrate_database(connection: sqlite3.Connection) -> None:
         )
         current_version = 1
 
-    if current_version < LATEST_SCHEMA_VERSION:
+    if current_version < 2:
         connection.executescript(
             """
             CREATE TABLE collection_tasks (
@@ -38,12 +38,37 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             PRAGMA user_version = 2;
             """
         )
+        current_version = 2
+
+    if current_version < LATEST_SCHEMA_VERSION:
+        connection.executescript(
+            """
+            CREATE TABLE runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                collection_task_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                configuration_snapshot TEXT NOT NULL,
+                events TEXT NOT NULL,
+                artifacts TEXT NOT NULL,
+                checks TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                completed_at TEXT,
+                error TEXT
+            );
+            INSERT INTO schema_migrations (version) VALUES (3);
+            PRAGMA user_version = 3;
+            """
+        )
+
+
+def get_data_dir() -> Path:
+    return Path(os.getenv("APP_DATA_DIR", "data"))
 
 
 @contextmanager
 def open_database() -> Iterator[sqlite3.Connection]:
     """打开项目内数据库，并保证调用方始终使用最新 schema。"""
-    data_dir = Path(os.getenv("APP_DATA_DIR", "data"))
+    data_dir = get_data_dir()
     data_dir.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(data_dir / "platform.sqlite3") as connection:
         connection.row_factory = sqlite3.Row

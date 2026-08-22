@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 
 import {
   type CollectionTask,
+  type RunRecord,
   createQuickNormalTask,
+  executeCollectionTask,
   listCollectionTasks,
 } from "./collectionTasksApi";
 
@@ -19,6 +21,9 @@ export function App() {
   const [taskName, setTaskName] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [executingTaskId, setExecutingTaskId] = useState<number | null>(null);
+  const [selectedRun, setSelectedRun] = useState<RunRecord | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadPage = async () => {
@@ -68,6 +73,27 @@ export function App() {
     }
   };
 
+  const executeTask = async (taskId: number) => {
+    setExecutingTaskId(taskId);
+    setRunError(null);
+    try {
+      setSelectedRun(await executeCollectionTask(taskId));
+    } catch {
+      console.error("采集任务执行失败");
+      setRunError("采集任务执行失败，请稍后重试");
+    } finally {
+      setExecutingTaskId(null);
+    }
+  };
+
+  const stageLabels: Record<string, string> = {
+    queued: "排队",
+    generating_data: "生成数据",
+    running_checks: "执行检查",
+    summarizing_results: "汇总结果",
+    completed: "已完成",
+  };
+
   return (
     <main className="status-page">
       <p className="eyebrow">本地运行基线</p>
@@ -85,7 +111,7 @@ export function App() {
         <div>
           <p className="eyebrow">新建任务</p>
           <h2 id="new-task-title">快速正常采集</h2>
-          <p>固定使用快速模式和正常采集场景，执行能力将在后续 ticket 接入。</p>
+          <p>固定使用快速模式和正常采集场景，生成一路短视频及配套数据。</p>
         </div>
         <form onSubmit={submitTask}>
           <label htmlFor="task-name">任务名称</label>
@@ -121,9 +147,47 @@ export function App() {
           <article className="task-card" key={task.id}>
             <h3>{task.name}</h3>
             <p>快速 · 正常采集 · 草稿</p>
+            <button
+              type="button"
+              disabled={executingTaskId !== null}
+              onClick={() => void executeTask(task.id)}
+            >
+              {executingTaskId === task.id ? "正在执行…" : "执行任务"}
+            </button>
           </article>
         ))}
       </section>
+
+      {runError && <p role="alert">{runError}</p>}
+      {selectedRun && (
+        <section className="run-detail" aria-labelledby="run-detail-title">
+          <p className="eyebrow">运行详情</p>
+          <h2 id="run-detail-title">运行 #{selectedRun.id}</h2>
+          <p className="run-status">
+            {selectedRun.status === "completed" ? "已完成" : "执行失败"}
+          </p>
+          <h3>阶段</h3>
+          <p>
+            {selectedRun.events
+              .map((event) => stageLabels[event.stage])
+              .join(" → ")}
+          </p>
+          <h3>产物</h3>
+          <ul>
+            {selectedRun.artifacts.map((artifact) => (
+              <li key={artifact.path}>
+                {artifact.path.split("/").at(-1)} · 实际生成
+              </li>
+            ))}
+          </ul>
+          <h3>基础检查</h3>
+          <ul>
+            {selectedRun.checks.map((check) => (
+              <li key={check.name}>{check.message}</li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }
