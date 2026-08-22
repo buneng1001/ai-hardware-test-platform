@@ -93,7 +93,8 @@
 - CSV 与 XLSX 使用统一五列表头和同一套行校验；无效批次返回行号与字段，SQLite 事务避免部分静默写入。
 - 运行详情分别保留自动化 `checks` 与人工 `manual_check_results`，页面统一展示但不会互相覆盖。
 - API 测试覆盖新增、修改、附件、CSV/XLSX 和错误原子性；UI 测试覆盖新增、修改和可定位导入错误。
-- 当前完整验证为后端 Pytest 33 项、前端 Vitest 10 项，以及 TypeScript、Ruff、Prettier 和 Vite 构建通过。
+- rebase 到已含 Ticket 05 的最新 `main` 后，完整验证为后端 Pytest 37 项、前端 Vitest 12 项，
+  TypeScript、Ruff、Prettier 和 Vite 构建通过。
 
 ## 核心链路
 

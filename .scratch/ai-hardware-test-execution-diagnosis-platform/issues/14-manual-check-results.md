@@ -21,10 +21,10 @@
 
 ### 验证证据（2026-08-22）
 
-- `backend/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp <项目内目录>`：33 passed。
+- `backend/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp <项目内目录>`：37 passed。
 - `backend/.venv/Scripts/python.exe -m ruff check app tests`：All checks passed。
-- `backend/.venv/Scripts/python.exe -m ruff format --check app tests`：14 files already formatted。
-- `pnpm --dir frontend test`：3 个测试文件、10 项测试通过。
+- `backend/.venv/Scripts/python.exe -m ruff format --check app tests`：16 files already formatted。
+- `pnpm --dir frontend test`：4 个测试文件、12 项测试通过。
 - `pnpm --dir frontend typecheck`：通过，无 TypeScript 错误。
 - `pnpm --dir frontend build`：Vite 生产构建成功，20 modules transformed。
 - `prettier --check frontend/src`：所有文件符合 Prettier 格式。

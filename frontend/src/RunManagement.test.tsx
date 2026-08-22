@@ -38,6 +38,7 @@ const queuedRun = {
   events: [{ stage: "queued", occurred_at: "2026-08-22T12:00:00Z" }],
   artifacts: [],
   checks: [],
+  manual_check_results: [],
   created_at: "2026-08-22T12:00:00Z",
   completed_at: null,
   error: null,
