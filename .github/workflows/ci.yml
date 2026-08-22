@@ -40,4 +40,3 @@ jobs:
           pnpm --dir frontend build
       - name: 仓库安全扫描
         run: python scripts/check_repository_safety.py
-
