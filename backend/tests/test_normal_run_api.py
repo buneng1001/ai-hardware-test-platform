@@ -1,6 +1,19 @@
+import time
+
 from fastapi.testclient import TestClient
 
 from app.main import app
+
+
+def wait_for_completion(client: TestClient, run_id: int) -> dict:
+    """通过公开详情接口等待后台运行完成。"""
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        run = client.get(f"/api/runs/{run_id}").json()
+        if run["status"] == "completed":
+            return run
+        time.sleep(0.01)
+    raise AssertionError(f"运行 #{run_id} 未在 10 秒内完成")
 
 
 def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(tmp_path, monkeypatch):
@@ -12,8 +25,10 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
             json={"name": "首个正常运行", "mode": "quick", "scenario": "normal"},
         ).json()
 
-        first_run = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
-        second_run = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        first_queued = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        second_queued = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        first_run = wait_for_completion(client, first_queued["id"])
+        second_run = wait_for_completion(client, second_queued["id"])
         reopened_first_run = client.get(f"/api/runs/{first_run['id']}").json()
 
     assert first_run["status"] == "completed"
@@ -69,8 +84,10 @@ def test_engineer_can_generate_repeatable_custom_multichannel_artifacts(tmp_path
         assert task_response.status_code == 201
         task = task_response.json()
 
-        first_run = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
-        second_run = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        first_queued = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        second_queued = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        first_run = wait_for_completion(client, first_queued["id"])
+        second_run = wait_for_completion(client, second_queued["id"])
 
     expected_snapshot = {key: value for key, value in configuration.items() if key != "name"}
     expected_snapshot["video"] = configuration["video"] | {"codec": "h264"}
@@ -108,7 +125,8 @@ def test_long_run_uses_virtual_time_without_mislabeling_generated_media(tmp_path
 
     with TestClient(app) as client:
         task = client.post("/api/collection-tasks", json=configuration).json()
-        run = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        queued = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        run = wait_for_completion(client, queued["id"])
 
     assert run["generation_metadata"] == {
         "timeline_source": "virtual_time_simulated",

@@ -6,6 +6,17 @@ from pydantic import BaseModel, Field, model_validator
 MAX_ACTUAL_DURATION_SECONDS = 5
 MAX_VIDEO_PIXEL_FRAMES = 600_000_000
 
+RunStatus = Literal[
+    "queued",
+    "generating_data",
+    "running_checks",
+    "summarizing_results",
+    "completed",
+    "failed",
+    "cancelled",
+    "interrupted",
+]
+
 
 class VideoConfiguration(BaseModel):
     channels: int = Field(ge=1, le=4)
@@ -48,7 +59,7 @@ class GenerationMetadata(BaseModel):
 
 
 class StageEvent(BaseModel):
-    stage: Literal["queued", "generating_data", "running_checks", "summarizing_results", "completed"]
+    stage: RunStatus
     occurred_at: datetime
 
 
@@ -70,7 +81,7 @@ class BasicCheck(BaseModel):
 class RunRecord(BaseModel):
     id: int
     collection_task_id: int
-    status: Literal["queued", "generating_data", "running_checks", "summarizing_results", "completed", "failed"]
+    status: RunStatus
     configuration_snapshot: RunConfigurationSnapshot
     events: list[StageEvent]
     artifacts: list[Artifact]
