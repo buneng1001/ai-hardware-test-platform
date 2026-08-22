@@ -3,6 +3,17 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+RunStatus = Literal[
+    "queued",
+    "generating_data",
+    "running_checks",
+    "summarizing_results",
+    "completed",
+    "failed",
+    "cancelled",
+    "interrupted",
+]
+
 
 class VideoConfiguration(BaseModel):
     channels: Literal[1]
@@ -27,16 +38,7 @@ class RunConfigurationSnapshot(BaseModel):
 
 
 class StageEvent(BaseModel):
-    stage: Literal[
-        "queued",
-        "generating_data",
-        "running_checks",
-        "summarizing_results",
-        "completed",
-        "failed",
-        "cancelled",
-        "interrupted",
-    ]
+    stage: RunStatus
     occurred_at: datetime
 
 
@@ -57,16 +59,7 @@ class BasicCheck(BaseModel):
 class RunRecord(BaseModel):
     id: int
     collection_task_id: int
-    status: Literal[
-        "queued",
-        "generating_data",
-        "running_checks",
-        "summarizing_results",
-        "completed",
-        "failed",
-        "cancelled",
-        "interrupted",
-    ]
+    status: RunStatus
     configuration_snapshot: RunConfigurationSnapshot
     events: list[StageEvent]
     artifacts: list[Artifact]

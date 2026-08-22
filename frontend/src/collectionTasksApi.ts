@@ -7,16 +7,6 @@ export type CollectionTask = {
   created_at: string;
 };
 
-type RunStage =
-  | "queued"
-  | "generating_data"
-  | "running_checks"
-  | "summarizing_results"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "interrupted";
-
 export type RunStatus =
   | "queued"
   | "generating_data"
@@ -45,7 +35,7 @@ export type RunRecord = {
     imu: { format: "csv"; sample_rate_hz: 50 };
     random_seed: 20260822;
   };
-  events: Array<{ stage: RunStage; occurred_at: string }>;
+  events: Array<{ stage: RunStatus; occurred_at: string }>;
   artifacts: Array<{
     kind: string;
     path: string;
