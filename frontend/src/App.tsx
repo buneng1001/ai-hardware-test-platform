@@ -58,10 +58,11 @@ export function App() {
     try {
       const createdTask = await createCollectionTask(command);
       setTasks((currentTasks) => [createdTask, ...(currentTasks ?? [])]);
+      return true;
     } catch {
       console.error("采集任务保存失败");
       setFormError("采集任务保存失败，请检查输入后重试");
-      throw new Error("采集任务保存失败");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -189,6 +190,14 @@ export function App() {
                 12,
               )}
               …
+            </p>
+          )}
+          {selectedRun.generation_metadata && (
+            <p>
+              虚拟趋势：温度{" "}
+              {selectedRun.generation_metadata.temperature_range_c.join(" → ")}{" "}
+              °C；存储
+              {selectedRun.generation_metadata.storage_range_mb.join(" → ")} MB
             </p>
           )}
           <h3>基础检查</h3>

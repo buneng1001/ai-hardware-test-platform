@@ -10,7 +10,7 @@ import {
 type Props = {
   disabled: boolean;
   saving: boolean;
-  onSubmit: (command: CollectionTaskCommand) => Promise<void>;
+  onSubmit: (command: CollectionTaskCommand) => Promise<boolean>;
 };
 
 const MAX_VIDEO_PIXEL_FRAMES = 600_000_000;
@@ -71,11 +71,8 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
     }
 
     setError(null);
-    try {
-      await onSubmit(command);
+    if (await onSubmit(command)) {
       setName("");
-    } catch {
-      // App 统一展示公开 API 错误；表单保留输入供修正。
     }
   };
 

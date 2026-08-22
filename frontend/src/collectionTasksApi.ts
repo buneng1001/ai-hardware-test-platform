@@ -59,12 +59,15 @@ export type RunRecord = {
     source: "actual_generated" | "virtual_time_simulated";
     size_bytes: number;
     sha256: string;
+    codec: "h264" | null;
   }>;
   generation_metadata: {
     timeline_source: "actual_generated" | "virtual_time_simulated";
     requested_duration_seconds: number;
     generated_duration_seconds: number;
     reproducibility_fingerprint: string;
+    temperature_range_c: [number, number];
+    storage_range_mb: [number, number];
   } | null;
   checks: Array<{ name: string; status: "passed" | "failed"; message: string }>;
   created_at: string;

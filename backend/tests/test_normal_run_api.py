@@ -40,6 +40,7 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
         "fault_truth",
     }
     assert all(artifact["source"] == "actual_generated" for artifact in first_run["artifacts"])
+    assert all(artifact["codec"] == "h264" for artifact in first_run["artifacts"] if artifact["kind"] == "video")
     assert all(artifact["size_bytes"] > 0 for artifact in first_run["artifacts"])
     assert {check["name"] for check in first_run["checks"]} == {
         "required_artifacts",
@@ -114,6 +115,8 @@ def test_long_run_uses_virtual_time_without_mislabeling_generated_media(tmp_path
         "requested_duration_seconds": 300,
         "generated_duration_seconds": 5,
         "reproducibility_fingerprint": run["generation_metadata"]["reproducibility_fingerprint"],
+        "temperature_range_c": [40.0, 70.0],
+        "storage_range_mb": [8192, 7592],
     }
     sources = {artifact["kind"]: artifact["source"] for artifact in run["artifacts"]}
     assert sources["video"] == "actual_generated"

@@ -117,3 +117,34 @@ test("页面在调用 API 前拒绝预计文件规模过大的配置", async () 
   );
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
+
+test("页面公开规格规定的选项和数值边界并拒绝越界时长", async () => {
+  const fetchMock = successfulPageLoad();
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("数据模式"), {
+    target: { value: "custom" },
+  });
+
+  expect(screen.getByLabelText("时长（秒）")).toHaveAttribute("min", "2");
+  expect(screen.getByLabelText("时长（秒）")).toHaveAttribute("max", "300");
+  expect(screen.getByLabelText("视频通道数")).toHaveAttribute("min", "1");
+  expect(screen.getByLabelText("视频通道数")).toHaveAttribute("max", "4");
+  expect(screen.getByLabelText("分辨率")).toHaveTextContent(
+    "640x3601280x7201920x1080",
+  );
+  expect(screen.getByLabelText("帧率")).toHaveTextContent("1524253060");
+  expect(screen.getByLabelText("IMU 采样率")).toHaveTextContent("50100200500");
+
+  fireEvent.change(screen.getByLabelText("任务名称"), {
+    target: { value: "越界时长" },
+  });
+  fireEvent.change(screen.getByLabelText("时长（秒）"), {
+    target: { value: "1" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(screen.getByLabelText("时长（秒）")).not.toBeValid();
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});

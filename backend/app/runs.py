@@ -11,6 +11,7 @@ from app.run_models import RunConfigurationSnapshot, RunRecord, StageEvent
 
 router = APIRouter(tags=["runs"])
 
+
 def _now() -> datetime:
     return datetime.now(UTC)
 

@@ -48,6 +48,8 @@ def generate_normal_artifacts(
         requested_duration_seconds=snapshot.duration_seconds,
         generated_duration_seconds=actual_duration,
         reproducibility_fingerprint=hashlib.sha256(fingerprint_input.encode()).hexdigest(),
+        temperature_range_c=(40.0, 40.0 + snapshot.duration_seconds * 0.1),
+        storage_range_mb=(8192, max(0, 8192 - snapshot.duration_seconds * 2)),
     )
     return artifacts, metadata
 
@@ -57,13 +59,8 @@ def run_basic_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunCon
     actual_kinds = {artifact.kind for artifact in artifacts if artifact.size_bytes > 0}
     video_count = sum(artifact.kind == "video" for artifact in artifacts)
     required_files_passed = actual_kinds == required_kinds and video_count == snapshot.video.channels
-    video_artifact = next(artifact for artifact in artifacts if artifact.kind == "video")
-    video_reader = imageio_ffmpeg.read_frames(data_dir / video_artifact.path)
-    try:
-        video_metadata = next(video_reader)
-    finally:
-        video_reader.close()
-    video_h264_passed = video_metadata.get("codec") == "h264"
+    video_artifacts = [artifact for artifact in artifacts if artifact.kind == "video"]
+    video_h264_passed = all(_read_video_codec(data_dir / artifact.path) == "h264" for artifact in video_artifacts)
     normal_scenario_passed = required_files_passed and video_h264_passed
     return [
         BasicCheck(
@@ -142,10 +139,12 @@ def _generate_imu(path: Path, snapshot: RunConfigurationSnapshot, actual_duratio
 def _generate_device_status(path: Path, snapshot: RunConfigurationSnapshot) -> None:
     duration = snapshot.duration_seconds
     midpoint = duration / 2
+    end_temperature = 40.0 + duration * 0.1
+    end_storage = max(0, 8192 - duration * 2)
     path.write_text(
         "timestamp_s,cpu_percent,memory_percent,temperature_c,storage_free_mb\n"
-        f"0.000,18.0,32.0,40.0,8192\n{midpoint:.3f},20.0,32.5,40.5,8190\n"
-        f"{duration:.3f},19.0,33.0,41.0,8188\n",
+        f"0.000,18.0,32.0,40.0,8192\n{midpoint:.3f},20.0,35.0,{(40 + end_temperature) / 2:.1f},"
+        f"{(8192 + end_storage) // 2}\n{duration:.3f},22.0,38.0,{end_temperature:.1f},{end_storage}\n",
         encoding="utf-8",
     )
 
@@ -176,4 +175,13 @@ def _artifact(kind: str, path: Path, run_dir: Path, source: str = "actual_genera
         source=source,
         size_bytes=len(content),
         sha256=hashlib.sha256(content).hexdigest(),
+        codec="h264" if kind == "video" else None,
     )
+
+
+def _read_video_codec(path: Path) -> str | None:
+    video_reader = imageio_ffmpeg.read_frames(path)
+    try:
+        return next(video_reader).get("codec")
+    finally:
+        video_reader.close()

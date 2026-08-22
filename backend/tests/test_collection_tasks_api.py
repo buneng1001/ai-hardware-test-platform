@@ -62,6 +62,73 @@ def test_quick_and_standard_modes_resolve_to_safe_repeatable_presets(client):
 
 
 @pytest.mark.parametrize(
+    ("field", "values"),
+    [
+        ("duration_seconds", [2, 300]),
+        ("video.channels", [1, 4]),
+        ("video.resolution", ["640x360", "1280x720", "1920x1080"]),
+        ("video.fps", [15, 24, 25, 30, 60]),
+        ("video.container", ["mp4", "mkv"]),
+        ("imu.format", ["csv", "jsonl"]),
+        ("imu.sample_rate_hz", [50, 100, 200, 500]),
+    ],
+)
+def test_custom_configuration_accepts_each_specified_boundary_and_enum(client, field, values):
+    for index, value in enumerate(values):
+        payload = _custom_payload(f"合法参数 {field} {index}")
+        target = payload
+        parts = field.split(".")
+        for part in parts[:-1]:
+            target = target[part]
+        target[parts[-1]] = value
+
+        response = client.post("/api/collection-tasks", json=payload)
+
+        assert response.status_code == 201, response.text
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("duration_seconds", 1),
+        ("duration_seconds", 301),
+        ("video.channels", 0),
+        ("video.channels", 5),
+        ("video.resolution", "800x600"),
+        ("video.fps", 29),
+        ("video.container", "avi"),
+        ("imu.format", "json"),
+        ("imu.sample_rate_hz", 400),
+        ("random_seed", -1),
+        ("random_seed", 2_147_483_648),
+    ],
+)
+def test_custom_configuration_rejects_values_outside_the_spec(client, field, value):
+    payload = _custom_payload(f"非法参数 {field}")
+    target = payload
+    parts = field.split(".")
+    for part in parts[:-1]:
+        target = target[part]
+    target[parts[-1]] = value
+
+    response = client.post("/api/collection-tasks", json=payload)
+
+    assert response.status_code == 422
+
+
+def _custom_payload(name):
+    return {
+        "name": name,
+        "mode": "custom",
+        "scenario": "normal",
+        "duration_seconds": 2,
+        "video": {"channels": 1, "resolution": "640x360", "fps": 15, "container": "mp4"},
+        "imu": {"format": "csv", "sample_rate_hz": 50},
+        "random_seed": 0,
+    }
+
+
+@pytest.mark.parametrize(
     ("payload", "expected_error"),
     [
         ({"name": "   ", "mode": "quick", "scenario": "normal"}, "任务名称不能为空"),

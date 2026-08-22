@@ -43,6 +43,8 @@ class GenerationMetadata(BaseModel):
     requested_duration_seconds: int
     generated_duration_seconds: int
     reproducibility_fingerprint: str
+    temperature_range_c: tuple[float, float]
+    storage_range_mb: tuple[int, int]
 
 
 class StageEvent(BaseModel):
@@ -56,6 +58,7 @@ class Artifact(BaseModel):
     source: Literal["actual_generated", "virtual_time_simulated"]
     size_bytes: int
     sha256: str
+    codec: Literal["h264"] | None = None
 
 
 class BasicCheck(BaseModel):
