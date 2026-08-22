@@ -1,0 +1,28 @@
+# Python
+backend/.venv/
+backend/.pytest_cache/
+backend/pytest-cache-files-*/
+backend/.ruff_cache/
+backend/*.egg-info/
+__pycache__/
+*.py[cod]
+
+# Node.js
+node_modules/
+.pnpm-store/
+frontend/dist/
+
+# 本地配置、数据和测试产物
+.env
+.env.*
+!.env.example
+data/*
+!data/.gitkeep
+coverage/
+allure-results/
+
+# 编辑器与系统文件
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
