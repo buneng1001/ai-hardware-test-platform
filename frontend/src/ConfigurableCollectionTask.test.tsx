@@ -1,0 +1,119 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vitest";
+
+import { App } from "./App";
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+function successfulPageLoad() {
+  return vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "ok", database: "ok" })),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([])));
+}
+
+test("测试工程师能从页面提交完整的自定义多通道配置", async () => {
+  const fetchMock = successfulPageLoad().mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        id: 12,
+        name: "双路 JSONL",
+        mode: "custom",
+        scenario: "normal",
+        status: "draft",
+        duration_seconds: 2,
+        video: {
+          channels: 2,
+          resolution: "640x360",
+          fps: 15,
+          container: "mkv",
+          codec: "h264",
+        },
+        imu: { format: "jsonl", sample_rate_hz: 100 },
+        random_seed: 42,
+        created_at: "2026-08-22T12:00:00Z",
+      }),
+      { status: 201 },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("任务名称"), {
+    target: { value: "双路 JSONL" },
+  });
+  fireEvent.change(screen.getByLabelText("数据模式"), {
+    target: { value: "custom" },
+  });
+  fireEvent.change(screen.getByLabelText("视频通道数"), {
+    target: { value: "2" },
+  });
+  fireEvent.change(screen.getByLabelText("视频容器"), {
+    target: { value: "mkv" },
+  });
+  fireEvent.change(screen.getByLabelText("IMU 格式"), {
+    target: { value: "jsonl" },
+  });
+  fireEvent.change(screen.getByLabelText("IMU 采样率"), {
+    target: { value: "100" },
+  });
+  fireEvent.change(screen.getByLabelText("随机种子"), {
+    target: { value: "42" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(
+    await screen.findByText("自定义 · 正常采集 · 草稿"),
+  ).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/collection-tasks",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        name: "双路 JSONL",
+        mode: "custom",
+        scenario: "normal",
+        duration_seconds: 2,
+        video: {
+          channels: 2,
+          resolution: "640x360",
+          fps: 15,
+          container: "mkv",
+        },
+        imu: { format: "jsonl", sample_rate_hz: 100 },
+        random_seed: 42,
+      }),
+    }),
+  );
+});
+
+test("页面在调用 API 前拒绝预计文件规模过大的配置", async () => {
+  const fetchMock = successfulPageLoad();
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("任务名称"), {
+    target: { value: "超大配置" },
+  });
+  fireEvent.change(screen.getByLabelText("数据模式"), {
+    target: { value: "custom" },
+  });
+  fireEvent.change(screen.getByLabelText("视频通道数"), {
+    target: { value: "4" },
+  });
+  fireEvent.change(screen.getByLabelText("分辨率"), {
+    target: { value: "1920x1080" },
+  });
+  fireEvent.change(screen.getByLabelText("帧率"), { target: { value: "60" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "预计文件规模超过安全上限",
+  );
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});

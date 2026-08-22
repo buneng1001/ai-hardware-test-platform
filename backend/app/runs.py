@@ -11,16 +11,6 @@ from app.run_models import RunConfigurationSnapshot, RunRecord, StageEvent
 
 router = APIRouter(tags=["runs"])
 
-NORMAL_QUICK_SNAPSHOT = RunConfigurationSnapshot(
-    mode="quick",
-    scenario="normal",
-    duration_seconds=2,
-    video={"channels": 1, "resolution": "640x360", "fps": 15, "container": "mp4", "codec": "h264"},
-    imu={"format": "csv", "sample_rate_hz": 50},
-    random_seed=20260822,
-)
-
-
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -38,6 +28,7 @@ def _record_from_row(row: sqlite3.Row) -> RunRecord:
         events=json.loads(row["events"]),
         artifacts=json.loads(row["artifacts"]),
         checks=json.loads(row["checks"]),
+        generation_metadata=json.loads(row["generation_metadata"]) or None,
         created_at=row["created_at"],
         completed_at=row["completed_at"],
         error=row["error"],
@@ -49,7 +40,7 @@ def _save_run(record: RunRecord) -> None:
         connection.execute(
             """
             UPDATE runs
-            SET status = ?, events = ?, artifacts = ?, checks = ?, completed_at = ?, error = ?
+            SET status = ?, events = ?, artifacts = ?, checks = ?, generation_metadata = ?, completed_at = ?, error = ?
             WHERE id = ?
             """,
             (
@@ -57,6 +48,7 @@ def _save_run(record: RunRecord) -> None:
                 json.dumps([event.model_dump(mode="json") for event in record.events]),
                 json.dumps([artifact.model_dump(mode="json") for artifact in record.artifacts]),
                 json.dumps([check.model_dump(mode="json") for check in record.checks]),
+                record.generation_metadata.model_dump_json() if record.generation_metadata else "{}",
                 record.completed_at.isoformat() if record.completed_at else None,
                 record.error,
                 record.id,
@@ -73,9 +65,10 @@ def execute_collection_task(task_id: int) -> RunRecord:
     created_at = _now()
     events = [_event("queued")]
     with open_database() as connection:
-        task = connection.execute("SELECT id FROM collection_tasks WHERE id = ?", (task_id,)).fetchone()
+        task = connection.execute("SELECT id, configuration FROM collection_tasks WHERE id = ?", (task_id,)).fetchone()
         if task is None:
             raise HTTPException(status_code=404, detail="采集任务不存在")
+        snapshot = RunConfigurationSnapshot.model_validate_json(task["configuration"])
         cursor = connection.execute(
             """
             INSERT INTO runs (
@@ -84,7 +77,7 @@ def execute_collection_task(task_id: int) -> RunRecord:
             """,
             (
                 task_id,
-                NORMAL_QUICK_SNAPSHOT.model_dump_json(),
+                snapshot.model_dump_json(),
                 json.dumps([event.model_dump(mode="json") for event in events]),
                 created_at.isoformat(),
             ),
@@ -98,9 +91,10 @@ def execute_collection_task(task_id: int) -> RunRecord:
         id=run_id,
         collection_task_id=task_id,
         status="queued",
-        configuration_snapshot=NORMAL_QUICK_SNAPSHOT,
+        configuration_snapshot=snapshot,
         events=events,
         artifacts=[],
+        generation_metadata=None,
         checks=[],
         created_at=created_at,
         completed_at=None,
@@ -109,10 +103,12 @@ def execute_collection_task(task_id: int) -> RunRecord:
     try:
         record.status = "generating_data"
         record.events.append(_event("generating_data"))
-        record.artifacts = generate_normal_artifacts(get_data_dir() / "runs" / str(run_id), NORMAL_QUICK_SNAPSHOT)
+        record.artifacts, record.generation_metadata = generate_normal_artifacts(
+            get_data_dir() / "runs" / str(run_id), snapshot
+        )
         record.status = "running_checks"
         record.events.append(_event("running_checks"))
-        record.checks = run_basic_checks(record.artifacts, get_data_dir())
+        record.checks = run_basic_checks(record.artifacts, get_data_dir(), snapshot)
         record.status = "summarizing_results"
         record.events.append(_event("summarizing_results"))
         record.status = "completed"

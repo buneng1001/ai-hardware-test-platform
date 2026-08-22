@@ -61,6 +61,7 @@ form,
 }
 
 input,
+select,
 button {
   box-sizing: border-box;
   min-height: 44px;
@@ -68,7 +69,8 @@ button {
   font: inherit;
 }
 
-input {
+input,
+select {
   padding: 8px 12px;
   border: 1px solid #49717a;
   color: inherit;
@@ -100,6 +102,17 @@ button:disabled {
 
 .task-contract dd {
   margin: 4px 0 0;
+}
+
+.configuration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.configuration-grid label {
+  display: grid;
+  gap: 6px;
 }
 
 .task-card {

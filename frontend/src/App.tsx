@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 
 import {
   type CollectionTask,
+  type CollectionTaskCommand,
   type RunRecord,
-  createQuickNormalTask,
+  createCollectionTask,
   executeCollectionTask,
   listCollectionTasks,
 } from "./collectionTasksApi";
+import { CollectionTaskForm } from "./CollectionTaskForm";
 
 type Health = {
   status: "ok";
@@ -18,7 +20,6 @@ type PageState = Health | "loading" | "unavailable";
 export function App() {
   const [state, setState] = useState<PageState>("loading");
   const [tasks, setTasks] = useState<CollectionTask[] | null>(null);
-  const [taskName, setTaskName] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [executingTaskId, setExecutingTaskId] = useState<number | null>(null);
@@ -51,23 +52,16 @@ export function App() {
     void loadPage();
   }, []);
 
-  const submitTask = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const normalizedName = taskName.trim();
-    if (!normalizedName) {
-      setFormError("请输入任务名称");
-      return;
-    }
-
+  const submitTask = async (command: CollectionTaskCommand) => {
     setSaving(true);
     setFormError(null);
     try {
-      const createdTask = await createQuickNormalTask(normalizedName);
+      const createdTask = await createCollectionTask(command);
       setTasks((currentTasks) => [createdTask, ...(currentTasks ?? [])]);
-      setTaskName("");
     } catch {
       console.error("采集任务保存失败");
       setFormError("采集任务保存失败，请检查输入后重试");
+      throw new Error("采集任务保存失败");
     } finally {
       setSaving(false);
     }
@@ -110,32 +104,17 @@ export function App() {
       <section className="task-panel" aria-labelledby="new-task-title">
         <div>
           <p className="eyebrow">新建任务</p>
-          <h2 id="new-task-title">快速正常采集</h2>
-          <p>固定使用快速模式和正常采集场景，生成一路短视频及配套数据。</p>
+          <h2 id="new-task-title">配置正常采集</h2>
+          <p>
+            选择快速、标准或自定义模式，安全生成 1～4 路视频及配套传感器数据。
+          </p>
         </div>
-        <form onSubmit={submitTask}>
-          <label htmlFor="task-name">任务名称</label>
-          <input
-            id="task-name"
-            maxLength={80}
-            value={taskName}
-            onChange={(event) => setTaskName(event.target.value)}
-          />
-          <dl className="task-contract">
-            <div>
-              <dt>模式</dt>
-              <dd>快速</dd>
-            </div>
-            <div>
-              <dt>场景</dt>
-              <dd>正常采集</dd>
-            </div>
-          </dl>
-          {formError && <p role="alert">{formError}</p>}
-          <button type="submit" disabled={saving || tasks === null}>
-            {saving ? "正在保存…" : "保存采集任务"}
-          </button>
-        </form>
+        <CollectionTaskForm
+          disabled={tasks === null}
+          saving={saving}
+          onSubmit={submitTask}
+        />
+        {formError && <p role="alert">{formError}</p>}
       </section>
 
       <section className="task-list" aria-labelledby="task-list-title">
@@ -146,7 +125,10 @@ export function App() {
         {tasks?.map((task) => (
           <article className="task-card" key={task.id}>
             <h3>{task.name}</h3>
-            <p>快速 · 正常采集 · 草稿</p>
+            <p>
+              {{ quick: "快速", standard: "标准", custom: "自定义" }[task.mode]}{" "}
+              · 正常采集 · 草稿
+            </p>
             <button
               type="button"
               disabled={executingTaskId !== null}
@@ -180,10 +162,35 @@ export function App() {
           <ul>
             {selectedRun.artifacts.map((artifact) => (
               <li key={artifact.path}>
-                {artifact.path.split("/").at(-1)} · 实际生成
+                <span>
+                  {artifact.path.split("/").at(-1)} {" · "}
+                  {artifact.source === "actual_generated"
+                    ? "实际生成"
+                    : "虚拟时间模拟"}
+                </span>
+                <small> · SHA-256：{artifact.sha256.slice(0, 12)}…</small>
               </li>
             ))}
           </ul>
+          {selectedRun.generation_metadata && (
+            <p>
+              时间线：
+              {selectedRun.generation_metadata.timeline_source ===
+              "actual_generated"
+                ? "实际生成"
+                : "虚拟时间模拟"}
+              ；请求{" "}
+              {selectedRun.generation_metadata.requested_duration_seconds}{" "}
+              秒，真实媒体
+              {selectedRun.generation_metadata.generated_duration_seconds}{" "}
+              秒；重复性指纹：
+              {selectedRun.generation_metadata.reproducibility_fingerprint.slice(
+                0,
+                12,
+              )}
+              …
+            </p>
+          )}
           <h3>基础检查</h3>
           <ul>
             {selectedRun.checks.map((check) => (
