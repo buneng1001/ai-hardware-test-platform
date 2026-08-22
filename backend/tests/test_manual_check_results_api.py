@@ -74,6 +74,7 @@ def test_engineer_can_modify_manual_result_and_attach_small_evidence(tmp_path, m
                 },
             },
         )
+        attachment_response = client.get(f"/api/runs/{run['id']}/manual-check-results/{created['id']}/attachment")
 
     assert update_response.status_code == 200
     updated = update_response.json()
@@ -83,6 +84,8 @@ def test_engineer_can_modify_manual_result_and_attach_small_evidence(tmp_path, m
     assert updated["attachment"]["content_type"] == "text/plain"
     assert updated["attachment"]["size_bytes"] == 18
     assert "content_base64" not in updated["attachment"]
+    assert attachment_response.status_code == 200
+    assert attachment_response.content == "红灯持续闪烁".encode()
 
     with TestClient(app) as client:
         preserved_response = client.put(

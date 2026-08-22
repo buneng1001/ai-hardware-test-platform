@@ -69,9 +69,14 @@ test("导入错误会显示可定位的行号且保留现有人工结果", async
     name: "外观检查",
     status: "passed" as const,
     actual_result: "正常",
-    notes: null,
-    executed_at: null,
-    attachment: null,
+    notes: "自然光检查",
+    executed_at: "2026-08-22T08:00:00Z",
+    attachment: {
+      filename: "appearance.txt",
+      content_type: "text/plain",
+      size_bytes: 12,
+      sha256: "abc",
+    },
     created_at: "2026-08-22T08:00:00Z",
     updated_at: "2026-08-22T08:00:00Z",
   };
@@ -105,4 +110,11 @@ test("导入错误会显示可定位的行号且保留现有人工结果", async
     "第 3 行 status：状态必须是 passed、failed、blocked 或 not_run",
   );
   expect(screen.getByText("通过 · 正常")).toBeInTheDocument();
+  expect(screen.getByText("备注：自然光检查")).toBeInTheDocument();
+  expect(
+    screen.getByText("执行时间：2026-08-22T08:00:00Z"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "附件：appearance.txt（12 字节）" }),
+  ).toHaveAttribute("href", "/api/runs/9/manual-check-results/2/attachment");
 });

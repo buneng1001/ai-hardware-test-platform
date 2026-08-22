@@ -51,3 +51,8 @@ def save_manual_attachment(run_id: int, result_id: int, command: AttachmentComma
         "size_bytes": len(content),
         "sha256": hashlib.sha256(content).hexdigest(),
     }
+
+
+def get_manual_attachment_path(run_id: int, result_id: int, filename: str) -> Path:
+    """按已持久化元数据构造附件路径，不接受调用方提供的任意路径。"""
+    return get_data_dir() / "runs" / str(run_id) / "manual-attachments" / f"{result_id}-{filename}"

@@ -139,6 +139,20 @@ export function ManualCheckResultsPanel({ runId, initialResults }: Props) {
               {statusLabels[result.status]} ·{" "}
               {result.actual_result || "未填写实际结果"}
             </span>
+            {result.notes && <span>备注：{result.notes}</span>}
+            {result.executed_at && (
+              <time dateTime={result.executed_at}>
+                执行时间：{result.executed_at}
+              </time>
+            )}
+            {result.attachment && (
+              <a
+                href={`/api/runs/${runId}/manual-check-results/${result.id}/attachment`}
+              >
+                附件：{result.attachment.filename}（
+                {result.attachment.size_bytes} 字节）
+              </a>
+            )}
             <button
               type="button"
               aria-label={`修改${result.name}`}
