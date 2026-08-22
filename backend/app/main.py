@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.collection_tasks import router as collection_tasks_router
 from app.database import check_database
+from app.manual_check_results import router as manual_check_results_router
 from app.run_executor import RunExecutor
 from app.runs import process_run, recover_unfinished_runs
 from app.runs import router as runs_router
@@ -31,6 +32,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="智能硬件测试执行与诊断平台", version="0.1.0", lifespan=lifespan)
 app.include_router(collection_tasks_router)
+app.include_router(manual_check_results_router)
 app.include_router(runs_router)
 
 

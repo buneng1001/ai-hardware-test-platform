@@ -1,4 +1,5 @@
 import type { RunRecord, RunStatus } from "./collectionTasksApi";
+import { ManualCheckResultsPanel } from "./ManualCheckResultsPanel";
 
 const terminalRunStatuses = new Set<RunStatus>([
   "completed",
@@ -83,12 +84,20 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
           {run.generation_metadata.storage_range_mb.join(" → ")} MB
         </p>
       )}
-      <h3>基础检查</h3>
-      <ul>
-        {run.checks.map((check) => (
-          <li key={check.name}>{check.message}</li>
-        ))}
-      </ul>
+      <section aria-labelledby="run-analysis-title">
+        <h3 id="run-analysis-title">运行分析</h3>
+        <h4>自动化检测结果</h4>
+        <ul>
+          {run.checks.map((check) => (
+            <li key={check.name}>{check.message}</li>
+          ))}
+        </ul>
+        <ManualCheckResultsPanel
+          key={run.id}
+          runId={run.id}
+          initialResults={run.manual_check_results}
+        />
+      </section>
       {!isTerminalRun(run.status) && (
         <button type="button" onClick={onCancel}>
           取消运行

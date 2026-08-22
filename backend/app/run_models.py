@@ -78,6 +78,19 @@ class BasicCheck(BaseModel):
     message: str
 
 
+class ManualCheckResult(BaseModel):
+    id: int
+    run_id: int
+    name: str
+    status: Literal["passed", "failed", "blocked", "not_run"]
+    actual_result: str | None
+    notes: str | None
+    executed_at: datetime | None
+    attachment: dict[str, str | int] | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class RunRecord(BaseModel):
     id: int
     collection_task_id: int
@@ -87,6 +100,7 @@ class RunRecord(BaseModel):
     artifacts: list[Artifact]
     generation_metadata: GenerationMetadata | None
     checks: list[BasicCheck]
+    manual_check_results: list[ManualCheckResult]
     created_at: datetime
     completed_at: datetime | None
     error: str | None

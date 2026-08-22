@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Request, status
 
 from app.database import get_data_dir, open_database
+from app.manual_check_results import list_manual_results
 from app.normal_generator import generate_normal_artifacts, run_basic_checks
 from app.run_models import RunConfigurationSnapshot, RunRecord, StageEvent
 
@@ -32,6 +33,7 @@ def _record_from_row(row: sqlite3.Row) -> RunRecord:
         events=json.loads(row["events"]),
         artifacts=json.loads(row["artifacts"]),
         checks=json.loads(row["checks"]),
+        manual_check_results=list_manual_results(row["id"]),
         generation_metadata=json.loads(row["generation_metadata"]) or None,
         created_at=row["created_at"],
         completed_at=row["completed_at"],
@@ -114,6 +116,7 @@ def _create_run(collection_task_id: int, snapshot: RunConfigurationSnapshot) -> 
         artifacts=[],
         generation_metadata=None,
         checks=[],
+        manual_check_results=[],
         created_at=created_at,
         completed_at=None,
         error=None,

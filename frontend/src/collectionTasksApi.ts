@@ -1,3 +1,5 @@
+import type { ManualCheckResult } from "./manualCheckResultsApi";
+
 export type CollectionTask = {
   id: number;
   name: string;
@@ -73,6 +75,7 @@ export type RunRecord = {
     storage_range_mb: [number, number];
   } | null;
   checks: Array<{ name: string; status: "passed" | "failed"; message: string }>;
+  manual_check_results: ManualCheckResult[];
   created_at: string;
   completed_at: string | null;
   error: string | null;
