@@ -4,6 +4,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from app.collection_tasks import router as collection_tasks_router
 from app.database import check_database
 
 
@@ -13,6 +14,7 @@ class HealthResponse(BaseModel):
 
 
 app = FastAPI(title="智能硬件测试执行与诊断平台", version="0.1.0")
+app.include_router(collection_tasks_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)

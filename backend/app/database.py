@@ -1,36 +1,59 @@
 import os
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 1
+LATEST_SCHEMA_VERSION = 2
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
     """按 SQLite user_version 顺序应用洁净重写的本地迁移。"""
-    current_version = connection.execute("PRAGMA user_version").fetchone()[0]
-    if current_version >= LATEST_SCHEMA_VERSION:
-        return
-
-    # 版本 1 只建立迁移账本，后续 ticket 再追加领域表迁移。
-    connection.execute(
-        """
-        CREATE TABLE schema_migrations (
-            version INTEGER PRIMARY KEY,
-            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    current_version: int = connection.execute("PRAGMA user_version").fetchone()[0]
+    if current_version < 1:
+        connection.executescript(
+            """
+            CREATE TABLE schema_migrations (
+                version INTEGER PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO schema_migrations (version) VALUES (1);
+            PRAGMA user_version = 1;
+            """
         )
-        """
-    )
-    connection.execute("INSERT INTO schema_migrations (version) VALUES (?)", (LATEST_SCHEMA_VERSION,))
-    connection.execute(f"PRAGMA user_version = {LATEST_SCHEMA_VERSION}")
+        current_version = 1
+
+    if current_version < LATEST_SCHEMA_VERSION:
+        connection.executescript(
+            """
+            CREATE TABLE collection_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                scenario TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            INSERT INTO schema_migrations (version) VALUES (2);
+            PRAGMA user_version = 2;
+            """
+        )
+
+
+@contextmanager
+def open_database() -> Iterator[sqlite3.Connection]:
+    """打开项目内数据库，并保证调用方始终使用最新 schema。"""
+    data_dir = Path(os.getenv("APP_DATA_DIR", "data"))
+    data_dir.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(data_dir / "platform.sqlite3") as connection:
+        connection.row_factory = sqlite3.Row
+        migrate_database(connection)
+        yield connection
 
 
 def check_database() -> bool:
     """通过真实 SQLite 查询验证项目数据目录可写且数据库可用。"""
-    data_dir = Path(os.getenv("APP_DATA_DIR", "data"))
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    with sqlite3.connect(data_dir / "platform.sqlite3") as connection:
-        migrate_database(connection)
+    with open_database() as connection:
         result = connection.execute("SELECT 1").fetchone()
 
-    return result == (1,)
+    return tuple(result) == (1,)
