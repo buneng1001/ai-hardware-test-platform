@@ -1,0 +1,10 @@
+{
+  "name": "ai-hardware-test-platform",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "format:check": "pnpm --dir frontend format:check",
+    "test": "pnpm --dir frontend test",
+    "typecheck": "pnpm --dir frontend typecheck"
+  }
+}

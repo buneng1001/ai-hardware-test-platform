@@ -1,0 +1,44 @@
+:root {
+  color: #e8edf2;
+  background: #0d1821;
+  font-family: Inter, "Microsoft YaHei", sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.status-page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 12vh max(8vw, 24px);
+  background: radial-gradient(circle at top right, #183c4a, transparent 42%);
+}
+
+.eyebrow {
+  color: #60d6c4;
+  letter-spacing: 0.12em;
+}
+
+h1 {
+  max-width: 720px;
+  font-size: clamp(2rem, 5vw, 4.5rem);
+  line-height: 1.05;
+}
+
+.status-card {
+  display: flex;
+  gap: 24px;
+  width: fit-content;
+  margin-top: 48px;
+  padding: 20px 28px;
+  border: 1px solid #2c6670;
+  border-radius: 12px;
+  background: rgb(10 29 36 / 80%);
+}
+
+.status-card p::before {
+  margin-right: 8px;
+  color: #60d6c4;
+  content: "●";
+}

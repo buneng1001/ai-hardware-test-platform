@@ -43,3 +43,28 @@
 - **回归检查**：确保校正结果不会覆盖原始证据，且画面同步拥有独立检查结果。
 - **经验与面试表达**：测试平台不仅判断结果，还要保留产品从 POC 到 EVT 的改进证据。
 
+## 2026-08-22：本地与 CI 测试入口的 Python 导入路径不一致
+
+- **开发阶段**：Ticket 01 工程骨架。
+- **问题现象**：在 `backend/` 内运行健康 API 单测通过，从仓库根目录执行相同测试却无法导入 `app`。
+- **影响范围**：README 的统一验证命令和 GitHub Actions 会在收集测试时失败。
+- **错误证据**：根目录运行 Pytest 报 `ModuleNotFoundError: No module named 'app'`。
+- **排查过程**：对比两种工作目录，确认测试本身和 FastAPI 依赖均正常，差异来自包发现及测试导入路径。
+- **根本原因**：初始 `pyproject.toml` 没有声明 `app` 包发现，也没有为 Pytest 声明项目包路径。
+- **解决方案**：显式配置 setuptools 查找 `app*`，并将 Pytest `pythonpath` 固定到后端项目根。
+- **验证方法**：从仓库根目录执行 `backend/.venv/Scripts/python.exe -m pytest backend/tests`。
+- **回归检查**：同一命令进入 CI，避免本地通过、CI 收集失败。
+- **经验与面试表达**：测试入口必须与 CI 的工作目录一致，环境差异要和业务断言失败分开记录。
+
+## 2026-08-22：固定前端版本后依赖目录与锁文件不一致
+
+- **开发阶段**：Ticket 01 工程骨架。
+- **问题现象**：把首次解析的 `latest` 改为确切版本后，pnpm 在非交互终端拒绝自动重建 `node_modules`。
+- **影响范围**：前端测试、类型检查、格式检查和构建均无法启动。
+- **错误证据**：pnpm 返回 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`。
+- **排查过程**：检查 `pnpm-lock.yaml` 与 `package.json`，确认版本内容一致，只有现有依赖目录的安装元数据过期。
+- **根本原因**：为保证可重复安装而固定版本后，没有立即按新锁文件重建本地生成目录。
+- **解决方案**：使用 `pnpm install --force --frozen-lockfile` 仅重建可恢复的项目依赖目录。
+- **验证方法**：重新执行 Vitest、TypeScript、Prettier 和 Vite build。
+- **回归检查**：CI 使用 `pnpm install --frozen-lockfile`，禁止漂移安装。
+- **经验与面试表达**：锁文件和本地生成目录是两层状态；前者正确不代表后者已经同步。
