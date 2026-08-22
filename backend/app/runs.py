@@ -8,8 +8,9 @@ from fastapi import APIRouter, HTTPException, Request, status
 
 from app.database import get_data_dir, open_database
 from app.manual_check_results import list_manual_results
-from app.normal_generator import generate_normal_artifacts, run_basic_checks
+from app.normal_generator import generate_normal_artifacts
 from app.run_models import RunConfigurationSnapshot, RunRecord, StageEvent
+from app.video_checks import run_video_checks
 
 router = APIRouter(tags=["runs"])
 
@@ -153,7 +154,7 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
         record.events.append(_event("running_checks"))
         if not _save_active_run(record):
             return
-        record.checks = run_basic_checks(record.artifacts, get_data_dir(), record.configuration_snapshot)
+        record.checks = run_video_checks(record.artifacts, get_data_dir(), record.configuration_snapshot)
         if _stop_requested(record, application_stopping):
             return
         record.status = "summarizing_results"

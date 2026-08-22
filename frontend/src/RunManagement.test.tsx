@@ -145,3 +145,66 @@ test("测试工程师能取消运行并从原配置创建新的运行记录", as
     method: "POST",
   });
 });
+
+test("运行详情展示掉帧失败指标、异常窗口和故障真值命中", async () => {
+  const videoDropTask = { ...task, name: "掉帧任务", scenario: "video_drop" };
+  const completedRun = {
+    ...queuedRun,
+    status: "completed",
+    configuration_snapshot: {
+      ...queuedRun.configuration_snapshot,
+      scenario: "video_drop",
+    },
+    events: [
+      "queued",
+      "generating_data",
+      "running_checks",
+      "summarizing_results",
+      "completed",
+    ].map((stage) => ({ stage, occurred_at: "2026-08-22T12:00:00Z" })),
+    checks: [
+      {
+        name: "video_frame_drop",
+        category: "video",
+        status: "failed",
+        message: "第 1 路视频在 0.800～1.200 秒检测到 6 帧缺失",
+        metrics: {
+          channel: 1,
+          expected_frames: 30,
+          actual_frames: 24,
+          dropped_frames: 6,
+        },
+        anomaly_windows: [{ channel: 1, start_s: 0.8, end_s: 1.2 }],
+        truth_comparison: "matched",
+      },
+    ],
+    completed_at: "2026-08-22T12:00:01Z",
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([videoDropTask])))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(queuedRun), { status: 201 }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify(completedRun))),
+  );
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
+
+  expect(
+    await screen.findByText("第 1 路视频在 0.800～1.200 秒检测到 6 帧缺失"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("失败指标：预期 30 帧，实际 24 帧，缺失 6 帧"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("异常时间窗口：第 1 路 0.800～1.200 秒"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("故障真值对照：命中")).toBeInTheDocument();
+});

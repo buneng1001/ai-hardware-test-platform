@@ -33,7 +33,7 @@ class ImuConfiguration(BaseModel):
 
 class RunConfigurationSnapshot(BaseModel):
     mode: Literal["quick", "standard", "custom"]
-    scenario: Literal["normal"]
+    scenario: Literal["normal", "video_drop"]
     duration_seconds: int = Field(ge=2, le=300)
     video: VideoConfiguration
     imu: ImuConfiguration
@@ -74,8 +74,12 @@ class Artifact(BaseModel):
 
 class BasicCheck(BaseModel):
     name: str
+    category: Literal["video"] = "video"
     status: Literal["passed", "failed"]
     message: str
+    metrics: dict[str, int | float | str] = Field(default_factory=dict)
+    anomaly_windows: list[dict[str, int | float]] = Field(default_factory=list)
+    truth_comparison: Literal["matched", "missed", "not_applicable"] = "not_applicable"
 
 
 class ManualCheckResult(BaseModel):

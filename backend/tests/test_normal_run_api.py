@@ -1,5 +1,6 @@
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -58,9 +59,12 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
     assert all(artifact["codec"] == "h264" for artifact in first_run["artifacts"] if artifact["kind"] == "video")
     assert all(artifact["size_bytes"] > 0 for artifact in first_run["artifacts"])
     assert {check["name"] for check in first_run["checks"]} == {
-        "required_artifacts",
-        "video_h264",
-        "normal_scenario",
+        "video_channel_count",
+        "video_codec",
+        "video_frame_rate",
+        "video_duration",
+        "video_frame_drop",
+        "video_corruption",
     }
     assert all(check["status"] == "passed" for check in first_run["checks"])
     assert second_run["id"] != first_run["id"]
@@ -160,3 +164,72 @@ def test_oversized_custom_generation_is_rejected_before_a_run_is_created(tmp_pat
     assert response.status_code == 422
     assert "预计文件规模超过安全上限" in response.text
     assert client.get("/api/collection-tasks").json() == []
+
+
+@pytest.mark.parametrize(
+    ("scenario", "expected_status", "expected_dropped_frames", "expected_truth_comparison"),
+    [
+        ("normal", "passed", 0, "not_applicable"),
+        ("video_drop", "failed", 6, "matched"),
+    ],
+)
+def test_engineer_sees_expected_video_drop_result_for_each_scenario(
+    tmp_path,
+    monkeypatch,
+    scenario,
+    expected_status,
+    expected_dropped_frames,
+    expected_truth_comparison,
+):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task_response = client.post(
+            "/api/collection-tasks",
+            json={"name": "视频场景检查", "mode": "quick", "scenario": scenario},
+        )
+        assert task_response.status_code == 201
+        queued = client.post(f"/api/collection-tasks/{task_response.json()['id']}/runs").json()
+        run = wait_for_completion(client, queued["id"])
+
+    drop_check = next(check for check in run["checks"] if check["name"] == "video_frame_drop")
+    assert run["configuration_snapshot"]["scenario"] == scenario
+    assert drop_check["status"] == expected_status
+    assert drop_check["metrics"]["dropped_frames"] == expected_dropped_frames
+    assert drop_check["truth_comparison"] == expected_truth_comparison
+    if scenario == "video_drop":
+        assert drop_check["message"] == "第 1 路视频在 0.800～1.200 秒检测到 6 帧缺失"
+        assert drop_check["metrics"] == {
+            "channel": 1,
+            "expected_frames": 30,
+            "actual_frames": 24,
+            "dropped_frames": 6,
+        }
+        assert drop_check["anomaly_windows"] == [{"channel": 1, "start_s": 0.8, "end_s": 1.2}]
+    assert {check["name"] for check in run["checks"]} == {
+        "video_channel_count",
+        "video_codec",
+        "video_frame_rate",
+        "video_duration",
+        "video_frame_drop",
+        "video_corruption",
+    }
+
+
+def test_same_seed_repeats_equivalent_video_drop_fault(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={"name": "重复掉帧", "mode": "quick", "scenario": "video_drop"},
+        ).json()
+        first = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+        second = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+
+    first_drop = next(check for check in first["checks"] if check["name"] == "video_frame_drop")
+    second_drop = next(check for check in second["checks"] if check["name"] == "video_frame_drop")
+    first_truth = next(artifact for artifact in first["artifacts"] if artifact["kind"] == "fault_truth")
+    second_truth = next(artifact for artifact in second["artifacts"] if artifact["kind"] == "fault_truth")
+    assert first_drop == second_drop
+    assert first_truth["sha256"] == second_truth["sha256"]

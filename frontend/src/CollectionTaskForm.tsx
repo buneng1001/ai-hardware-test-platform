@@ -4,6 +4,7 @@ import {
   type CollectionTaskCommand,
   type DataMode,
   type ImuConfiguration,
+  type Scenario,
   type VideoConfiguration,
 } from "./collectionTasksApi";
 
@@ -19,6 +20,7 @@ const MAX_ACTUAL_DURATION_SECONDS = 5;
 export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   const [name, setName] = useState("");
   const [mode, setMode] = useState<DataMode>("quick");
+  const [scenario, setScenario] = useState<Scenario>("normal");
   const [duration, setDuration] = useState(2);
   const [channels, setChannels] = useState(1);
   const [resolution, setResolution] =
@@ -43,7 +45,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
     const command: CollectionTaskCommand = {
       name: normalizedName,
       mode,
-      scenario: "normal",
+      scenario,
     };
     if (mode === "custom") {
       if (
@@ -94,6 +96,15 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="quick">快速</option>
         <option value="standard">标准</option>
         <option value="custom">自定义</option>
+      </select>
+      <label htmlFor="scenario">场景</label>
+      <select
+        id="scenario"
+        value={scenario}
+        onChange={(event) => setScenario(event.target.value as Scenario)}
+      >
+        <option value="normal">正常采集</option>
+        <option value="video_drop">单路视频掉帧</option>
       </select>
       {mode === "custom" ? (
         <div className="configuration-grid">
@@ -174,7 +185,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
             : "5 秒 · 4 路 · 1280×720 · 30 FPS"}
         </p>
       )}
-      <p>场景：正常采集；视频编码固定 H.264。</p>
+      <p>视频编码固定 H.264；故障场景使用配置中的固定随机种子。</p>
       {error && <p role="alert">{error}</p>}
       <button type="submit" disabled={saving || disabled}>
         {saving ? "正在保存…" : "保存采集任务"}

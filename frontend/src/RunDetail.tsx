@@ -88,9 +88,37 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
         <h3 id="run-analysis-title">运行分析</h3>
         <h4>自动化检测结果</h4>
         <ul>
-          {run.checks.map((check) => (
-            <li key={check.name}>{check.message}</li>
-          ))}
+          {run.checks.map((check) => {
+            const anomaly = check.anomaly_windows?.[0];
+            return (
+              <li key={check.name}>
+                <p>{check.message}</p>
+                {check.name === "video_frame_drop" &&
+                  check.status === "failed" && (
+                    <>
+                      <p>
+                        失败指标：预期 {check.metrics.expected_frames} 帧，实际{" "}
+                        {check.metrics.actual_frames} 帧，缺失{" "}
+                        {check.metrics.dropped_frames} 帧
+                      </p>
+                      {anomaly && (
+                        <p>
+                          异常时间窗口：第 {anomaly.channel} 路{" "}
+                          {anomaly.start_s.toFixed(3)}～
+                          {anomaly.end_s.toFixed(3)} 秒
+                        </p>
+                      )}
+                      <p>
+                        故障真值对照：
+                        {check.truth_comparison === "matched"
+                          ? "命中"
+                          : "未命中"}
+                      </p>
+                    </>
+                  )}
+              </li>
+            );
+          })}
         </ul>
         <ManualCheckResultsPanel
           key={run.id}
