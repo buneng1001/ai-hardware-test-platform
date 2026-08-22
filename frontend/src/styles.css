@@ -42,3 +42,72 @@ h1 {
   color: #60d6c4;
   content: "●";
 }
+
+.task-panel,
+.task-list {
+  max-width: 760px;
+  margin-top: 40px;
+  padding: 28px;
+  border: 1px solid #254550;
+  border-radius: 12px;
+  background: rgb(10 29 36 / 65%);
+}
+
+form,
+.task-contract {
+  display: grid;
+  gap: 12px;
+}
+
+input,
+button {
+  box-sizing: border-box;
+  min-height: 44px;
+  border-radius: 8px;
+  font: inherit;
+}
+
+input {
+  padding: 8px 12px;
+  border: 1px solid #49717a;
+  color: inherit;
+  background: #102832;
+}
+
+button {
+  padding: 8px 18px;
+  border: 0;
+  color: #071719;
+  background: #60d6c4;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.task-contract {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.task-contract div {
+  padding: 12px;
+  border-radius: 8px;
+  background: #102832;
+}
+
+.task-contract dd {
+  margin: 4px 0 0;
+}
+
+.task-card {
+  margin-top: 16px;
+  padding: 16px 20px;
+  border-left: 3px solid #60d6c4;
+  background: #102832;
+}
+
+.task-card h3 {
+  margin: 0;
+}
