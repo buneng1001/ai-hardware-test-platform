@@ -19,8 +19,9 @@ export function App() {
           return;
         }
         setState((await response.json()) as Health);
-      } catch (error: unknown) {
+      } catch {
         // 状态页只展示安全的可用性结论，不泄露底层连接或路径信息。
+        console.error("健康状态请求失败");
         setState("unavailable");
       }
     };

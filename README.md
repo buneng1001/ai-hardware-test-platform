@@ -33,7 +33,8 @@ pnpm --dir frontend dev
 ```
 
 打开 `http://127.0.0.1:5173`。页面会通过 `/api/health` 显示 FastAPI 和 SQLite 状态；数据库文件只写入被
-Git 忽略的项目内 `data/`。
+Git 忽略的项目内 `data/`。首次健康检查会按 SQLite `user_version` 自动应用版本 1 迁移；后续迁移按版本顺序追加，
+不会依赖外部数据库服务。
 
 ## 验证
 
@@ -55,4 +56,3 @@ python scripts/check_repository_safety.py
 
 真实 `.env`、密钥、数据库和生成产物不会提交。仓库只提供空值示例；自动扫描之外，还必须按
 [洁净重写与发布安全检查](docs/clean-room-checklist.md) 人工确认资产来源。
-

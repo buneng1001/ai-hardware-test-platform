@@ -11,6 +11,7 @@ __pycache__/
 node_modules/
 .pnpm-store/
 frontend/dist/
+*.tsbuildinfo
 
 # 本地配置、数据和测试产物
 .env
