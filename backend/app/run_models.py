@@ -27,7 +27,16 @@ class RunConfigurationSnapshot(BaseModel):
 
 
 class StageEvent(BaseModel):
-    stage: Literal["queued", "generating_data", "running_checks", "summarizing_results", "completed"]
+    stage: Literal[
+        "queued",
+        "generating_data",
+        "running_checks",
+        "summarizing_results",
+        "completed",
+        "failed",
+        "cancelled",
+        "interrupted",
+    ]
     occurred_at: datetime
 
 
@@ -48,7 +57,16 @@ class BasicCheck(BaseModel):
 class RunRecord(BaseModel):
     id: int
     collection_task_id: int
-    status: Literal["queued", "generating_data", "running_checks", "summarizing_results", "completed", "failed"]
+    status: Literal[
+        "queued",
+        "generating_data",
+        "running_checks",
+        "summarizing_results",
+        "completed",
+        "failed",
+        "cancelled",
+        "interrupted",
+    ]
     configuration_snapshot: RunConfigurationSnapshot
     events: list[StageEvent]
     artifacts: list[Artifact]

@@ -12,12 +12,25 @@ type RunStage =
   | "generating_data"
   | "running_checks"
   | "summarizing_results"
-  | "completed";
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "interrupted";
+
+export type RunStatus =
+  | "queued"
+  | "generating_data"
+  | "running_checks"
+  | "summarizing_results"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "interrupted";
 
 export type RunRecord = {
   id: number;
   collection_task_id: number;
-  status: "completed" | "failed";
+  status: RunStatus;
   configuration_snapshot: {
     mode: "quick";
     scenario: "normal";
@@ -77,5 +90,23 @@ export async function executeCollectionTask(
   if (!response.ok) {
     throw new Error("采集任务执行失败");
   }
+  return (await response.json()) as RunRecord;
+}
+
+export async function getRun(runId: number): Promise<RunRecord> {
+  const response = await fetch(`/api/runs/${runId}`);
+  if (!response.ok) throw new Error("运行记录加载失败");
+  return (await response.json()) as RunRecord;
+}
+
+export async function cancelRun(runId: number): Promise<RunRecord> {
+  const response = await fetch(`/api/runs/${runId}/cancel`, { method: "POST" });
+  if (!response.ok) throw new Error("取消运行失败");
+  return (await response.json()) as RunRecord;
+}
+
+export async function rerun(runId: number): Promise<RunRecord> {
+  const response = await fetch(`/api/runs/${runId}/rerun`, { method: "POST" });
+  if (!response.ok) throw new Error("重新执行失败");
   return (await response.json()) as RunRecord;
 }

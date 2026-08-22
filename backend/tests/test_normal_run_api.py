@@ -1,6 +1,19 @@
+import time
+
 from fastapi.testclient import TestClient
 
 from app.main import app
+
+
+def wait_for_completion(client: TestClient, run_id: int) -> dict:
+    """通过公开详情接口等待后台运行完成。"""
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        run = client.get(f"/api/runs/{run_id}").json()
+        if run["status"] == "completed":
+            return run
+        time.sleep(0.01)
+    raise AssertionError(f"运行 #{run_id} 未在 10 秒内完成")
 
 
 def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(tmp_path, monkeypatch):
@@ -12,8 +25,10 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
             json={"name": "首个正常运行", "mode": "quick", "scenario": "normal"},
         ).json()
 
-        first_run = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
-        second_run = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        first_queued = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        second_queued = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        first_run = wait_for_completion(client, first_queued["id"])
+        second_run = wait_for_completion(client, second_queued["id"])
         reopened_first_run = client.get(f"/api/runs/{first_run['id']}").json()
 
     assert first_run["status"] == "completed"

@@ -3,10 +3,14 @@ import { useEffect, useState } from "react";
 import {
   type CollectionTask,
   type RunRecord,
+  cancelRun,
   createQuickNormalTask,
   executeCollectionTask,
+  getRun,
   listCollectionTasks,
+  rerun,
 } from "./collectionTasksApi";
+import { isTerminalRun, RunDetail } from "./RunDetail";
 
 type Health = {
   status: "ok";
@@ -51,6 +55,19 @@ export function App() {
     void loadPage();
   }, []);
 
+  useEffect(() => {
+    if (!selectedRun || isTerminalRun(selectedRun.status)) return;
+    const timeout = window.setTimeout(async () => {
+      try {
+        setSelectedRun(await getRun(selectedRun.id));
+      } catch {
+        console.error("运行记录刷新失败");
+        setRunError("运行状态刷新失败，请稍后重试");
+      }
+    }, 50);
+    return () => window.clearTimeout(timeout);
+  }, [selectedRun]);
+
   const submitTask = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedName = taskName.trim();
@@ -86,12 +103,22 @@ export function App() {
     }
   };
 
-  const stageLabels: Record<string, string> = {
-    queued: "排队",
-    generating_data: "生成数据",
-    running_checks: "执行检查",
-    summarizing_results: "汇总结果",
-    completed: "已完成",
+  const cancelSelectedRun = async () => {
+    if (!selectedRun) return;
+    try {
+      setSelectedRun(await cancelRun(selectedRun.id));
+    } catch {
+      setRunError("取消运行失败，请刷新后重试");
+    }
+  };
+
+  const rerunSelectedRun = async () => {
+    if (!selectedRun) return;
+    try {
+      setSelectedRun(await rerun(selectedRun.id));
+    } catch {
+      setRunError("重新执行失败，请稍后重试");
+    }
   };
 
   return (
@@ -160,37 +187,11 @@ export function App() {
 
       {runError && <p role="alert">{runError}</p>}
       {selectedRun && (
-        <section className="run-detail" aria-labelledby="run-detail-title">
-          <p className="eyebrow">运行详情</p>
-          <h2 id="run-detail-title">运行 #{selectedRun.id}</h2>
-          <p className="run-status">
-            {selectedRun.status === "completed" ? "已完成" : "执行失败"}
-          </p>
-          <p>
-            进度：{selectedRun.events.length}/5（
-            {selectedRun.events.length * 20}%）
-          </p>
-          <h3>阶段</h3>
-          <p>
-            {selectedRun.events
-              .map((event) => stageLabels[event.stage])
-              .join(" → ")}
-          </p>
-          <h3>产物</h3>
-          <ul>
-            {selectedRun.artifacts.map((artifact) => (
-              <li key={artifact.path}>
-                {artifact.path.split("/").at(-1)} · 实际生成
-              </li>
-            ))}
-          </ul>
-          <h3>基础检查</h3>
-          <ul>
-            {selectedRun.checks.map((check) => (
-              <li key={check.name}>{check.message}</li>
-            ))}
-          </ul>
-        </section>
+        <RunDetail
+          run={selectedRun}
+          onCancel={() => void cancelSelectedRun()}
+          onRerun={() => void rerunSelectedRun()}
+        />
       )}
     </main>
   );
