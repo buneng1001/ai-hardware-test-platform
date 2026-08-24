@@ -10,7 +10,7 @@ from app.database import get_data_dir, open_database
 from app.imu_checks import run_imu_checks
 from app.manual_check_results import list_manual_results
 from app.normal_generator import generate_normal_artifacts
-from app.run_models import RunConfigurationSnapshot, RunRecord, StageEvent
+from app.run_models import AlignmentReviewCommand, RunConfigurationSnapshot, RunRecord, StageEvent
 from app.storage_checks import run_storage_checks
 from app.time_alignment import align_fixed_offset, align_linear_drift
 from app.video_checks import run_video_checks
@@ -254,4 +254,51 @@ def get_run(run_id: int) -> RunRecord:
     record = _get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
+    return record
+
+
+@router.post("/api/runs/{run_id}/alignment-review", response_model=RunRecord)
+def review_alignment(run_id: int, command: AlignmentReviewCommand) -> RunRecord:
+    """应用锚点复核并只替换分析快照，原始产物和检测结果保持不变。"""
+    record = _get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="运行记录不存在")
+    if record.alignment_result is None:
+        raise HTTPException(status_code=409, detail="当前运行没有可复核的时间对齐结果")
+
+    known_ids = {anchor.id for anchor in record.alignment_result.anchor_details}
+    unknown_ids = [item.anchor_id for item in command.anchors if item.anchor_id not in known_ids]
+    if unknown_ids:
+        raise HTTPException(status_code=422, detail=f"未知锚点引用：{', '.join(unknown_ids)}")
+
+    overrides = {
+        item.anchor_id: (item.reviewed_time_s, item.included)
+        for item in command.anchors
+    }
+    snapshot = record.configuration_snapshot
+    alignment = (
+        align_fixed_offset(
+            record.artifacts,
+            get_data_dir(),
+            snapshot,
+            overrides,
+            record.alignment_result.review_revision + 1,
+        )
+        or align_linear_drift(
+            record.artifacts,
+            get_data_dir(),
+            snapshot,
+            overrides,
+            record.alignment_result.review_revision + 1,
+        )
+    )
+    if alignment is None:
+        raise HTTPException(status_code=422, detail="复核后有效共同锚点不足，无法重新计算")
+
+    with open_database() as connection:
+        connection.execute(
+            "UPDATE runs SET alignment_result = ? WHERE id = ?",
+            (alignment.model_dump_json(), run_id),
+        )
+    record.alignment_result = alignment
     return record
