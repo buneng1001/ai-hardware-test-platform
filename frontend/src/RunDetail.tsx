@@ -127,6 +127,11 @@ export function RunDetail({
             <h4 id="evaluation-result-title">判定结果</h4>
             <p>{run.evaluation_result.summary}</p>
             <p>
+              检查分布：通过 {run.evaluation_result.distribution.passed}{" "}
+              项，失败 {run.evaluation_result.distribution.failed} 项；趋势：{" "}
+              {run.evaluation_result.trend.join(" → ") || "无"}
+            </p>
+            <p>
               阈值来源：
               {
                 {

@@ -35,7 +35,12 @@ def _payload(mode: str) -> dict:
                 "engineering_target": "engineering_target",
                 "baseline_analysis": "version_baseline",
             }[mode],
-            "thresholds": {"max_failed_checks": 0},
+            "thresholds": {} if mode == "baseline_analysis" else {"max_failed_checks": 0},
+            "priority": [
+                "formal_specification",
+                "engineering_target",
+                "version_baseline",
+            ],
         },
     }
 
@@ -86,6 +91,11 @@ def test_run_evaluation_modes_are_observable_and_snapshot_is_immutable(
             "mode": "baseline_analysis",
             "threshold_source": "formal_specification",
             "thresholds": {"max_failed_checks": 0},
+        },
+        {
+            "mode": "requirements_acceptance",
+            "threshold_source": "formal_specification",
+            "thresholds": {"max_failed_checks": 0.5},
         },
     ],
 )

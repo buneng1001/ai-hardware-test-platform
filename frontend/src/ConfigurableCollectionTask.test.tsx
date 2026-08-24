@@ -355,3 +355,59 @@ test("测试工程师能选择工程目标模式并提交阈值来源", async ()
     }),
   );
 });
+
+test("测试工程师能选择摸底分析并不提交合格性阈值", async () => {
+  const fetchMock = successfulPageLoad().mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        id: 14,
+        name: "版本基线摸底",
+        mode: "quick",
+        scenario: "normal",
+        reference_channel: "camera_1",
+        evaluation: {
+          mode: "baseline_analysis",
+          threshold_source: "version_baseline",
+          thresholds: {},
+          priority: [
+            "formal_specification",
+            "engineering_target",
+            "version_baseline",
+          ],
+        },
+        status: "draft",
+        duration_seconds: 2,
+        video: {
+          channels: 1,
+          resolution: "640x360",
+          fps: 15,
+          container: "mp4",
+          codec: "h264",
+        },
+        imu: { format: "csv", sample_rate_hz: 50 },
+        random_seed: 20260822,
+        created_at: "2026-08-24T12:00:00Z",
+      }),
+      { status: 201 },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("任务名称"), {
+    target: { value: "版本基线摸底" },
+  });
+  fireEvent.change(screen.getByLabelText("判定模式"), {
+    target: { value: "baseline_analysis" },
+  });
+  expect(screen.queryByLabelText("允许失败检查数")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(await screen.findByText("快速 · 正常采集 · 草稿")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/collection-tasks",
+    expect.objectContaining({
+      body: expect.stringContaining('"thresholds":{}'),
+    }),
+  );
+});

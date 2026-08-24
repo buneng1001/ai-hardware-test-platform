@@ -67,7 +67,15 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
             baseline_analysis: "version_baseline",
           } as Record<EvaluationMode, ThresholdSource>
         )[evaluationMode],
-        thresholds: { max_failed_checks: maxFailedChecks },
+        thresholds:
+          evaluationMode === "baseline_analysis"
+            ? {}
+            : { max_failed_checks: maxFailedChecks },
+        priority: [
+          "formal_specification",
+          "engineering_target",
+          "version_baseline",
+        ],
       };
     }
     if (mode === "custom") {
@@ -142,14 +150,16 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
           }[evaluationMode]
         }
       </p>
-      <NumberField
-        label="允许失败检查数"
-        id="max-failed-checks"
-        min={0}
-        max={100}
-        value={maxFailedChecks}
-        onChange={setMaxFailedChecks}
-      />
+      {evaluationMode !== "baseline_analysis" && (
+        <NumberField
+          label="允许失败检查数"
+          id="max-failed-checks"
+          min={0}
+          max={100}
+          value={maxFailedChecks}
+          onChange={setMaxFailedChecks}
+        />
+      )}
       <label htmlFor="scenario">场景</label>
       <select
         id="scenario"

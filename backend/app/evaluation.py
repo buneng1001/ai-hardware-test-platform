@@ -12,6 +12,8 @@ def evaluate_run(
         "check_count": len(checks),
         "failed_check_count": failed_checks,
     }
+    distribution = {"passed": len(checks) - failed_checks, "failed": failed_checks}
+    trend = [int(check.status == "failed") for check in checks]
     if alignment is not None and alignment.post_alignment:
         metrics["max_alignment_residual_ms"] = max(
             metric["max_residual_ms"] for metric in alignment.post_alignment.values()
@@ -23,19 +25,24 @@ def evaluate_run(
             mode=configuration.mode,
             threshold_source=configuration.threshold_source,
             thresholds=configuration.thresholds,
+            priority=configuration.priority,
             conclusion="not_applicable",
             is_product_commitment=False,
             metrics=metrics,
+            distribution=distribution,
+            trend=trend,
             summary="摸底分析模式仅展示检测结果分布和趋势，不产生合格性结论。",
         )
 
     within_thresholds = True
     if "max_failed_checks" in configuration.thresholds:
         within_thresholds &= failed_checks <= configuration.thresholds["max_failed_checks"]
-    if "max_alignment_residual_ms" in configuration.thresholds and "max_alignment_residual_ms" in metrics:
-        within_thresholds &= metrics["max_alignment_residual_ms"] <= configuration.thresholds[
-            "max_alignment_residual_ms"
-        ]
+    if "max_alignment_residual_ms" in configuration.thresholds:
+        within_thresholds &= "max_alignment_residual_ms" in metrics
+        if "max_alignment_residual_ms" in metrics:
+            within_thresholds &= metrics["max_alignment_residual_ms"] <= configuration.thresholds[
+                "max_alignment_residual_ms"
+            ]
     conclusion = "passed" if within_thresholds else "failed"
     mode_label = "需求验收" if configuration.mode == "requirements_acceptance" else "工程目标"
     commitment = configuration.mode == "requirements_acceptance"
@@ -46,8 +53,11 @@ def evaluate_run(
         mode=configuration.mode,
         threshold_source=configuration.threshold_source,
         thresholds=configuration.thresholds,
+        priority=configuration.priority,
         conclusion=conclusion,
         is_product_commitment=commitment,
         metrics=metrics,
+        distribution=distribution,
+        trend=trend,
         summary=summary,
     )

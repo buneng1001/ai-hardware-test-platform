@@ -52,6 +52,11 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
             "mode": "requirements_acceptance",
             "threshold_source": "formal_specification",
             "thresholds": {"max_failed_checks": 0.0},
+            "priority": [
+                "formal_specification",
+                "engineering_target",
+                "version_baseline",
+            ],
         },
     }
     assert {artifact["kind"] for artifact in first_run["artifacts"]} == {
@@ -114,6 +119,11 @@ def test_engineer_can_generate_repeatable_custom_multichannel_artifacts(tmp_path
         "mode": "requirements_acceptance",
         "threshold_source": "formal_specification",
         "thresholds": {"max_failed_checks": 0.0},
+        "priority": [
+            "formal_specification",
+            "engineering_target",
+            "version_baseline",
+        ],
     }
     assert first_run["configuration_snapshot"] == expected_snapshot
     assert [artifact["path"].split("/")[-1] for artifact in first_run["artifacts"]] == [

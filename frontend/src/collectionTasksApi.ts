@@ -54,7 +54,8 @@ export type ThresholdSource =
 export type EvaluationConfiguration = {
   mode: EvaluationMode;
   threshold_source: ThresholdSource;
-  thresholds: { max_failed_checks: number };
+  thresholds: { max_failed_checks?: number };
+  priority: ThresholdSource[];
 };
 
 export type RunStatus =
@@ -101,9 +102,12 @@ export type RunRecord = {
     mode: EvaluationMode;
     threshold_source: ThresholdSource;
     thresholds: Record<string, number>;
+    priority: ThresholdSource[];
     conclusion: "passed" | "failed" | "not_applicable";
     is_product_commitment: boolean;
     metrics: Record<string, number>;
+    distribution: Record<string, number>;
+    trend: number[];
     summary: string;
   } | null;
   checks: Array<{

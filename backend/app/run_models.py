@@ -31,6 +31,11 @@ class EvaluationConfiguration(BaseModel):
     mode: EvaluationMode = "requirements_acceptance"
     threshold_source: ThresholdSource = "formal_specification"
     thresholds: dict[str, float] = Field(default_factory=lambda: {"max_failed_checks": 0.0})
+    priority: tuple[ThresholdSource, ...] = (
+        "formal_specification",
+        "engineering_target",
+        "version_baseline",
+    )
 
     @model_validator(mode="after")
     def validate_source_and_thresholds(self) -> "EvaluationConfiguration":
@@ -41,7 +46,7 @@ class EvaluationConfiguration(BaseModel):
         }
         if self.threshold_source != expected_sources[self.mode]:
             raise ValueError("判定模式与阈值来源不匹配")
-        if not self.thresholds:
+        if self.mode != "baseline_analysis" and not self.thresholds:
             raise ValueError("至少需要提供一项阈值")
         allowed_names = {"max_failed_checks", "max_alignment_residual_ms"}
         unknown_names = set(self.thresholds) - allowed_names
@@ -49,6 +54,17 @@ class EvaluationConfiguration(BaseModel):
             raise ValueError(f"不支持的阈值名称：{', '.join(sorted(unknown_names))}")
         if any(value < 0 for value in self.thresholds.values()):
             raise ValueError("阈值不能为负数")
+        failed_check_threshold = self.thresholds.get("max_failed_checks")
+        if failed_check_threshold is not None and (
+            isinstance(failed_check_threshold, bool) or not failed_check_threshold.is_integer()
+        ):
+            raise ValueError("允许失败检查数必须是整数")
+        if set(self.priority) != {
+            "formal_specification",
+            "engineering_target",
+            "version_baseline",
+        }:
+            raise ValueError("判定优先级必须包含三种阈值来源且各出现一次")
         return self
 
 class VideoConfiguration(BaseModel):
@@ -169,9 +185,12 @@ class EvaluationResult(BaseModel):
     mode: EvaluationMode
     threshold_source: ThresholdSource
     thresholds: dict[str, float]
+    priority: tuple[ThresholdSource, ...]
     conclusion: Literal["passed", "failed", "not_applicable"]
     is_product_commitment: bool
     metrics: dict[str, float | int]
+    distribution: dict[str, int]
+    trend: list[int]
     summary: str
 
 

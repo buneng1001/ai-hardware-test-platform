@@ -109,7 +109,7 @@ def migrate_database(connection: sqlite3.Connection) -> None:
         )
         current_version = 6
 
-    if current_version < LATEST_SCHEMA_VERSION:
+    if current_version < 7:
         connection.executescript(
             """
             ALTER TABLE runs ADD COLUMN alignment_result TEXT NOT NULL DEFAULT '{}';
