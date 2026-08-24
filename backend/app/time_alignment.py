@@ -55,6 +55,72 @@ def align_fixed_offset(
     )
 
 
+def align_linear_drift(
+    artifacts: list[Artifact], data_dir: Path, snapshot: RunConfigurationSnapshot
+) -> TimeAlignmentResult | None:
+    """用多个共同事件拟合线性校正，保留每个通道的原始锚点序列。"""
+    if snapshot.scenario != "linear_drift":
+        return None
+
+    video_timelines = _read_video_timelines(artifacts, data_dir)
+    imu_timeline = _read_imu_timeline(artifacts, data_dir, snapshot.imu.format)
+    channels = {**video_timelines, "imu": imu_timeline} if imu_timeline else video_timelines
+    if snapshot.reference_channel not in channels:
+        return None
+    anchors = {channel: _anchor_times(channel, timeline) for channel, timeline in channels.items()}
+    reference_anchors = anchors[snapshot.reference_channel]
+    if (
+        len(reference_anchors) < 3
+        or any(len(channel_anchors) != len(reference_anchors) for channel_anchors in anchors.values())
+        or len(set(reference_anchors)) < 2
+    ):
+        return None
+
+    parameters: dict[str, float] = {}
+    drift_rates: dict[str, float] = {}
+    pre_alignment: dict[str, dict[str, float]] = {}
+    post_alignment: dict[str, dict[str, float]] = {}
+    trend: dict[str, list[float]] = {}
+    for channel, channel_anchors in anchors.items():
+        count = min(len(reference_anchors), len(channel_anchors))
+        x_values = reference_anchors[:count]
+        corrections = [x - y for x, y in zip(x_values, channel_anchors[:count])]
+        intercept, slope = _linear_fit(x_values, corrections)
+        parameters[channel] = round(intercept, 6)
+        drift_rates[channel] = round(slope, 6)
+        pre_alignment[channel] = {
+            "offset_s": round(-corrections[0], 6),
+            "jitter_ms": round(_std(corrections) * 1000, 3),
+            "drift_s_per_s": round(-slope, 6),
+            "max_residual_ms": round(max(abs(value) for value in corrections) * 1000, 3),
+        }
+        residuals = [y + intercept + slope * x - x for x, y in zip(x_values, channel_anchors[:count])]
+        trend[channel] = [round(value * 1000, 3) for value in residuals]
+        post_alignment[channel] = {
+            "max_residual_ms": round(max(abs(value) for value in residuals) * 1000, 3),
+            "mean_residual_ms": round(sum(abs(value) for value in residuals) / len(residuals) * 1000, 3),
+            "p95_residual_ms": round(_percentile([abs(value) for value in residuals], 0.95) * 1000, 3),
+        }
+
+    truth = read_fault_truth(artifacts, data_dir)
+    truth_offsets = _relative_truth_offsets(truth.get("alignment_corrections_s", {}), snapshot.reference_channel)
+    truth_drifts = _relative_truth_rates(
+        truth.get("alignment_drift_rates_s_per_s", {}), snapshot.reference_channel
+    )
+    truth_comparison = _compare_linear_model(parameters, drift_rates, truth_offsets, truth_drifts)
+    return TimeAlignmentResult(
+        reference_channel=snapshot.reference_channel,
+        method="linear_drift_regression",
+        parameters=parameters,
+        drift_rates_s_per_s=drift_rates,
+        anchors=anchors,
+        pre_alignment=pre_alignment,
+        post_alignment=post_alignment,
+        trend=trend,
+        truth_comparison=truth_comparison,
+    )
+
+
 def _read_video_timelines(artifacts: list[Artifact], data_dir: Path) -> dict[str, list[tuple[float, float]]]:
     """读取视频通道的（时间戳, 平均亮度）序列，亮度用于定位闪光锚点。"""
     timelines: dict[str, list[tuple[float, float]]] = {}
@@ -110,6 +176,17 @@ def _read_imu_timeline(artifacts: list[Artifact], data_dir: Path, imu_format: st
 def _anchor_time(channel: str, timeline: list[tuple[float, float]]) -> float:
     """返回通道锚点时间：视频取最亮帧（闪光），IMU 取冲击峰值样本。"""
     return max(timeline, key=lambda sample: sample[1])[0]
+
+
+def _anchor_times(channel: str, timeline: list[tuple[float, float]]) -> list[float]:
+    """识别多个共同事件，并把相邻高峰合并为单个锚点。"""
+    threshold = 230.0 if channel != "imu" else 5.0
+    candidates = [timestamp for timestamp, value in timeline if value >= threshold]
+    anchors: list[float] = []
+    for timestamp in candidates:
+        if not anchors or timestamp - anchors[-1] > (0.1 if channel != "imu" else 0.03):
+            anchors.append(timestamp)
+    return anchors
 
 
 def _expected_interval_s(channel: str, snapshot: RunConfigurationSnapshot) -> float:
@@ -193,6 +270,40 @@ def _relative_truth_offsets(truth: dict[str, float], reference_channel: str) -> 
     """把以 camera_1 为原点的故障真值转换为所选参考通道的原点。"""
     reference_offset = truth.get(reference_channel, 0.0)
     return {channel: round(offset - reference_offset, 6) for channel, offset in truth.items()}
+
+
+def _relative_truth_rates(truth: dict[str, float], reference_channel: str) -> dict[str, float]:
+    """把以 camera_1 为原点的漂移率转换为所选参考通道的原点。"""
+    reference_rate = truth.get(reference_channel, 0.0)
+    return {channel: round(-(rate - reference_rate), 6) for channel, rate in truth.items()}
+
+
+def _linear_fit(x_values: list[float], y_values: list[float]) -> tuple[float, float]:
+    """用最小二乘拟合 correction = intercept + slope * reference_time。"""
+    mean_x = sum(x_values) / len(x_values)
+    mean_y = sum(y_values) / len(y_values)
+    denominator = sum((value - mean_x) ** 2 for value in x_values)
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(x_values, y_values)) / denominator
+    return mean_y - slope * mean_x, slope
+
+
+def _compare_linear_model(
+    estimated_offsets: dict[str, float],
+    estimated_rates: dict[str, float],
+    truth_offsets: dict[str, float],
+    truth_rates: dict[str, float],
+    tolerance_s: float = 0.04,
+) -> Literal["matched", "missed", "not_applicable"]:
+    """同时校验线性模型截距和斜率。"""
+    if not truth_offsets or not truth_rates:
+        return "not_applicable"
+    for channel, true_offset in truth_offsets.items():
+        if abs(estimated_offsets.get(channel, 0.0) - true_offset) > tolerance_s:
+            return "missed"
+    for channel, true_rate in truth_rates.items():
+        if abs(estimated_rates.get(channel, 0.0) - true_rate) > tolerance_s:
+            return "missed"
+    return "matched"
 
 
 def _std(values: list[float]) -> float:

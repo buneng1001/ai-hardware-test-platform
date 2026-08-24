@@ -14,7 +14,7 @@ from app.run_models import (
     GenerationMetadata,
     RunConfigurationSnapshot,
 )
-from app.video_generation import channel_delay_s, video_filter
+from app.video_generation import channel_delay_s, linear_drift_rate, video_filter
 
 
 def generate_normal_artifacts(
@@ -105,7 +105,13 @@ def _generate_imu(
     rows = []
     imu_delay_s = channel_delay_s(snapshot, "imu")
     spike_index: int | None = None
-    if snapshot.scenario == "fixed_offset":
+    spike_indices: set[int] = set()
+    if snapshot.scenario == "linear_drift":
+        for fraction in (0.2, 0.5, 0.8):
+            event_time = actual_duration_seconds * fraction
+            # 样本索引仍对应参考时钟事件，写入时间戳时再注入偏移和漂移。
+            spike_indices.add(round(event_time * snapshot.imu.sample_rate_hz))
+    elif snapshot.scenario == "fixed_offset":
         # 冲击峰值的真实发生时刻为内容中点；加上 IMU 延迟后会出现在更晚的本地时间戳
         spike_time = actual_duration_seconds / 2
         spike_index = round(spike_time * snapshot.imu.sample_rate_hz)
@@ -113,9 +119,12 @@ def _generate_imu(
         raw_timestamp = index / snapshot.imu.sample_rate_hz
         if snapshot.scenario == "fixed_offset" and index != spike_index:
             raw_timestamp += generator.uniform(-0.001, 0.001)
-        timestamp = raw_timestamp + imu_delay_s
+        if snapshot.scenario == "linear_drift":
+            timestamp = raw_timestamp + channel_delay_s(snapshot, "imu", raw_timestamp)
+        else:
+            timestamp = raw_timestamp + imu_delay_s
         accel_x = math.sin(timestamp) + generator.uniform(-0.001, 0.001)
-        if index == spike_index:
+        if index == spike_index or index in spike_indices:
             accel_x = 10.0
         rows.append(
             {
@@ -276,7 +285,7 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
             }
         ]
         truth["expected_basic_result"] = "storage_exhaustion"
-    elif snapshot.scenario == "fixed_offset":
+    elif snapshot.scenario in {"fixed_offset", "linear_drift"}:
         truth["reference_channel"] = snapshot.reference_channel
         # 保存对齐时需要添加的校正量（延迟的相反数）
         truth["alignment_corrections_s"] = {
@@ -284,7 +293,15 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
             for channel in range(1, snapshot.video.channels + 1)
         }
         truth["alignment_corrections_s"]["imu"] = -channel_delay_s(snapshot, "imu")
-        truth["expected_basic_result"] = "fixed_offset_aligned"
+        if snapshot.scenario == "linear_drift":
+            truth["alignment_drift_rates_s_per_s"] = {
+                f"camera_{channel}": linear_drift_rate(snapshot, channel)
+                for channel in range(1, snapshot.video.channels + 1)
+            }
+            truth["alignment_drift_rates_s_per_s"]["imu"] = linear_drift_rate(snapshot, "imu")
+            truth["expected_basic_result"] = "linear_drift_aligned"
+        else:
+            truth["expected_basic_result"] = "fixed_offset_aligned"
     return truth
 
 def _artifact(kind: str, path: Path, run_dir: Path, source: str = "actual_generated") -> Artifact:

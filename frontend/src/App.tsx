@@ -186,4 +186,5 @@ const scenarioLabels = {
   imu_anomaly: "IMU 异常",
   storage_exhaustion: "存储不足",
   fixed_offset: "固定偏移",
+  linear_drift: "线性漂移",
 } as const;

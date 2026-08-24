@@ -181,7 +181,9 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
             <h4>时间对齐结果</h4>
             <p>
               参考时钟：{run.alignment_result.reference_channel} · 方法：
-              {run.alignment_result.method}
+              {run.alignment_result.method === "linear_drift_regression"
+                ? "多事件线性漂移回归"
+                : "固定偏移锚点"}
             </p>
             <p>估计校正量（秒）：</p>
             <ul>
@@ -193,6 +195,31 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
                 ),
               )}
             </ul>
+            {run.alignment_result.method === "linear_drift_regression" && (
+              <>
+                <p>估计漂移率（秒/秒）：</p>
+                <ul>
+                  {Object.entries(run.alignment_result.drift_rates_s_per_s).map(
+                    ([channel, rate]) => (
+                      <li key={channel}>
+                        {channel}: {rate.toFixed(6)}
+                      </li>
+                    ),
+                  )}
+                </ul>
+                <p>共同事件残差趋势（毫秒）：</p>
+                <ul>
+                  {Object.entries(run.alignment_result.trend).map(
+                    ([channel, values]) => (
+                      <li key={channel}>
+                        {channel}:{" "}
+                        {values.map((value) => value.toFixed(3)).join(" → ")}
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </>
+            )}
             <p>对齐前指标：</p>
             <ul>
               {Object.entries(run.alignment_result.pre_alignment).map(
@@ -200,6 +227,11 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
                   <li key={channel}>
                     {channel}：偏移 {metrics.offset_s.toFixed(3)} s，抖动{" "}
                     {metrics.jitter_ms.toFixed(3)} ms
+                    {run.alignment_result?.method ===
+                      "linear_drift_regression" &&
+                      ", 漂移率 " +
+                        (metrics.drift_s_per_s ?? 0).toFixed(6) +
+                        " s/s"}
                   </li>
                 ),
               )}

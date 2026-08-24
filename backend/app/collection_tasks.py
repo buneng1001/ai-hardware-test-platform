@@ -54,7 +54,14 @@ class CollectionTaskCreate(BaseModel):
     @field_validator("scenario", mode="before")
     @classmethod
     def validate_scenario(cls, value: object) -> object:
-        allowed = {"normal", "video_drop", "imu_anomaly", "storage_exhaustion", "fixed_offset"}
+        allowed = {
+            "normal",
+            "video_drop",
+            "imu_anomaly",
+            "storage_exhaustion",
+            "fixed_offset",
+            "linear_drift",
+        }
         if value not in allowed:
             raise ValueError("当前只支持正常采集、单路视频掉帧、IMU 异常、存储不足或固定偏移场景")
         return value

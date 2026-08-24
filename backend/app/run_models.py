@@ -17,7 +17,9 @@ RunStatus = Literal[
     "interrupted",
 ]
 
-Scenario = Literal["normal", "video_drop", "imu_anomaly", "storage_exhaustion", "fixed_offset"]
+Scenario = Literal[
+    "normal", "video_drop", "imu_anomaly", "storage_exhaustion", "fixed_offset", "linear_drift"
+]
 ReferenceChannel = Literal["camera_1", "camera_2", "camera_3", "camera_4", "imu"]
 
 class VideoConfiguration(BaseModel):
@@ -95,10 +97,13 @@ class BasicCheck(BaseModel):
 
 class TimeAlignmentResult(BaseModel):
     reference_channel: str
-    method: Literal["fixed_offset_anchor"]
+    method: Literal["fixed_offset_anchor", "linear_drift_regression"]
     parameters: dict[str, float]
+    drift_rates_s_per_s: dict[str, float] = Field(default_factory=dict)
+    anchors: dict[str, list[float]] = Field(default_factory=dict)
     pre_alignment: dict[str, dict[str, float]]
     post_alignment: dict[str, dict[str, float]]
+    trend: dict[str, list[float]] = Field(default_factory=dict)
     truth_comparison: Literal["matched", "missed", "not_applicable"] = "not_applicable"
 
 

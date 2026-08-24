@@ -20,7 +20,8 @@ export type Scenario =
   | "video_drop"
   | "imu_anomaly"
   | "storage_exhaustion"
-  | "fixed_offset";
+  | "fixed_offset"
+  | "linear_drift";
 export type ReferenceChannel =
   "camera_1" | "camera_2" | "camera_3" | "camera_4" | "imu";
 export type VideoConfiguration = {
@@ -95,10 +96,13 @@ export type RunRecord = {
   }>;
   alignment_result: {
     reference_channel: ReferenceChannel;
-    method: "fixed_offset_anchor";
+    method: "fixed_offset_anchor" | "linear_drift_regression";
     parameters: Record<string, number>;
+    drift_rates_s_per_s: Record<string, number>;
+    anchors: Record<string, number[]>;
     pre_alignment: Record<string, Record<string, number>>;
     post_alignment: Record<string, Record<string, number>>;
+    trend: Record<string, number[]>;
     truth_comparison: "matched" | "missed" | "not_applicable";
   } | null;
   manual_check_results: ManualCheckResult[];

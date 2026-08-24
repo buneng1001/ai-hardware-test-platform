@@ -112,6 +112,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="imu_anomaly">IMU 异常</option>
         <option value="storage_exhaustion">存储不足</option>
         <option value="fixed_offset">固定偏移</option>
+        <option value="linear_drift">线性漂移</option>
       </select>
       <label htmlFor="reference-channel">参考时钟</label>
       <select
