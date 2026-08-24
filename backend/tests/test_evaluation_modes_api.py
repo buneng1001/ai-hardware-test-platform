@@ -72,6 +72,24 @@ def test_run_evaluation_modes_are_observable_and_snapshot_is_immutable(
     assert result["threshold_source"] == task["evaluation"]["threshold_source"]
     assert result["conclusion"] == expected_conclusion
     assert result["is_product_commitment"] is product_commitment
+    assert result["priority_rank"] == {
+        "requirements_acceptance": 0,
+        "engineering_target": 1,
+        "baseline_analysis": 2,
+    }[mode]
+
+
+def test_requirements_acceptance_reports_failed_when_a_deterministic_check_fails(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={**_payload("requirements_acceptance"), "scenario": "video_drop"},
+        ).json()
+        run = _wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+
+    assert run["evaluation_result"]["conclusion"] == "failed"
+    assert run["evaluation_result"]["is_product_commitment"] is True
 
 
 @pytest.mark.parametrize(
@@ -96,6 +114,16 @@ def test_run_evaluation_modes_are_observable_and_snapshot_is_immutable(
             "mode": "requirements_acceptance",
             "threshold_source": "formal_specification",
             "thresholds": {"max_failed_checks": 0.5},
+        },
+        {
+            "mode": "requirements_acceptance",
+            "threshold_source": "formal_specification",
+            "thresholds": {"max_failed_checks": 0},
+            "priority": [
+                "formal_specification",
+                "formal_specification",
+                "version_baseline",
+            ],
         },
     ],
 )

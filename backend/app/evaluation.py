@@ -20,12 +20,14 @@ def evaluate_run(
         )
 
     configuration = snapshot.evaluation
+    priority_rank = configuration.priority.index(configuration.threshold_source)
     if configuration.mode == "baseline_analysis":
         return EvaluationResult(
             mode=configuration.mode,
             threshold_source=configuration.threshold_source,
             thresholds=configuration.thresholds,
             priority=configuration.priority,
+            priority_rank=priority_rank,
             conclusion="not_applicable",
             is_product_commitment=False,
             metrics=metrics,
@@ -54,6 +56,7 @@ def evaluate_run(
         threshold_source=configuration.threshold_source,
         thresholds=configuration.thresholds,
         priority=configuration.priority,
+        priority_rank=priority_rank,
         conclusion=conclusion,
         is_product_commitment=commitment,
         metrics=metrics,

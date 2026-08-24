@@ -65,6 +65,8 @@ class EvaluationConfiguration(BaseModel):
             "version_baseline",
         }:
             raise ValueError("判定优先级必须包含三种阈值来源且各出现一次")
+        if len(self.priority) != len(set(self.priority)):
+            raise ValueError("判定优先级不能重复")
         return self
 
 class VideoConfiguration(BaseModel):
@@ -186,6 +188,7 @@ class EvaluationResult(BaseModel):
     threshold_source: ThresholdSource
     thresholds: dict[str, float]
     priority: tuple[ThresholdSource, ...]
+    priority_rank: int
     conclusion: Literal["passed", "failed", "not_applicable"]
     is_product_commitment: bool
     metrics: dict[str, float | int]

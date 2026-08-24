@@ -411,3 +411,60 @@ test("测试工程师能选择摸底分析并不提交合格性阈值", async ()
     }),
   );
 });
+
+test("测试工程师能显式提交需求验收模式", async () => {
+  const fetchMock = successfulPageLoad().mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        id: 15,
+        name: "正式规格验收",
+        mode: "quick",
+        scenario: "normal",
+        reference_channel: "camera_1",
+        evaluation: {
+          mode: "requirements_acceptance",
+          threshold_source: "formal_specification",
+          thresholds: { max_failed_checks: 1 },
+          priority: [
+            "formal_specification",
+            "engineering_target",
+            "version_baseline",
+          ],
+        },
+        status: "draft",
+        duration_seconds: 2,
+        video: {
+          channels: 1,
+          resolution: "640x360",
+          fps: 15,
+          container: "mp4",
+          codec: "h264",
+        },
+        imu: { format: "csv", sample_rate_hz: 50 },
+        random_seed: 20260822,
+        created_at: "2026-08-24T12:00:00Z",
+      }),
+      { status: 201 },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("任务名称"), {
+    target: { value: "正式规格验收" },
+  });
+  fireEvent.change(screen.getByLabelText("允许失败检查数"), {
+    target: { value: "1" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(await screen.findByText("快速 · 正常采集 · 草稿")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/collection-tasks",
+    expect.objectContaining({
+      body: expect.stringContaining(
+        '"threshold_source":"formal_specification"',
+      ),
+    }),
+  );
+});

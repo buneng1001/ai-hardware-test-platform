@@ -80,6 +80,7 @@ export type RunRecord = {
     imu: ImuConfiguration;
     random_seed: number;
     reference_channel: ReferenceChannel;
+    evaluation: EvaluationConfiguration;
   };
   events: Array<{ stage: RunStatus; occurred_at: string }>;
   artifacts: Array<{
@@ -103,6 +104,7 @@ export type RunRecord = {
     threshold_source: ThresholdSource;
     thresholds: Record<string, number>;
     priority: ThresholdSource[];
+    priority_rank: number;
     conclusion: "passed" | "failed" | "not_applicable";
     is_product_commitment: boolean;
     metrics: Record<string, number>;
