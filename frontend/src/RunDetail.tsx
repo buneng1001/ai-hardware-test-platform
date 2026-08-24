@@ -122,6 +122,30 @@ export function RunDetail({
       )}
       <section aria-labelledby="run-analysis-title">
         <h3 id="run-analysis-title">运行分析</h3>
+        {run.evaluation_result && (
+          <section aria-labelledby="evaluation-result-title">
+            <h4 id="evaluation-result-title">判定结果</h4>
+            <p>{run.evaluation_result.summary}</p>
+            <p>
+              阈值来源：
+              {
+                {
+                  formal_specification: "正式规格",
+                  engineering_target: "工程目标",
+                  version_baseline: "版本基线",
+                }[run.evaluation_result.threshold_source]
+              }
+            </p>
+            <p>
+              结论：
+              {run.evaluation_result.conclusion === "passed"
+                ? "通过"
+                : run.evaluation_result.conclusion === "failed"
+                  ? "不通过"
+                  : "仅展示分布与趋势"}
+            </p>
+          </section>
+        )}
         <h4>自动化检测结果</h4>
         <ul>
           {run.checks.map((check) => {

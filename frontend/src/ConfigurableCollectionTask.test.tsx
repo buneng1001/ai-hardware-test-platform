@@ -302,3 +302,56 @@ test("测试工程师能从页面创建存储不足场景", async () => {
     }),
   );
 });
+
+test("测试工程师能选择工程目标模式并提交阈值来源", async () => {
+  const fetchMock = successfulPageLoad().mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        id: 13,
+        name: "工程目标判定",
+        mode: "quick",
+        scenario: "normal",
+        reference_channel: "camera_1",
+        evaluation: {
+          mode: "engineering_target",
+          threshold_source: "engineering_target",
+          thresholds: { max_failed_checks: 2 },
+        },
+        status: "draft",
+        duration_seconds: 2,
+        video: {
+          channels: 1,
+          resolution: "640x360",
+          fps: 15,
+          container: "mp4",
+          codec: "h264",
+        },
+        imu: { format: "csv", sample_rate_hz: 50 },
+        random_seed: 20260822,
+        created_at: "2026-08-24T12:00:00Z",
+      }),
+      { status: 201 },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("任务名称"), {
+    target: { value: "工程目标判定" },
+  });
+  fireEvent.change(screen.getByLabelText("判定模式"), {
+    target: { value: "engineering_target" },
+  });
+  fireEvent.change(screen.getByLabelText("允许失败检查数"), {
+    target: { value: "2" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(await screen.findByText("快速 · 正常采集 · 草稿")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/collection-tasks",
+    expect.objectContaining({
+      body: expect.stringContaining('"threshold_source":"engineering_target"'),
+    }),
+  );
+});

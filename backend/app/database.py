@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 7
+LATEST_SCHEMA_VERSION = 8
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -115,6 +115,16 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             ALTER TABLE runs ADD COLUMN alignment_result TEXT NOT NULL DEFAULT '{}';
             INSERT INTO schema_migrations (version) VALUES (7);
             PRAGMA user_version = 7;
+            """
+        )
+        current_version = 7
+
+    if current_version < 8:
+        connection.executescript(
+            """
+            ALTER TABLE runs ADD COLUMN evaluation_result TEXT NOT NULL DEFAULT '{}';
+            INSERT INTO schema_migrations (version) VALUES (8);
+            PRAGMA user_version = 8;
             """
         )
 

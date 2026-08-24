@@ -3,6 +3,8 @@ import { useState } from "react";
 import {
   type CollectionTaskCommand,
   type DataMode,
+  type EvaluationMode,
+  type ThresholdSource,
   type ImuConfiguration,
   type ReferenceChannel,
   type Scenario,
@@ -35,6 +37,10 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   const [randomSeed, setRandomSeed] = useState(20260822);
   const [referenceChannel, setReferenceChannel] =
     useState<ReferenceChannel>("camera_1");
+  const [evaluationMode, setEvaluationMode] = useState<EvaluationMode>(
+    "requirements_acceptance",
+  );
+  const [maxFailedChecks, setMaxFailedChecks] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -51,6 +57,19 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
       scenario,
       reference_channel: referenceChannel,
     };
+    if (evaluationMode !== "requirements_acceptance" || maxFailedChecks !== 0) {
+      command.evaluation = {
+        mode: evaluationMode,
+        threshold_source: (
+          {
+            requirements_acceptance: "formal_specification",
+            engineering_target: "engineering_target",
+            baseline_analysis: "version_baseline",
+          } as Record<EvaluationMode, ThresholdSource>
+        )[evaluationMode],
+        thresholds: { max_failed_checks: maxFailedChecks },
+      };
+    }
     if (mode === "custom") {
       if (
         duration < 2 ||
@@ -101,6 +120,36 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="standard">标准</option>
         <option value="custom">自定义</option>
       </select>
+      <label htmlFor="evaluation-mode">判定模式</label>
+      <select
+        id="evaluation-mode"
+        value={evaluationMode}
+        onChange={(event) =>
+          setEvaluationMode(event.target.value as EvaluationMode)
+        }
+      >
+        <option value="requirements_acceptance">需求验收</option>
+        <option value="engineering_target">工程目标</option>
+        <option value="baseline_analysis">摸底分析</option>
+      </select>
+      <p>
+        阈值来源：
+        {
+          {
+            requirements_acceptance: "正式规格",
+            engineering_target: "工程目标",
+            baseline_analysis: "版本基线",
+          }[evaluationMode]
+        }
+      </p>
+      <NumberField
+        label="允许失败检查数"
+        id="max-failed-checks"
+        min={0}
+        max={100}
+        value={maxFailedChecks}
+        onChange={setMaxFailedChecks}
+      />
       <label htmlFor="scenario">场景</label>
       <select
         id="scenario"

@@ -21,6 +21,35 @@ Scenario = Literal[
     "normal", "video_drop", "imu_anomaly", "storage_exhaustion", "fixed_offset", "linear_drift"
 ]
 ReferenceChannel = Literal["camera_1", "camera_2", "camera_3", "camera_4", "imu"]
+EvaluationMode = Literal["requirements_acceptance", "engineering_target", "baseline_analysis"]
+ThresholdSource = Literal["formal_specification", "engineering_target", "version_baseline"]
+
+
+class EvaluationConfiguration(BaseModel):
+    """判定配置；阈值由测试工程师提供，不由 AI 生成。"""
+
+    mode: EvaluationMode = "requirements_acceptance"
+    threshold_source: ThresholdSource = "formal_specification"
+    thresholds: dict[str, float] = Field(default_factory=lambda: {"max_failed_checks": 0.0})
+
+    @model_validator(mode="after")
+    def validate_source_and_thresholds(self) -> "EvaluationConfiguration":
+        expected_sources = {
+            "requirements_acceptance": "formal_specification",
+            "engineering_target": "engineering_target",
+            "baseline_analysis": "version_baseline",
+        }
+        if self.threshold_source != expected_sources[self.mode]:
+            raise ValueError("判定模式与阈值来源不匹配")
+        if not self.thresholds:
+            raise ValueError("至少需要提供一项阈值")
+        allowed_names = {"max_failed_checks", "max_alignment_residual_ms"}
+        unknown_names = set(self.thresholds) - allowed_names
+        if unknown_names:
+            raise ValueError(f"不支持的阈值名称：{', '.join(sorted(unknown_names))}")
+        if any(value < 0 for value in self.thresholds.values()):
+            raise ValueError("阈值不能为负数")
+        return self
 
 class VideoConfiguration(BaseModel):
     channels: int = Field(ge=1, le=4)
@@ -43,6 +72,7 @@ class RunConfigurationSnapshot(BaseModel):
     imu: ImuConfiguration
     random_seed: int = Field(ge=0, le=2_147_483_647)
     reference_channel: ReferenceChannel = "camera_1"
+    evaluation: EvaluationConfiguration = Field(default_factory=EvaluationConfiguration)
 
     @model_validator(mode="after")
     def protect_local_file_size(self) -> "RunConfigurationSnapshot":
@@ -133,6 +163,18 @@ class ContentSyncResult(BaseModel):
     message: str
 
 
+class EvaluationResult(BaseModel):
+    """运行完成后的判定结果，与自动化检查结果分开保存。"""
+
+    mode: EvaluationMode
+    threshold_source: ThresholdSource
+    thresholds: dict[str, float]
+    conclusion: Literal["passed", "failed", "not_applicable"]
+    is_product_commitment: bool
+    metrics: dict[str, float | int]
+    summary: str
+
+
 class AlignmentReviewItem(BaseModel):
     """一次锚点人工复核提交的变更。"""
 
@@ -170,6 +212,7 @@ class RunRecord(BaseModel):
     generation_metadata: GenerationMetadata | None
     checks: list[BasicCheck]
     alignment_result: TimeAlignmentResult | None
+    evaluation_result: EvaluationResult | None
     manual_check_results: list[ManualCheckResult]
     created_at: datetime
     completed_at: datetime | None

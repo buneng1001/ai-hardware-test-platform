@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.database import open_database
 from app.run_models import (
+    EvaluationConfiguration,
     ImuConfiguration,
     ReferenceChannel,
     RunConfigurationSnapshot,
@@ -42,6 +43,7 @@ class CollectionTaskCreate(BaseModel):
     imu: ImuConfiguration | None = None
     random_seed: int | None = None
     reference_channel: ReferenceChannel = "camera_1"
+    evaluation: EvaluationConfiguration = Field(default_factory=EvaluationConfiguration)
 
     @field_validator("name")
     @classmethod
@@ -94,6 +96,7 @@ class CollectionTask(BaseModel):
     imu: ImuConfiguration
     random_seed: int
     reference_channel: ReferenceChannel
+    evaluation: EvaluationConfiguration
     status: Literal["draft"]
     created_at: datetime
 

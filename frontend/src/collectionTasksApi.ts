@@ -10,6 +10,7 @@ export type CollectionTask = {
   imu: ImuConfiguration;
   random_seed: number;
   reference_channel: ReferenceChannel;
+  evaluation: EvaluationConfiguration;
   status: "draft";
   created_at: string;
 };
@@ -44,6 +45,16 @@ export type CollectionTaskCommand = {
   imu?: ImuConfiguration;
   random_seed?: number;
   reference_channel?: ReferenceChannel;
+  evaluation?: EvaluationConfiguration;
+};
+export type EvaluationMode =
+  "requirements_acceptance" | "engineering_target" | "baseline_analysis";
+export type ThresholdSource =
+  "formal_specification" | "engineering_target" | "version_baseline";
+export type EvaluationConfiguration = {
+  mode: EvaluationMode;
+  threshold_source: ThresholdSource;
+  thresholds: { max_failed_checks: number };
 };
 
 export type RunStatus =
@@ -85,6 +96,15 @@ export type RunRecord = {
     reproducibility_fingerprint: string;
     temperature_range_c: [number, number];
     storage_range_mb: [number, number];
+  } | null;
+  evaluation_result: {
+    mode: EvaluationMode;
+    threshold_source: ThresholdSource;
+    thresholds: Record<string, number>;
+    conclusion: "passed" | "failed" | "not_applicable";
+    is_product_commitment: boolean;
+    metrics: Record<string, number>;
+    summary: string;
   } | null;
   checks: Array<{
     name: string;
