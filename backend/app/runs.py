@@ -12,6 +12,7 @@ from app.manual_check_results import list_manual_results
 from app.normal_generator import generate_normal_artifacts
 from app.run_models import RunConfigurationSnapshot, RunRecord, StageEvent
 from app.storage_checks import run_storage_checks
+from app.time_alignment import align_fixed_offset
 from app.video_checks import run_video_checks
 
 router = APIRouter(tags=["runs"])
@@ -28,6 +29,7 @@ def _event(stage: str) -> StageEvent:
 
 
 def _record_from_row(row: sqlite3.Row) -> RunRecord:
+    alignment_raw = json.loads(row["alignment_result"])
     return RunRecord(
         id=row["id"],
         collection_task_id=row["collection_task_id"],
@@ -36,6 +38,7 @@ def _record_from_row(row: sqlite3.Row) -> RunRecord:
         events=json.loads(row["events"]),
         artifacts=json.loads(row["artifacts"]),
         checks=json.loads(row["checks"]),
+        alignment_result=alignment_raw if alignment_raw else None,
         manual_check_results=list_manual_results(row["id"]),
         generation_metadata=json.loads(row["generation_metadata"]) or None,
         created_at=row["created_at"],
@@ -56,7 +59,8 @@ def _save_active_run(record: RunRecord) -> bool:
         cursor = connection.execute(
             """
             UPDATE runs
-            SET status = ?, events = ?, artifacts = ?, checks = ?, generation_metadata = ?, completed_at = ?, error = ?
+            SET status = ?, events = ?, artifacts = ?, checks = ?, generation_metadata = ?,
+                alignment_result = ?, completed_at = ?, error = ?
             WHERE id = ? AND status IN ('queued', 'generating_data', 'running_checks', 'summarizing_results')
             """,
             (
@@ -65,6 +69,7 @@ def _save_active_run(record: RunRecord) -> bool:
                 json.dumps([artifact.model_dump(mode="json") for artifact in record.artifacts]),
                 json.dumps([check.model_dump(mode="json") for check in record.checks]),
                 record.generation_metadata.model_dump_json() if record.generation_metadata else "{}",
+                record.alignment_result.model_dump_json() if record.alignment_result else "{}",
                 record.completed_at.isoformat() if record.completed_at else None,
                 record.error,
                 record.id,
@@ -78,13 +83,14 @@ def _save_cancelled_evidence(record: RunRecord) -> None:
     with open_database() as connection:
         connection.execute(
             """
-            UPDATE runs SET artifacts = ?, checks = ?, generation_metadata = ?
+            UPDATE runs SET artifacts = ?, checks = ?, generation_metadata = ?, alignment_result = ?
             WHERE id = ? AND status = 'cancelled'
             """,
             (
                 json.dumps([artifact.model_dump(mode="json") for artifact in record.artifacts]),
                 json.dumps([check.model_dump(mode="json") for check in record.checks]),
                 record.generation_metadata.model_dump_json() if record.generation_metadata else "{}",
+                record.alignment_result.model_dump_json() if record.alignment_result else "{}",
                 record.id,
             ),
         )
@@ -119,6 +125,7 @@ def _create_run(collection_task_id: int, snapshot: RunConfigurationSnapshot) -> 
         artifacts=[],
         generation_metadata=None,
         checks=[],
+        alignment_result=None,
         manual_check_results=[],
         created_at=created_at,
         completed_at=None,
@@ -161,6 +168,7 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
             *run_imu_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
             *run_storage_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
         ]
+        record.alignment_result = align_fixed_offset(record.artifacts, get_data_dir(), record.configuration_snapshot)
         if _stop_requested(record, application_stopping):
             return
         record.status = "summarizing_results"

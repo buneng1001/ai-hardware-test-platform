@@ -135,7 +135,7 @@ def _custom_payload(name):
         ({"name": "缺参数", "mode": "custom", "scenario": "normal"}, "自定义模式必须提供完整数据参数"),
         (
             {"name": "错误场景", "mode": "quick", "scenario": "unknown_scenario"},
-            "当前只支持正常采集、单路视频掉帧、IMU 异常或存储不足场景",
+            "当前只支持正常采集、单路视频掉帧、IMU 异常、存储不足或固定偏移场景",
         ),
     ],
 )

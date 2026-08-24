@@ -2,12 +2,10 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { App } from "./App";
-
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-
 function successfulPageLoad() {
   return vi
     .fn()
@@ -25,6 +23,7 @@ test("测试工程师能从页面提交完整的自定义多通道配置", async
         name: "双路 JSONL",
         mode: "custom",
         scenario: "normal",
+        reference_channel: "camera_1",
         status: "draft",
         duration_seconds: 2,
         video: {
@@ -78,6 +77,7 @@ test("测试工程师能从页面提交完整的自定义多通道配置", async
         name: "双路 JSONL",
         mode: "custom",
         scenario: "normal",
+        reference_channel: "camera_1",
         duration_seconds: 2,
         video: {
           channels: 2,
@@ -157,6 +157,7 @@ test("测试工程师能从页面创建单路视频掉帧场景", async () => {
         name: "固定种子掉帧",
         mode: "quick",
         scenario: "video_drop",
+        reference_channel: "camera_1",
         status: "draft",
         duration_seconds: 2,
         video: {
@@ -195,6 +196,7 @@ test("测试工程师能从页面创建单路视频掉帧场景", async () => {
         name: "固定种子掉帧",
         mode: "quick",
         scenario: "video_drop",
+        reference_channel: "camera_1",
       }),
     }),
   );
@@ -208,6 +210,7 @@ test("测试工程师能从页面创建固定种子的 IMU 异常场景", async 
         name: "固定种子 IMU 异常",
         mode: "quick",
         scenario: "imu_anomaly",
+        reference_channel: "camera_1",
         status: "draft",
         duration_seconds: 2,
         video: {
@@ -244,6 +247,7 @@ test("测试工程师能从页面创建固定种子的 IMU 异常场景", async 
         name: "固定种子 IMU 异常",
         mode: "quick",
         scenario: "imu_anomaly",
+        reference_channel: "camera_1",
       }),
     }),
   );
@@ -293,6 +297,7 @@ test("测试工程师能从页面创建存储不足场景", async () => {
         name: "固定种子存储不足",
         mode: "quick",
         scenario: "storage_exhaustion",
+        reference_channel: "camera_1",
       }),
     }),
   );

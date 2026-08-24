@@ -14,6 +14,7 @@ from app.run_models import (
     GenerationMetadata,
     RunConfigurationSnapshot,
 )
+from app.video_generation import channel_delay_s, video_filter
 
 
 def generate_normal_artifacts(
@@ -23,7 +24,8 @@ def generate_normal_artifacts(
     run_dir.mkdir(parents=True, exist_ok=False)
     actual_duration = _actual_duration_for_scenario(snapshot)
     fault_truth = _build_fault_truth(snapshot, actual_duration)
-    _write_fault_truth(run_dir / "fault_truth.json", fault_truth)
+    truth_path = run_dir / "fault_truth.json"
+    truth_path.write_text(json.dumps(fault_truth, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     video_paths = [
         run_dir / f"camera_{channel}.{snapshot.video.container}" for channel in range(1, snapshot.video.channels + 1)
     ]
@@ -72,7 +74,7 @@ def _generate_video(
         "-t",
         str(actual_duration_seconds),
         "-vf",
-        _video_filter(snapshot, channel, fault_truth),
+        video_filter(snapshot, channel, fault_truth, actual_duration_seconds),
         "-c:v",
         "libx264",
         "-fflags",
@@ -101,13 +103,25 @@ def _generate_imu(
     sample_count = actual_duration_seconds * snapshot.imu.sample_rate_hz
     generator = random.Random(snapshot.random_seed)
     rows = []
+    imu_delay_s = channel_delay_s(snapshot, "imu")
+    spike_index: int | None = None
+    if snapshot.scenario == "fixed_offset":
+        # 冲击峰值的真实发生时刻为内容中点；加上 IMU 延迟后会出现在更晚的本地时间戳
+        spike_time = actual_duration_seconds / 2
+        spike_index = round(spike_time * snapshot.imu.sample_rate_hz)
     for index in range(sample_count):
-        timestamp = index / snapshot.imu.sample_rate_hz
+        raw_timestamp = index / snapshot.imu.sample_rate_hz
+        if snapshot.scenario == "fixed_offset" and index != spike_index:
+            raw_timestamp += generator.uniform(-0.001, 0.001)
+        timestamp = raw_timestamp + imu_delay_s
+        accel_x = math.sin(timestamp) + generator.uniform(-0.001, 0.001)
+        if index == spike_index:
+            accel_x = 10.0
         rows.append(
             {
                 "sample_index": index,
                 "timestamp_s": f"{timestamp:.6f}",
-                "accel_x": f"{math.sin(timestamp) + generator.uniform(-0.001, 0.001):.6f}",
+                "accel_x": f"{accel_x:.6f}",
                 "accel_y": "0.000000",
                 "accel_z": "9.806650",
             }
@@ -262,21 +276,16 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
             }
         ]
         truth["expected_basic_result"] = "storage_exhaustion"
+    elif snapshot.scenario == "fixed_offset":
+        truth["reference_channel"] = snapshot.reference_channel
+        # 保存对齐时需要添加的校正量（延迟的相反数）
+        truth["alignment_corrections_s"] = {
+            f"camera_{channel}": -channel_delay_s(snapshot, channel)
+            for channel in range(1, snapshot.video.channels + 1)
+        }
+        truth["alignment_corrections_s"]["imu"] = -channel_delay_s(snapshot, "imu")
+        truth["expected_basic_result"] = "fixed_offset_aligned"
     return truth
-
-
-def _write_fault_truth(path: Path, truth: dict) -> None:
-    path.write_text(json.dumps(truth, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
-def _video_filter(snapshot: RunConfigurationSnapshot, channel: int, fault_truth: dict) -> str:
-    hue = f"hue=h={(snapshot.random_seed + channel * 17) % 360}"
-    if snapshot.scenario != "video_drop" or channel != fault_truth["faults"][0]["channel"]:
-        return hue
-    fault = fault_truth["faults"][0]
-    upper_bound = fault["end_s"] - 1 / (snapshot.video.fps * 100)
-    return f"{hue},select=not(between(t\\,{fault['start_s']}\\,{upper_bound:.6f}))"
-
 
 def _artifact(kind: str, path: Path, run_dir: Path, source: str = "actual_generated") -> Artifact:
     content = path.read_bytes()

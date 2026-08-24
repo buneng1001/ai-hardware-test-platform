@@ -47,6 +47,7 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
         "video": {"channels": 1, "resolution": "640x360", "fps": 15, "container": "mp4", "codec": "h264"},
         "imu": {"format": "csv", "sample_rate_hz": 50},
         "random_seed": 20260822,
+        "reference_channel": "camera_1",
     }
     assert {artifact["kind"] for artifact in first_run["artifacts"]} == {
         "video",
@@ -103,6 +104,7 @@ def test_engineer_can_generate_repeatable_custom_multichannel_artifacts(tmp_path
 
     expected_snapshot = {key: value for key, value in configuration.items() if key != "name"}
     expected_snapshot["video"] = configuration["video"] | {"codec": "h264"}
+    expected_snapshot["reference_channel"] = "camera_1"
     assert first_run["configuration_snapshot"] == expected_snapshot
     assert [artifact["path"].split("/")[-1] for artifact in first_run["artifacts"]] == [
         "camera_1.mkv",

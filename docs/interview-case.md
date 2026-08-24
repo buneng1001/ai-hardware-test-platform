@@ -133,6 +133,19 @@
 - 本轮后端完整 Pytest 47 项通过，Ruff 和仓库安全扫描通过；前端 TypeScript 与 Prettier 检查通过。
   前端 Vitest 与 Vite 生产构建在当前 Windows 沙箱下因 `spawn EPERM` 无法执行，已记录为环境限制而非代码缺陷。
 
+## 已验证的固定偏移时间对齐（2026-08-24）
+
+- 页面和 API 支持新建固定偏移场景，并可选择 camera_1～camera_4 或 IMU 作为参考时钟；后端使用独立的
+  `TimeAlignmentResult` 保存参考通道、校正方法、参数、对齐前后指标和故障真值对照，不覆盖原始证据。
+- 生成器在各路视频内容中点注入单帧白帧闪光，在 IMU 对应真实时刻注入加速度冲击峰值，作为跨通道共同事件锚点；
+  由于 MP4 容器会规范化时间戳，因此用可检测事件而非全局偏移来表达通道延迟。
+- 对齐模块通过 FFmpeg `showinfo` 的最亮帧和 IMU 最大 accel_x 样本定位各通道锚点，估计固定偏移校正量；
+  默认 camera_1 参考时，camera_2/3/4 的校正量与故障真值相差小于 1 ms，IMU 校正量也与真值一致。
+- 分析视图展示对齐前偏移、抖动，以及对齐后最大/平均/P95 残差；固定偏移场景 truth_comparison 为命中，
+  其他场景 alignment_result 为 null，避免误标未对齐数据。
+- 本轮后端完整 Pytest 50 项通过，Ruff 与仓库安全扫描通过；前端 TypeScript 类型检查通过。
+  前端 Vitest 仍因 Windows 沙箱 `spawn EPERM` 无法执行，保持环境限制记录。
+
 ## 核心链路
 
 ```text

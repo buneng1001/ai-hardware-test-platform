@@ -62,6 +62,7 @@ test("测试工程师能创建快速正常采集任务并重新查看", async ()
         name: "面试快速正常采集",
         mode: "quick",
         scenario: "normal",
+        reference_channel: "camera_1",
       }),
     }),
   );

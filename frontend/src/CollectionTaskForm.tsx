@@ -4,6 +4,7 @@ import {
   type CollectionTaskCommand,
   type DataMode,
   type ImuConfiguration,
+  type ReferenceChannel,
   type Scenario,
   type VideoConfiguration,
 } from "./collectionTasksApi";
@@ -32,6 +33,8 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   const [sampleRate, setSampleRate] =
     useState<ImuConfiguration["sample_rate_hz"]>(50);
   const [randomSeed, setRandomSeed] = useState(20260822);
+  const [referenceChannel, setReferenceChannel] =
+    useState<ReferenceChannel>("camera_1");
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -46,6 +49,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
       name: normalizedName,
       mode,
       scenario,
+      reference_channel: referenceChannel,
     };
     if (mode === "custom") {
       if (
@@ -107,6 +111,21 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="video_drop">单路视频掉帧</option>
         <option value="imu_anomaly">IMU 异常</option>
         <option value="storage_exhaustion">存储不足</option>
+        <option value="fixed_offset">固定偏移</option>
+      </select>
+      <label htmlFor="reference-channel">参考时钟</label>
+      <select
+        id="reference-channel"
+        value={referenceChannel}
+        onChange={(event) =>
+          setReferenceChannel(event.target.value as ReferenceChannel)
+        }
+      >
+        <option value="camera_1">相机 1</option>
+        <option value="camera_2">相机 2</option>
+        <option value="camera_3">相机 3</option>
+        <option value="camera_4">相机 4</option>
+        <option value="imu">IMU</option>
       </select>
       {mode === "custom" ? (
         <div className="configuration-grid">
