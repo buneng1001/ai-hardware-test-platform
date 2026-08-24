@@ -248,3 +248,52 @@ test("测试工程师能从页面创建固定种子的 IMU 异常场景", async 
     }),
   );
 });
+
+test("测试工程师能从页面创建存储不足场景", async () => {
+  const fetchMock = successfulPageLoad().mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        id: 15,
+        name: "固定种子存储不足",
+        mode: "quick",
+        scenario: "storage_exhaustion",
+        status: "draft",
+        duration_seconds: 2,
+        video: {
+          channels: 1,
+          resolution: "640x360",
+          fps: 15,
+          container: "mp4",
+          codec: "h264",
+        },
+        imu: { format: "csv", sample_rate_hz: 50 },
+        random_seed: 20260822,
+        created_at: "2026-08-24T12:00:00Z",
+      }),
+      { status: 201 },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("任务名称"), {
+    target: { value: "固定种子存储不足" },
+  });
+  fireEvent.change(screen.getByLabelText("场景"), {
+    target: { value: "storage_exhaustion" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(await screen.findByText("快速 · 存储不足 · 草稿")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/collection-tasks",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        name: "固定种子存储不足",
+        mode: "quick",
+        scenario: "storage_exhaustion",
+      }),
+    }),
+  );
+});

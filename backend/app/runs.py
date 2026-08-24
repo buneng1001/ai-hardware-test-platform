@@ -11,6 +11,7 @@ from app.imu_checks import run_imu_checks
 from app.manual_check_results import list_manual_results
 from app.normal_generator import generate_normal_artifacts
 from app.run_models import RunConfigurationSnapshot, RunRecord, StageEvent
+from app.storage_checks import run_storage_checks
 from app.video_checks import run_video_checks
 
 router = APIRouter(tags=["runs"])
@@ -158,6 +159,7 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
         record.checks = [
             *run_video_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
             *run_imu_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
+            *run_storage_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
         ]
         if _stop_requested(record, application_stopping):
             return

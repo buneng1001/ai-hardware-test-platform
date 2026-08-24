@@ -14,7 +14,8 @@ export type CollectionTask = {
 };
 
 export type DataMode = "quick" | "standard" | "custom";
-export type Scenario = "normal" | "video_drop" | "imu_anomaly";
+export type Scenario =
+  "normal" | "video_drop" | "imu_anomaly" | "storage_exhaustion";
 export type VideoConfiguration = {
   channels: number;
   resolution: "640x360" | "1280x720" | "1920x1080";
@@ -77,7 +78,7 @@ export type RunRecord = {
   } | null;
   checks: Array<{
     name: string;
-    category: "video" | "imu";
+    category: "video" | "imu" | "storage";
     status: "passed" | "failed";
     message: string;
     metrics: Record<string, number | string>;

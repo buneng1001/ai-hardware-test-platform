@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.database import open_database
-from app.run_models import ImuConfiguration, RunConfigurationSnapshot, VideoConfiguration
+from app.run_models import ImuConfiguration, RunConfigurationSnapshot, Scenario, VideoConfiguration
 
 router = APIRouter(prefix="/api/collection-tasks", tags=["collection tasks"])
 
@@ -30,7 +30,7 @@ PRESET_CONFIGURATIONS = {
 class CollectionTaskCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     mode: Literal["quick", "standard", "custom"]
-    scenario: Literal["normal", "video_drop", "imu_anomaly"]
+    scenario: Scenario
     duration_seconds: int | None = None
     video: VideoConfiguration | None = None
     imu: ImuConfiguration | None = None
@@ -47,8 +47,9 @@ class CollectionTaskCreate(BaseModel):
     @field_validator("scenario", mode="before")
     @classmethod
     def validate_scenario(cls, value: object) -> object:
-        if value not in {"normal", "video_drop", "imu_anomaly"}:
-            raise ValueError("当前只支持正常采集、单路视频掉帧或 IMU 异常场景")
+        allowed = {"normal", "video_drop", "imu_anomaly", "storage_exhaustion"}
+        if value not in allowed:
+            raise ValueError("当前只支持正常采集、单路视频掉帧、IMU 异常或存储不足场景")
         return value
 
     @model_validator(mode="after")
@@ -73,7 +74,7 @@ class CollectionTask(BaseModel):
     id: int
     name: str
     mode: Literal["quick", "standard", "custom"]
-    scenario: Literal["normal", "video_drop", "imu_anomaly"]
+    scenario: Scenario
     duration_seconds: int
     video: VideoConfiguration
     imu: ImuConfiguration

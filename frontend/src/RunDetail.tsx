@@ -145,6 +145,33 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
                     )}
                   </>
                 )}
+                {check.category === "storage" && (
+                  <>
+                    {check.name === "storage_premature_stop" && (
+                      <p>
+                        时长：请求 {check.metrics.requested_duration_s} 秒，实际{" "}
+                        {check.metrics.actual_duration_s} 秒
+                      </p>
+                    )}
+                    {check.name === "storage_exhaustion" && (
+                      <p>
+                        存储：阈值 {check.metrics.threshold_mb} MB，最低{" "}
+                        {check.metrics.minimum_free_mb} MB
+                      </p>
+                    )}
+                    {check.name === "storage_log_correlation" && (
+                      <p>日志关联事件数：{check.metrics.matched_event_count}</p>
+                    )}
+                    {check.truth_comparison !== "not_applicable" && (
+                      <p>
+                        故障真值对照：
+                        {check.truth_comparison === "matched"
+                          ? "命中"
+                          : "未命中"}
+                      </p>
+                    )}
+                  </>
+                )}
               </li>
             );
           })}

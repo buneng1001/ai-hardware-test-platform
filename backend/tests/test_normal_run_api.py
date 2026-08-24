@@ -70,6 +70,9 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
         "imu_duplicate_samples",
         "imu_timestamp_rollback",
         "imu_interval_distribution",
+        "storage_premature_stop",
+        "storage_exhaustion",
+        "storage_log_correlation",
     }
     assert all(check["status"] == "passed" for check in first_run["checks"])
     assert second_run["id"] != first_run["id"]

@@ -19,7 +19,11 @@ def run_video_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunCon
     fault = next((item for item in truth["faults"] if item["type"] == "video_frame_drop"), None)
     detected_channel = next((index + 1 for index, dropped in enumerate(dropped_by_channel) if dropped > 0), None)
     detected_drops = dropped_by_channel[detected_channel - 1] if detected_channel else 0
-    detected_window = probes[detected_channel - 1]["drop_windows"][0] if detected_channel else None
+    detected_window = (
+        probes[detected_channel - 1]["drop_windows"][0]
+        if detected_channel and probes[detected_channel - 1]["drop_windows"]
+        else None
+    )
     drop_matched = bool(
         fault
         and detected_channel == fault["channel"]

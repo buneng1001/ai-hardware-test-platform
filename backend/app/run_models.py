@@ -17,6 +17,8 @@ RunStatus = Literal[
     "interrupted",
 ]
 
+Scenario = Literal["normal", "video_drop", "imu_anomaly", "storage_exhaustion"]
+
 
 class VideoConfiguration(BaseModel):
     channels: int = Field(ge=1, le=4)
@@ -33,7 +35,7 @@ class ImuConfiguration(BaseModel):
 
 class RunConfigurationSnapshot(BaseModel):
     mode: Literal["quick", "standard", "custom"]
-    scenario: Literal["normal", "video_drop", "imu_anomaly"]
+    scenario: Scenario
     duration_seconds: int = Field(ge=2, le=300)
     video: VideoConfiguration
     imu: ImuConfiguration
@@ -74,7 +76,7 @@ class Artifact(BaseModel):
 
 class BasicCheck(BaseModel):
     name: str
-    category: Literal["video", "imu"] = "video"
+    category: Literal["video", "imu", "storage"] = "video"
     status: Literal["passed", "failed"]
     message: str
     metrics: dict[str, int | float | str] = Field(default_factory=dict)
