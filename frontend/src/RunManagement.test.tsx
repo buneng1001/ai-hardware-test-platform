@@ -91,6 +91,9 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
   ).toBeInTheDocument();
   expect(screen.getByText("camera_1.mp4 · 实际生成")).toBeInTheDocument();
   expect(screen.getByText("视频编码为 H.264")).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "打开独立 HTML 报告" }),
+  ).toHaveAttribute("href", "/api/runs/9/report.html");
 });
 
 test("测试工程师能取消运行并从原配置创建新的运行记录", async () => {

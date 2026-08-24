@@ -121,7 +121,16 @@ export function RunDetail({
         </p>
       )}
       <section aria-labelledby="run-analysis-title">
-        <h3 id="run-analysis-title">运行分析</h3>
+        <h3 id="run-analysis-title">分析报告</h3>
+        <p>
+          <a
+            href={`/api/runs/${run.id}/report.html`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            打开独立 HTML 报告
+          </a>
+        </p>
         {run.evaluation_result && (
           <section aria-labelledby="evaluation-result-title">
             <h4 id="evaluation-result-title">判定结果</h4>
