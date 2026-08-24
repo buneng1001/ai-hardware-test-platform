@@ -39,7 +39,7 @@ def align_fixed_offset(
     if reference_channel not in all_channels:
         return None
 
-    detected_anchors = _detect_anchor_times(all_channels, snapshot)
+    detected_anchors = _detect_anchor_times(all_channels)
     reviewed_anchors = _apply_anchor_overrides(detected_anchors, anchor_overrides)
     active_anchors = {
         channel: [value for value in values if value >= 0]
@@ -71,6 +71,7 @@ def align_fixed_offset(
         reference_channel=reference_channel,
         method="fixed_offset_anchor",
         parameters=estimated_offsets_s,
+        anchors=detected_anchors,
         pre_alignment=pre_alignment,
         post_alignment=post_alignment,
         anchor_details=_anchor_details(detected_anchors, reviewed_anchors),
@@ -96,7 +97,7 @@ def align_linear_drift(
     channels = {**video_timelines, "imu": imu_timeline} if imu_timeline else video_timelines
     if snapshot.reference_channel not in channels:
         return None
-    detected_anchors = _detect_anchor_times(channels, snapshot)
+    detected_anchors = _detect_anchor_times(channels)
     reviewed_anchors = _apply_anchor_overrides(detected_anchors, anchor_overrides)
     common_indices = [
         index
@@ -152,7 +153,7 @@ def align_linear_drift(
         method="linear_drift_regression",
         parameters=parameters,
         drift_rates_s_per_s=drift_rates,
-        anchors=anchors,
+        anchors=detected_anchors,
         pre_alignment=pre_alignment,
         post_alignment=post_alignment,
         trend=trend,
@@ -221,7 +222,7 @@ def _anchor_time(channel: str, timeline: list[tuple[float, float]]) -> float:
 
 
 def _detect_anchor_times(
-    channels: dict[str, list[tuple[float, float]]], snapshot: RunConfigurationSnapshot
+    channels: dict[str, list[tuple[float, float]]]
 ) -> dict[str, list[float]]:
     """从视频闪光和 IMU 冲击峰值提取稳定的、按事件顺序排列的锚点。"""
     return {channel: _anchor_times(channel, timeline) for channel, timeline in channels.items()}
@@ -269,7 +270,10 @@ def _content_sync(detected: dict[str, list[float]]) -> ContentSyncResult:
     video_counts = [len(times) for channel, times in detected.items() if channel != "imu"]
     video_count = max(video_counts, default=0)
     imu_count = len(detected.get("imu", []))
-    matched = min(video_count, imu_count)
+    video_indices = list(range(video_count))
+    imu_indices = list(range(imu_count))
+    matched_indices = [index for index in video_indices if index in imu_indices]
+    matched = len(matched_indices)
     if not video_count or not imu_count:
         status = "degraded"
         message = "缺少视频闪光或 IMU 冲击峰值，无法完成内容事件对应"
@@ -284,6 +288,7 @@ def _content_sync(detected: dict[str, list[float]]) -> ContentSyncResult:
         video_event_count=video_count,
         imu_event_count=imu_count,
         matched_event_count=matched,
+        matched_event_indices=matched_indices,
         message=message,
     )
 
@@ -338,11 +343,11 @@ def _post_alignment_residuals(
     residuals: dict[str, dict[str, float]] = {}
     for channel, timeline in channels.items():
         correction = estimated_offsets_s.get(channel, 0.0)
-        anchor_time = (
-            anchor_times[channel][0]
-            if anchor_times and anchor_times.get(channel) and anchor_times[channel][0] >= 0
-            else _anchor_time(channel, timeline)
+        active_anchor = next(
+            (value for value in (anchor_times or {}).get(channel, []) if value >= 0),
+            None,
         )
+        anchor_time = active_anchor if active_anchor is not None else _anchor_time(channel, timeline)
         # 对齐后所有通道的锚点应与参考锚点重合
         anchor_residual = abs((anchor_time + correction) - reference_anchor)
 

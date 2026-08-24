@@ -129,6 +129,7 @@ class ContentSyncResult(BaseModel):
     video_event_count: int = Field(ge=0)
     imu_event_count: int = Field(ge=0)
     matched_event_count: int = Field(ge=0)
+    matched_event_indices: list[int] = Field(default_factory=list)
     message: str
 
 

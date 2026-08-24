@@ -123,8 +123,9 @@ export function App() {
     if (!selectedRun) return;
     try {
       setSelectedRun(await reviewAlignment(selectedRun.id, anchors));
-    } catch {
-      setRunError("锚点复核失败，请检查锚点后重试");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "锚点复核失败";
+      setRunError(`锚点复核失败：${message}`);
     }
   };
 

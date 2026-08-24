@@ -293,6 +293,7 @@ export function RunDetail({
                   : "不适用"}
             </p>
             <h4>跨模态锚点复核</h4>
+            <p>锚点复核版本：{run.alignment_result.review_revision}</p>
             <p>自动识别结果保留在“检测时间”，复核时间只用于重新计算对齐。</p>
             <ul>
               {run.alignment_result.anchor_details.map((anchor) => {

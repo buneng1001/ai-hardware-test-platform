@@ -130,6 +130,7 @@ export type ContentSyncResult = {
   video_event_count: number;
   imu_event_count: number;
   matched_event_count: number;
+  matched_event_indices: number[];
   message: string;
 };
 
@@ -200,6 +201,9 @@ export async function reviewAlignment(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ anchors }),
   });
-  if (!response.ok) throw new Error("锚点复核失败");
+  if (!response.ok) {
+    const body = (await response.json()) as { detail?: string };
+    throw new Error(body.detail ?? "锚点复核失败");
+  }
   return (await response.json()) as RunRecord;
 }

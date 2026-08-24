@@ -376,6 +376,7 @@ test("运行详情可查看并提交锚点复核且独立展示内容同步", as
   expect(screen.getByText(/按事件序号一一对应/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "应用锚点复核" }));
 
+  expect(await screen.findByText("锚点复核版本：1")).toBeInTheDocument();
   expect(await screen.findByText("应用锚点复核")).toBeInTheDocument();
   expect(fetchMock).toHaveBeenCalledWith("/api/runs/9/alignment-review", {
     method: "POST",

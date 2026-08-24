@@ -94,6 +94,7 @@ def test_alignment_review_changes_analysis_without_overwriting_raw_artifacts(tmp
     alignment = reviewed["alignment_result"]
     updated_anchor = next(anchor for anchor in alignment["anchor_details"] if anchor["id"] == camera_anchor["id"])
     assert alignment["review_revision"] == 1
+    assert alignment["anchors"]["camera_4"][0] == pytest.approx(camera_anchor["detected_time_s"])
     assert updated_anchor["reviewed_time_s"] == pytest.approx(camera_anchor["detected_time_s"] + 0.033)
     assert alignment["parameters"]["camera_4"] != pytest.approx(-0.03, abs=0.004)
     assert alignment["content_sync"]["status"] == "passed"
