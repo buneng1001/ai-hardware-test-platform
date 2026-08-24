@@ -56,7 +56,7 @@ def test_temperature_combination_links_facts_in_one_window_and_repeats(
         {"start_s": 0.8, "end_s": 1.2}
     ]
     assert first_checks["imu_missing_samples"]["anomaly_windows"][0]["start_s"] == 0.8
-    assert first_checks["imu_missing_samples"]["anomaly_windows"][0]["end_s"] == 1.2
+    assert first_checks["imu_missing_samples"]["anomaly_windows"][0]["end_s"] == 0.84
     assert first_checks["temperature_log_correlation"]["metrics"]["matched_event_count"] >= 2
     evidence_refs = first_checks["temperature_window_correlation"]["evidence_refs"]
     assert evidence_refs == [

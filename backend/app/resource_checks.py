@@ -23,17 +23,19 @@ def run_resource_checks(
     log_path = data_dir / next(artifact.path for artifact in artifacts if artifact.kind == "device_log")
     rows = _read_status(status_path)
     temperatures = [float(row["temperature_c"]) for row in rows]
-    window = _window(fault)
-    temperature_rise = _temperature_rise_check(temperatures, fault)
+    window = _temperature_window(rows)
+    temperature_rise = _temperature_rise_check(temperatures, window, fault)
     window_correlation = _window_correlation_check(rows, window, fault)
     log_correlation = _log_correlation_check(log_path, window, fault)
     return [temperature_rise, window_correlation, log_correlation]
 
 
-def _temperature_rise_check(temperatures: list[float], fault: dict | None) -> BasicCheck:
+def _temperature_rise_check(
+    temperatures: list[float], window: tuple[float, float] | None, fault: dict | None
+) -> BasicCheck:
     start = temperatures[0] if temperatures else 0.0
     end = max(temperatures) if temperatures else 0.0
-    rising = end - start >= 10.0
+    rising = window is not None and end - start >= 10.0
     expected = bool(fault and fault["expected_check"] == "temperature_rise")
     return BasicCheck(
         name="temperature_rise",
@@ -41,7 +43,7 @@ def _temperature_rise_check(temperatures: list[float], fault: dict | None) -> Ba
         status="failed" if rising else "passed",
         message=f"温度从 {start:.1f} °C 升至 {end:.1f} °C" if rising else "未检测到显著温升",
         metrics={"start_temperature_c": start, "maximum_temperature_c": end, "rise_c": round(end - start, 1)},
-        anomaly_windows=[{"start_s": fault["start_s"], "end_s": fault["end_s"]}] if rising and fault else [],
+        anomaly_windows=[{"start_s": window[0], "end_s": window[1]}] if rising and window else [],
         truth_comparison="matched" if rising and expected else ("missed" if expected else "not_applicable"),
         evidence_refs=COMBINATION_REFS if fault else [],
     )
@@ -88,5 +90,10 @@ def _read_status(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(file))
 
 
-def _window(fault: dict | None) -> tuple[float, float] | None:
-    return (fault["start_s"], fault["end_s"]) if fault else None
+def _temperature_window(rows: list[dict[str, str]]) -> tuple[float, float] | None:
+    """从相邻资源样本的温度变化独立识别温升窗口。"""
+    candidates = []
+    for previous, current in zip(rows, rows[1:], strict=False):
+        if float(current["temperature_c"]) - float(previous["temperature_c"]) >= 10.0:
+            candidates.append((float(previous["timestamp_s"]), float(current["timestamp_s"])))
+    return candidates[-1] if candidates else None

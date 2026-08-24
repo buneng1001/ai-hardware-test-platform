@@ -317,6 +317,7 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
                 "start_temperature_c": 55.0,
                 "end_temperature_c": 70.0,
                 "expected_check": "temperature_rise",
+                "expected_status": "failed",
                 "expected_checks": [
                     "temperature_rise",
                     "temperature_window_correlation",
@@ -330,11 +331,13 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
                 "end_s": end_s,
                 "dropped_frames": dropped_frames,
                 "expected_check": "video_frame_drop",
+                "expected_status": "failed",
             },
             {
                 "type": "imu_missing_sample",
                 "sample_index": missing_index,
                 "expected_check": "imu_missing_samples",
+                "expected_status": "failed",
             },
         ]
         truth["expected_interval_outlier_sample_indices"] = [missing_index + 1]

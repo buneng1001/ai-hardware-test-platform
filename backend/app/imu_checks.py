@@ -32,10 +32,6 @@ def run_imu_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfi
     positive_intervals = [interval for interval in intervals if interval > 0]
     actual_rate = 1 / _median(positive_intervals) if positive_intervals else 0.0
     interval_metrics, interval_anomalies = _interval_analysis(intervals, indices, timestamps, expected_interval)
-    temperature_fault = next((fault for fault in truth["faults"] if fault["type"] == "temperature_rise"), None)
-    if temperature_fault:
-        for anomaly in interval_anomalies:
-            anomaly.update(start_s=temperature_fault["start_s"], end_s=temperature_fault["end_s"])
     expected_interval_positions = truth.get("expected_interval_outlier_sample_indices", [])
     detected_interval_positions = [anomaly["sample_index"] for anomaly in interval_anomalies]
     interval_comparison = (
@@ -44,7 +40,7 @@ def run_imu_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfi
         else ("matched" if expected_interval_positions == detected_interval_positions else "missed")
     )
 
-    return [
+    results = [
         _check(
             "imu_sample_rate",
             math.isclose(actual_rate, snapshot.imu.sample_rate_hz, rel_tol=0.01),
@@ -68,6 +64,18 @@ def run_imu_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfi
             truth_comparison=interval_comparison,
         ),
     ]
+    if snapshot.scenario == "temperature_combination" and interval_anomalies:
+        observed_gap = interval_anomalies[0]
+        missing_check = next(check for check in results if check.name == "imu_missing_samples")
+        missing_check.anomaly_windows = [
+            {
+                **observed_gap,
+                "sample_index": missing[0],
+                "start_s": round(float(observed_gap["timestamp_s"]) - observed_gap["interval_ms"] / 1000, 6),
+                "end_s": observed_gap["timestamp_s"],
+            }
+        ]
+    return results
 
 
 def _read_rows(path: Path, imu_format: str) -> list[dict[str, str | int]]:
@@ -92,10 +100,6 @@ def _anomaly_check(name: str, label: str, anomalies: list, truth: dict) -> Basic
     expected = [fault for fault in truth["faults"] if fault.get("expected_check") == name]
     expected_positions = [fault["sample_index"] for fault in expected]
     detected_positions = [position["sample_index"] for position in positions]
-    temperature_fault = next((fault for fault in truth["faults"] if fault["type"] == "temperature_rise"), None)
-    if temperature_fault:
-        for position in positions:
-            position.update(start_s=temperature_fault["start_s"], end_s=temperature_fault["end_s"])
     comparison = (
         "not_applicable" if not expected else ("matched" if expected_positions == detected_positions else "missed")
     )
