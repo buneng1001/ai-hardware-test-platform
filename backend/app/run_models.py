@@ -18,7 +18,13 @@ RunStatus = Literal[
 ]
 
 Scenario = Literal[
-    "normal", "video_drop", "imu_anomaly", "storage_exhaustion", "fixed_offset", "linear_drift"
+    "normal",
+    "video_drop",
+    "imu_anomaly",
+    "storage_exhaustion",
+    "temperature_combination",
+    "fixed_offset",
+    "linear_drift",
 ]
 ReferenceChannel = Literal["camera_1", "camera_2", "camera_3", "camera_4", "imu"]
 EvaluationMode = Literal["requirements_acceptance", "engineering_target", "baseline_analysis"]
@@ -135,12 +141,13 @@ class Artifact(BaseModel):
 
 class BasicCheck(BaseModel):
     name: str
-    category: Literal["video", "imu", "storage"] = "video"
+    category: Literal["video", "imu", "resource", "log", "storage"] = "video"
     status: Literal["passed", "failed"]
     message: str
     metrics: dict[str, int | float | str] = Field(default_factory=dict)
     anomaly_windows: list[dict[str, int | float]] = Field(default_factory=list)
     truth_comparison: Literal["matched", "missed", "not_applicable"] = "not_applicable"
+    evidence_refs: list[str] = Field(default_factory=list)
 
 
 class TimeAlignmentResult(BaseModel):

@@ -21,6 +21,7 @@ export type Scenario =
   | "video_drop"
   | "imu_anomaly"
   | "storage_exhaustion"
+  | "temperature_combination"
   | "fixed_offset"
   | "linear_drift";
 export type ReferenceChannel =
@@ -114,12 +115,13 @@ export type RunRecord = {
   } | null;
   checks: Array<{
     name: string;
-    category: "video" | "imu" | "storage";
+    category: "video" | "imu" | "resource" | "log" | "storage";
     status: "passed" | "failed";
     message: string;
     metrics: Record<string, number | string>;
     anomaly_windows: Array<Record<string, number>>;
     truth_comparison: "matched" | "missed" | "not_applicable";
+    evidence_refs: string[];
   }>;
   alignment_result: {
     reference_channel: ReferenceChannel;

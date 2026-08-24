@@ -45,12 +45,17 @@ def generate_normal_artifacts(
         _artifact("fault_truth", run_dir / "fault_truth.json", run_dir),
     ]
     fingerprint_input = "|".join(artifact.sha256 for artifact in artifacts)
+    temperature_range = (
+        (40.0, 72.0)
+        if snapshot.scenario == "temperature_combination"
+        else (40.0, 40.0 + snapshot.duration_seconds * 0.1)
+    )
     metadata = GenerationMetadata(
         timeline_source=timeline_source,
         requested_duration_seconds=snapshot.duration_seconds,
         generated_duration_seconds=actual_duration,
         reproducibility_fingerprint=hashlib.sha256(fingerprint_input.encode()).hexdigest(),
-        temperature_range_c=(40.0, 40.0 + snapshot.duration_seconds * 0.1),
+        temperature_range_c=temperature_range,
         storage_range_mb=(8192, max(0, 8192 - snapshot.duration_seconds * 2)),
     )
     return artifacts, metadata
@@ -88,7 +93,9 @@ def _generate_video(
     ]
     if snapshot.video.container == "mp4":
         command.extend(["-movflags", "+faststart"])
-    if snapshot.scenario == "video_drop" and channel == fault_truth["faults"][0]["channel"]:
+    if snapshot.scenario in {"video_drop", "temperature_combination"} and channel == next(
+        fault["channel"] for fault in fault_truth["faults"] if fault["type"] == "video_frame_drop"
+    ):
         command.extend(["-fps_mode", "vfr"])
     command.extend(["-y", str(path)])
     subprocess.run(command, check=True, capture_output=True)
@@ -136,16 +143,17 @@ def _generate_imu(
             }
         )
 
-    if snapshot.scenario == "imu_anomaly":
+    if snapshot.scenario in {"imu_anomaly", "temperature_combination"}:
         faults = {fault["type"]: fault for fault in fault_truth["faults"]}
         missing_index = faults["imu_missing_sample"]["sample_index"]
         rows = [row for row in rows if row["sample_index"] != missing_index]
-        duplicate_index = faults["imu_duplicate_sample"]["sample_index"]
-        duplicate_position = next(index for index, row in enumerate(rows) if row["sample_index"] == duplicate_index)
-        rows.insert(duplicate_position + 1, rows[duplicate_position].copy())
-        rollback_index = faults["imu_timestamp_rollback"]["sample_index"]
-        rollback_row = next(row for row in rows if row["sample_index"] == rollback_index)
-        rollback_row["timestamp_s"] = f"{(rollback_index - 2) / snapshot.imu.sample_rate_hz:.6f}"
+        if snapshot.scenario == "imu_anomaly":
+            duplicate_index = faults["imu_duplicate_sample"]["sample_index"]
+            duplicate_position = next(index for index, row in enumerate(rows) if row["sample_index"] == duplicate_index)
+            rows.insert(duplicate_position + 1, rows[duplicate_position].copy())
+            rollback_index = faults["imu_timestamp_rollback"]["sample_index"]
+            rollback_row = next(row for row in rows if row["sample_index"] == rollback_index)
+            rollback_row["timestamp_s"] = f"{(rollback_index - 2) / snapshot.imu.sample_rate_hz:.6f}"
 
     with path.open("w", encoding="utf-8", newline="") as file:
         if snapshot.imu.format == "csv":
@@ -174,6 +182,19 @@ def _generate_device_status(
     duration = snapshot.duration_seconds
     end_temperature = 40.0 + duration * 0.1
     header = "timestamp_s,cpu_percent,memory_percent,temperature_c,storage_free_mb\n"
+    if snapshot.scenario == "temperature_combination":
+        fault = next(item for item in fault_truth["faults"] if item["type"] == "temperature_rise")
+        start_s = fault["start_s"]
+        end_s = fault["end_s"]
+        path.write_text(
+            header
+            + "0.000,18.0,32.0,40.0,8192\n"
+            + f"{start_s:.3f},35.0,45.0,{fault['start_temperature_c']:.1f},8100\n"
+            + f"{end_s:.3f},42.0,50.0,{fault['end_temperature_c']:.1f},8000\n"
+            + f"{duration:.3f},38.0,44.0,{fault['end_temperature_c'] + 2:.1f},7900\n",
+            encoding="utf-8",
+        )
+        return
     if snapshot.scenario != "storage_exhaustion":
         midpoint = duration / 2
         end_storage = max(0, 8192 - duration * 2)
@@ -199,6 +220,20 @@ def _generate_device_status(
 
 
 def _generate_device_log(path: Path, snapshot: RunConfigurationSnapshot, fault_truth: dict) -> None:
+    if snapshot.scenario == "temperature_combination":
+        temperature_fault = next(item for item in fault_truth["faults"] if item["type"] == "temperature_rise")
+        video_fault = next(item for item in fault_truth["faults"] if item["type"] == "video_frame_drop")
+        imu_fault = next(item for item in fault_truth["faults"] if item["type"] == "imu_missing_sample")
+        path.write_text(
+            "0.000 INFO collection started\n"
+            f"{temperature_fault['start_s']:.3f} WARN temperature rising, "
+            f"{temperature_fault['start_temperature_c']:.1f} C\n"
+            f"{video_fault['start_s']:.3f} WARN video frame drop detected\n"
+            f"{temperature_fault['end_s']:.3f} WARN IMU missing sample #{imu_fault['sample_index']}\n"
+            f"{temperature_fault['end_s']:.3f} INFO temperature window complete\n",
+            encoding="utf-8",
+        )
+        return
     if snapshot.scenario != "storage_exhaustion":
         path.write_text(
             "0.000 INFO collection started\n1.000 INFO collection healthy\n2.000 INFO collection completed\n",
@@ -269,6 +304,41 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
             rollback_index + 1,
         ]
         truth["expected_basic_result"] = "imu_anomaly"
+    elif snapshot.scenario == "temperature_combination":
+        start_s = round(actual_duration_seconds * 0.4, 3)
+        end_s = round(start_s + actual_duration_seconds * 0.2, 3)
+        missing_index = round(start_s * snapshot.imu.sample_rate_hz) + 1
+        dropped_frames = max(1, round(snapshot.video.fps * (end_s - start_s)))
+        truth["faults"] = [
+            {
+                "type": "temperature_rise",
+                "start_s": start_s,
+                "end_s": end_s,
+                "start_temperature_c": 55.0,
+                "end_temperature_c": 70.0,
+                "expected_check": "temperature_rise",
+                "expected_checks": [
+                    "temperature_rise",
+                    "temperature_window_correlation",
+                    "temperature_log_correlation",
+                ],
+            },
+            {
+                "type": "video_frame_drop",
+                "channel": snapshot.random_seed % snapshot.video.channels + 1,
+                "start_s": start_s,
+                "end_s": end_s,
+                "dropped_frames": dropped_frames,
+                "expected_check": "video_frame_drop",
+            },
+            {
+                "type": "imu_missing_sample",
+                "sample_index": missing_index,
+                "expected_check": "imu_missing_samples",
+            },
+        ]
+        truth["expected_interval_outlier_sample_indices"] = [missing_index + 1]
+        truth["expected_basic_result"] = "temperature_combination"
     elif snapshot.scenario == "storage_exhaustion":
         threshold_mb = 500
         truth["faults"] = [

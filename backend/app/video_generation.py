@@ -51,8 +51,10 @@ def video_filter(
         ]
         enable = "+".join(f"eq(n\\,{frame})" for frame in flash_frames)
         return f"{hue},drawbox=x=0:y=0:w=iw:h=ih:color=white@1.0:t=fill:enable='{enable}'"
-    if snapshot.scenario != "video_drop" or channel != fault_truth["faults"][0]["channel"]:
+    if snapshot.scenario not in {"video_drop", "temperature_combination"}:
         return hue
-    fault = fault_truth["faults"][0]
+    fault = next(item for item in fault_truth["faults"] if item["type"] == "video_frame_drop")
+    if channel != fault["channel"]:
+        return hue
     upper_bound = fault["end_s"] - 1 / (snapshot.video.fps * 100)
     return f"{hue},select=not(between(t\\,{fault['start_s']}\\,{upper_bound:.6f}))"

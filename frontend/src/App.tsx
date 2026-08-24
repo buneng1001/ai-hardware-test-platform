@@ -199,6 +199,7 @@ const scenarioLabels = {
   video_drop: "单路视频掉帧",
   imu_anomaly: "IMU 异常",
   storage_exhaustion: "存储不足",
+  temperature_combination: "温升关联组合故障",
   fixed_offset: "固定偏移",
   linear_drift: "线性漂移",
 } as const;

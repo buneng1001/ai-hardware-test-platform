@@ -11,6 +11,7 @@ from app.evaluation import evaluate_run
 from app.imu_checks import run_imu_checks
 from app.manual_check_results import list_manual_results
 from app.normal_generator import generate_normal_artifacts
+from app.resource_checks import run_resource_checks
 from app.run_models import AlignmentReviewCommand, RunConfigurationSnapshot, RunRecord, StageEvent
 from app.storage_checks import run_storage_checks
 from app.time_alignment import align_fixed_offset, align_linear_drift
@@ -173,7 +174,24 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
             *run_video_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
             *run_imu_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
             *run_storage_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
+            *(
+                run_resource_checks(record.artifacts, get_data_dir(), record.configuration_snapshot)
+                if record.configuration_snapshot.scenario == "temperature_combination"
+                else []
+            ),
         ]
+        if record.configuration_snapshot.scenario == "temperature_combination":
+            video_channel = record.configuration_snapshot.random_seed % record.configuration_snapshot.video.channels + 1
+            evidence_by_check = {
+                "video_frame_drop": [
+                    "fault_truth:video_frame_drop",
+                    f"video:camera_{video_channel}:temperature_window",
+                ],
+                "imu_missing_samples": ["fault_truth:imu_missing_sample", "imu:temperature_window"],
+                "imu_interval_distribution": ["fault_truth:imu_missing_sample", "imu:temperature_window"],
+            }
+            for check in record.checks:
+                check.evidence_refs = evidence_by_check.get(check.name, check.evidence_refs)
         record.alignment_result = (
             align_fixed_offset(record.artifacts, get_data_dir(), record.configuration_snapshot)
             or align_linear_drift(record.artifacts, get_data_dir(), record.configuration_snapshot)

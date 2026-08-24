@@ -170,6 +170,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="video_drop">单路视频掉帧</option>
         <option value="imu_anomaly">IMU 异常</option>
         <option value="storage_exhaustion">存储不足</option>
+        <option value="temperature_combination">温升组合故障</option>
         <option value="fixed_offset">固定偏移</option>
         <option value="linear_drift">线性漂移</option>
       </select>

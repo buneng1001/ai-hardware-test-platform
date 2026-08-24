@@ -155,9 +155,13 @@ export function RunDetail({
         <ul>
           {run.checks.map((check) => {
             const anomaly = check.anomaly_windows?.[0];
+            const evidenceRefs = check.evidence_refs ?? [];
             return (
               <li key={check.name}>
                 <p>{check.message}</p>
+                {evidenceRefs.length > 0 && (
+                  <p>证据引用：{evidenceRefs.join("、")}</p>
+                )}
                 {check.name === "video_frame_drop" &&
                   check.status === "failed" && (
                     <>
@@ -236,6 +240,24 @@ export function RunDetail({
                       </p>
                     )}
                   </>
+                )}
+                {(check.category === "resource" ||
+                  check.category === "log") && (
+                  <p>
+                    {check.anomaly_windows.length > 0 && (
+                      <>
+                        异常时间窗口：
+                        {check.anomaly_windows[0].start_s.toFixed(3)}～
+                        {check.anomaly_windows[0].end_s.toFixed(3)} 秒；
+                      </>
+                    )}
+                    故障真值对照：
+                    {check.truth_comparison === "matched"
+                      ? "命中"
+                      : check.truth_comparison === "missed"
+                        ? "未命中"
+                        : "不适用"}
+                  </p>
                 )}
               </li>
             );

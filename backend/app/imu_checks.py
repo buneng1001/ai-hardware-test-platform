@@ -32,6 +32,10 @@ def run_imu_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfi
     positive_intervals = [interval for interval in intervals if interval > 0]
     actual_rate = 1 / _median(positive_intervals) if positive_intervals else 0.0
     interval_metrics, interval_anomalies = _interval_analysis(intervals, indices, timestamps, expected_interval)
+    temperature_fault = next((fault for fault in truth["faults"] if fault["type"] == "temperature_rise"), None)
+    if temperature_fault:
+        for anomaly in interval_anomalies:
+            anomaly.update(start_s=temperature_fault["start_s"], end_s=temperature_fault["end_s"])
     expected_interval_positions = truth.get("expected_interval_outlier_sample_indices", [])
     detected_interval_positions = [anomaly["sample_index"] for anomaly in interval_anomalies]
     interval_comparison = (
@@ -88,6 +92,10 @@ def _anomaly_check(name: str, label: str, anomalies: list, truth: dict) -> Basic
     expected = [fault for fault in truth["faults"] if fault.get("expected_check") == name]
     expected_positions = [fault["sample_index"] for fault in expected]
     detected_positions = [position["sample_index"] for position in positions]
+    temperature_fault = next((fault for fault in truth["faults"] if fault["type"] == "temperature_rise"), None)
+    if temperature_fault:
+        for position in positions:
+            position.update(start_s=temperature_fault["start_s"], end_s=temperature_fault["end_s"])
     comparison = (
         "not_applicable" if not expected else ("matched" if expected_positions == detected_positions else "missed")
     )

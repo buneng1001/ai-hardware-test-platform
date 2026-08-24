@@ -61,6 +61,7 @@ class CollectionTaskCreate(BaseModel):
             "video_drop",
             "imu_anomaly",
             "storage_exhaustion",
+            "temperature_combination",
             "fixed_offset",
             "linear_drift",
         }
