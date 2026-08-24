@@ -9,13 +9,20 @@ export type CollectionTask = {
   video: VideoConfiguration;
   imu: ImuConfiguration;
   random_seed: number;
+  reference_channel: ReferenceChannel;
   status: "draft";
   created_at: string;
 };
 
 export type DataMode = "quick" | "standard" | "custom";
 export type Scenario =
-  "normal" | "video_drop" | "imu_anomaly" | "storage_exhaustion";
+  | "normal"
+  | "video_drop"
+  | "imu_anomaly"
+  | "storage_exhaustion"
+  | "fixed_offset";
+export type ReferenceChannel =
+  "camera_1" | "camera_2" | "camera_3" | "camera_4" | "imu";
 export type VideoConfiguration = {
   channels: number;
   resolution: "640x360" | "1280x720" | "1920x1080";
@@ -35,6 +42,7 @@ export type CollectionTaskCommand = {
   video?: VideoConfiguration;
   imu?: ImuConfiguration;
   random_seed?: number;
+  reference_channel?: ReferenceChannel;
 };
 
 export type RunStatus =
@@ -85,6 +93,14 @@ export type RunRecord = {
     anomaly_windows: Array<Record<string, number>>;
     truth_comparison: "matched" | "missed" | "not_applicable";
   }>;
+  alignment_result: {
+    reference_channel: ReferenceChannel;
+    method: "fixed_offset_anchor";
+    parameters: Record<string, number>;
+    pre_alignment: Record<string, Record<string, number>>;
+    post_alignment: Record<string, Record<string, number>>;
+    truth_comparison: "matched" | "missed" | "not_applicable";
+  } | null;
   manual_check_results: ManualCheckResult[];
   created_at: string;
   completed_at: string | null;

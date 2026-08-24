@@ -17,7 +17,9 @@ RunStatus = Literal[
     "interrupted",
 ]
 
-Scenario = Literal["normal", "video_drop", "imu_anomaly", "storage_exhaustion"]
+Scenario = Literal["normal", "video_drop", "imu_anomaly", "storage_exhaustion", "fixed_offset"]
+
+REFERENCE_CHANNELS = {"camera_1", "camera_2", "camera_3", "camera_4", "imu"}
 
 
 class VideoConfiguration(BaseModel):
@@ -40,6 +42,7 @@ class RunConfigurationSnapshot(BaseModel):
     video: VideoConfiguration
     imu: ImuConfiguration
     random_seed: int = Field(ge=0, le=2_147_483_647)
+    reference_channel: str = "camera_1"
 
     @model_validator(mode="after")
     def protect_local_file_size(self) -> "RunConfigurationSnapshot":
@@ -48,6 +51,12 @@ class RunConfigurationSnapshot(BaseModel):
         pixel_frames = width * height * self.video.fps * self.video.channels * actual_duration
         if pixel_frames > MAX_VIDEO_PIXEL_FRAMES:
             raise ValueError("预计文件规模超过安全上限，请降低分辨率、帧率或通道数")
+        return self
+
+    @model_validator(mode="after")
+    def validate_reference_channel(self) -> "RunConfigurationSnapshot":
+        if self.reference_channel not in REFERENCE_CHANNELS:
+            raise ValueError("参考通道必须是 camera_1、camera_2、camera_3、camera_4 或 imu")
         return self
 
 
@@ -84,6 +93,15 @@ class BasicCheck(BaseModel):
     truth_comparison: Literal["matched", "missed", "not_applicable"] = "not_applicable"
 
 
+class TimeAlignmentResult(BaseModel):
+    reference_channel: str
+    method: Literal["fixed_offset_anchor"]
+    parameters: dict[str, float]
+    pre_alignment: dict[str, dict[str, float]]
+    post_alignment: dict[str, dict[str, float]]
+    truth_comparison: Literal["matched", "missed", "not_applicable"] = "not_applicable"
+
+
 class ManualCheckResult(BaseModel):
     id: int
     run_id: int
@@ -106,6 +124,7 @@ class RunRecord(BaseModel):
     artifacts: list[Artifact]
     generation_metadata: GenerationMetadata | None
     checks: list[BasicCheck]
+    alignment_result: TimeAlignmentResult | None
     manual_check_results: list[ManualCheckResult]
     created_at: datetime
     completed_at: datetime | None

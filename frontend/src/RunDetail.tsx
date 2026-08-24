@@ -176,6 +176,56 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
             );
           })}
         </ul>
+        {run.alignment_result && (
+          <>
+            <h4>时间对齐结果</h4>
+            <p>
+              参考时钟：{run.alignment_result.reference_channel} · 方法：
+              {run.alignment_result.method}
+            </p>
+            <p>估计校正量（秒）：</p>
+            <ul>
+              {Object.entries(run.alignment_result.parameters).map(
+                ([channel, offset]) => (
+                  <li key={channel}>
+                    {channel}: {offset.toFixed(3)} s
+                  </li>
+                ),
+              )}
+            </ul>
+            <p>对齐前指标：</p>
+            <ul>
+              {Object.entries(run.alignment_result.pre_alignment).map(
+                ([channel, metrics]) => (
+                  <li key={channel}>
+                    {channel}：偏移 {metrics.offset_s.toFixed(3)} s，抖动{" "}
+                    {metrics.jitter_ms.toFixed(3)} ms
+                  </li>
+                ),
+              )}
+            </ul>
+            <p>对齐后残差：</p>
+            <ul>
+              {Object.entries(run.alignment_result.post_alignment).map(
+                ([channel, metrics]) => (
+                  <li key={channel}>
+                    {channel}：最大 {metrics.max_residual_ms.toFixed(3)}{" "}
+                    ms，平均 {metrics.mean_residual_ms.toFixed(3)} ms，P95{" "}
+                    {metrics.p95_residual_ms.toFixed(3)} ms
+                  </li>
+                ),
+              )}
+            </ul>
+            <p>
+              故障真值对照：
+              {run.alignment_result.truth_comparison === "matched"
+                ? "命中"
+                : run.alignment_result.truth_comparison === "missed"
+                  ? "未命中"
+                  : "不适用"}
+            </p>
+          </>
+        )}
         <ManualCheckResultsPanel
           key={run.id}
           runId={run.id}
