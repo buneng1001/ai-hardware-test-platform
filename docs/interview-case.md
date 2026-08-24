@@ -120,6 +120,19 @@
 - 本轮完整验证为后端 Pytest 45 项、前端 Vitest 16 项，并通过 Ruff、TypeScript、Prettier、Vite 生产构建
   和仓库安全扫描；这些数量只记录 2026-08-23 本地实际运行结果。
 
+## 已验证的存储不足与提前停止检测（2026-08-24）
+
+- 页面可创建固定种子的存储不足场景；生成器在写文件前记录存储阈值 500 MB、提前停止位置和预期检查项。
+- 系统通过缩短真实媒体时长模拟提前停止，device_status.csv 用可控虚拟趋势展示存储下降到阈值以下，
+  device.log 记录存储警告和录制提前结束事件，不消耗不可控的真实磁盘空间。
+- 检查器从视频实际时长、设备状态存储指标和日志事件三个维度输出统一结果：
+  `storage_premature_stop`、`storage_exhaustion`、`storage_log_correlation`。
+- 快速 2 秒场景真实生成 1 秒媒体，三项检查均失败且与故障真值对照为命中；同一任务重复运行得到相同
+  故障真值 SHA-256 和相同检测结果。
+- 正常场景的 storage 检查全部通过且 `truth_comparison` 为 `not_applicable`，没有新增误报。
+- 本轮后端完整 Pytest 47 项通过，Ruff 和仓库安全扫描通过；前端 TypeScript 与 Prettier 检查通过。
+  前端 Vitest 与 Vite 生产构建在当前 Windows 沙箱下因 `spawn EPERM` 无法执行，已记录为环境限制而非代码缺陷。
+
 ## 核心链路
 
 ```text

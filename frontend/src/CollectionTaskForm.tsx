@@ -106,6 +106,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="normal">正常采集</option>
         <option value="video_drop">单路视频掉帧</option>
         <option value="imu_anomaly">IMU 异常</option>
+        <option value="storage_exhaustion">存储不足</option>
       </select>
       {mode === "custom" ? (
         <div className="configuration-grid">

@@ -21,7 +21,7 @@ def generate_normal_artifacts(
 ) -> tuple[list[Artifact], GenerationMetadata]:
     """生成短媒体文件；长稳资源趋势使用虚拟时间控制成本。"""
     run_dir.mkdir(parents=True, exist_ok=False)
-    actual_duration = min(snapshot.duration_seconds, MAX_ACTUAL_DURATION_SECONDS)
+    actual_duration = _actual_duration_for_scenario(snapshot)
     fault_truth = _build_fault_truth(snapshot, actual_duration)
     _write_fault_truth(run_dir / "fault_truth.json", fault_truth)
     video_paths = [
@@ -32,8 +32,8 @@ def generate_normal_artifacts(
     imu_path = run_dir / f"imu.{snapshot.imu.format}"
     _generate_imu(imu_path, snapshot, actual_duration, fault_truth)
     timeline_source = "virtual_time_simulated" if snapshot.duration_seconds > actual_duration else "actual_generated"
-    _generate_device_status(run_dir / "device_status.csv", snapshot)
-    _generate_device_log(run_dir / "device.log")
+    _generate_device_status(run_dir / "device_status.csv", snapshot, fault_truth)
+    _generate_device_log(run_dir / "device.log", snapshot, fault_truth)
 
     artifacts = [
         *[_artifact("video", video_path, run_dir) for video_path in video_paths],
@@ -134,22 +134,62 @@ def _generate_imu(
                 file.write(json.dumps(row, separators=(",", ":")) + "\n")
 
 
-def _generate_device_status(path: Path, snapshot: RunConfigurationSnapshot) -> None:
+def _actual_duration_for_scenario(snapshot: RunConfigurationSnapshot) -> int:
+    """返回真实生成的媒体时长；存储不足场景提前停止以保留证据。"""
+    raw = min(snapshot.duration_seconds, MAX_ACTUAL_DURATION_SECONDS)
+    if snapshot.scenario == "storage_exhaustion":
+        # 至少提前 1 秒停止，确保能观察到提前停止证据
+        return max(1, raw - 1)
+    return raw
+
+
+def _generate_device_status(
+    path: Path,
+    snapshot: RunConfigurationSnapshot,
+    fault_truth: dict,
+) -> None:
     duration = snapshot.duration_seconds
-    midpoint = duration / 2
     end_temperature = 40.0 + duration * 0.1
-    end_storage = max(0, 8192 - duration * 2)
-    path.write_text(
-        "timestamp_s,cpu_percent,memory_percent,temperature_c,storage_free_mb\n"
-        f"0.000,18.0,32.0,40.0,8192\n{midpoint:.3f},20.0,35.0,{(40 + end_temperature) / 2:.1f},"
-        f"{(8192 + end_storage) // 2}\n{duration:.3f},22.0,38.0,{end_temperature:.1f},{end_storage}\n",
-        encoding="utf-8",
-    )
+    header = "timestamp_s,cpu_percent,memory_percent,temperature_c,storage_free_mb\n"
+    if snapshot.scenario != "storage_exhaustion":
+        midpoint = duration / 2
+        end_storage = max(0, 8192 - duration * 2)
+        path.write_text(
+            header
+            + f"0.000,18.0,32.0,40.0,8192\n{midpoint:.3f},20.0,35.0,{(40 + end_temperature) / 2:.1f},"
+            + f"{(8192 + end_storage) // 2}\n{duration:.3f},22.0,38.0,{end_temperature:.1f},{end_storage}\n",
+            encoding="utf-8",
+        )
+        return
+
+    fault = next(item for item in fault_truth["faults"] if item["type"] == "storage_exhaustion")
+    threshold_mb = fault["threshold_mb"]
+    stop_at_s = fault["stop_at_s"]
+    warn_at_s = max(0.0, stop_at_s - 0.3)
+    rows = [
+        "0.000,18.0,32.0,40.0,8192",
+        f"{warn_at_s:.3f},20.0,35.0,42.0,{threshold_mb + 200}",
+        f"{stop_at_s:.3f},22.0,38.0,43.0,{threshold_mb - 100}",
+        f"{duration:.3f},24.0,40.0,{end_temperature:.1f},0",
+    ]
+    path.write_text(header + "\n".join(rows) + "\n", encoding="utf-8")
 
 
-def _generate_device_log(path: Path) -> None:
+def _generate_device_log(path: Path, snapshot: RunConfigurationSnapshot, fault_truth: dict) -> None:
+    if snapshot.scenario != "storage_exhaustion":
+        path.write_text(
+            "0.000 INFO collection started\n1.000 INFO collection healthy\n2.000 INFO collection completed\n",
+            encoding="utf-8",
+        )
+        return
+
+    fault = next(item for item in fault_truth["faults"] if item["type"] == "storage_exhaustion")
+    stop_at_s = fault["stop_at_s"]
+    warn_at_s = max(0.0, stop_at_s - 0.3)
     path.write_text(
-        "0.000 INFO collection started\n1.000 INFO collection healthy\n2.000 INFO collection completed\n",
+        f"0.000 INFO collection started\n"
+        f"{warn_at_s:.3f} WARN storage low, only {fault['threshold_mb'] + 200} MB free\n"
+        f"{stop_at_s:.3f} ERROR storage exhausted, recording stopped prematurely\n",
         encoding="utf-8",
     )
 
@@ -206,6 +246,22 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
             rollback_index + 1,
         ]
         truth["expected_basic_result"] = "imu_anomaly"
+    elif snapshot.scenario == "storage_exhaustion":
+        threshold_mb = 500
+        truth["faults"] = [
+            {
+                "type": "storage_exhaustion",
+                "threshold_mb": threshold_mb,
+                "stop_at_s": float(actual_duration_seconds),
+                "expected_checks": [
+                    "storage_premature_stop",
+                    "storage_exhaustion",
+                    "storage_log_correlation",
+                ],
+                "expected_status": "failed",
+            }
+        ]
+        truth["expected_basic_result"] = "storage_exhaustion"
     return truth
 
 

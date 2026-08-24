@@ -184,4 +184,5 @@ const scenarioLabels = {
   normal: "正常采集",
   video_drop: "单路视频掉帧",
   imu_anomaly: "IMU 异常",
+  storage_exhaustion: "存储不足",
 } as const;

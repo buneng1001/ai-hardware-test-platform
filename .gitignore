@@ -2,6 +2,7 @@
 backend/.venv/
 backend/.pytest_cache/
 backend/pytest-cache-files-*/
+backend/.pytest-tmp/
 backend/.ruff_cache/
 backend/.test-runs/
 backend/*.egg-info/
@@ -22,9 +23,11 @@ data/*
 !data/.gitkeep
 coverage/
 allure-results/
+tmp/
 
 # 编辑器与系统文件
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
+.worktrees/
