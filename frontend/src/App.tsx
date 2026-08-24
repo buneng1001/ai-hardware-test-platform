@@ -10,6 +10,7 @@ import {
   getRun,
   listCollectionTasks,
   rerun,
+  reviewAlignment,
 } from "./collectionTasksApi";
 import { CollectionTaskForm } from "./CollectionTaskForm";
 import { isTerminalRun, RunDetail } from "./RunDetail";
@@ -116,6 +117,18 @@ export function App() {
     }
   };
 
+  const reviewSelectedAlignment = async (
+    anchors: Parameters<typeof reviewAlignment>[1],
+  ) => {
+    if (!selectedRun) return;
+    try {
+      setSelectedRun(await reviewAlignment(selectedRun.id, anchors));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "锚点复核失败";
+      setRunError(`锚点复核失败：${message}`);
+    }
+  };
+
   return (
     <main className="status-page">
       <p className="eyebrow">本地运行基线</p>
@@ -174,6 +187,7 @@ export function App() {
           run={selectedRun}
           onCancel={() => void cancelSelectedRun()}
           onRerun={() => void rerunSelectedRun()}
+          onReviewAlignment={(anchors) => void reviewSelectedAlignment(anchors)}
         />
       )}
     </main>

@@ -67,6 +67,7 @@ export type RunRecord = {
     video: VideoConfiguration;
     imu: ImuConfiguration;
     random_seed: number;
+    reference_channel: ReferenceChannel;
   };
   events: Array<{ stage: RunStatus; occurred_at: string }>;
   artifacts: Array<{
@@ -103,12 +104,40 @@ export type RunRecord = {
     pre_alignment: Record<string, Record<string, number>>;
     post_alignment: Record<string, Record<string, number>>;
     trend: Record<string, number[]>;
+    anchor_details: AlignmentAnchor[];
+    content_sync: ContentSyncResult;
+    review_revision: number;
     truth_comparison: "matched" | "missed" | "not_applicable";
   } | null;
   manual_check_results: ManualCheckResult[];
   created_at: string;
   completed_at: string | null;
   error: string | null;
+};
+
+export type AlignmentAnchor = {
+  id: string;
+  channel: string;
+  event_index: number;
+  detected_time_s: number;
+  reviewed_time_s: number | null;
+  included: boolean;
+  source: "video_flash" | "imu_peak";
+};
+
+export type ContentSyncResult = {
+  status: "passed" | "failed" | "degraded";
+  video_event_count: number;
+  imu_event_count: number;
+  matched_event_count: number;
+  matched_event_indices: number[];
+  message: string;
+};
+
+export type AlignmentReviewItem = {
+  anchor_id: string;
+  reviewed_time_s: number | null;
+  included: boolean;
 };
 
 export async function listCollectionTasks(): Promise<CollectionTask[]> {
@@ -160,5 +189,21 @@ export async function cancelRun(runId: number): Promise<RunRecord> {
 export async function rerun(runId: number): Promise<RunRecord> {
   const response = await fetch(`/api/runs/${runId}/rerun`, { method: "POST" });
   if (!response.ok) throw new Error("重新执行失败");
+  return (await response.json()) as RunRecord;
+}
+
+export async function reviewAlignment(
+  runId: number,
+  anchors: AlignmentReviewItem[],
+): Promise<RunRecord> {
+  const response = await fetch(`/api/runs/${runId}/alignment-review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ anchors }),
+  });
+  if (!response.ok) {
+    const body = (await response.json()) as { detail?: string };
+    throw new Error(body.detail ?? "锚点复核失败");
+  }
   return (await response.json()) as RunRecord;
 }

@@ -282,3 +282,105 @@ test("运行详情展示 IMU 异常指标、位置和故障真值命中", async 
     screen.getByText("异常位置：样本 #25、样本 #54、样本 #82、样本 #83"),
   ).toBeInTheDocument();
 });
+
+test("运行详情可查看并提交锚点复核且独立展示内容同步", async () => {
+  const completedRun = {
+    ...queuedRun,
+    status: "completed",
+    configuration_snapshot: {
+      ...queuedRun.configuration_snapshot,
+      scenario: "linear_drift",
+      reference_channel: "camera_1",
+    },
+    events: [
+      "queued",
+      "generating_data",
+      "running_checks",
+      "summarizing_results",
+      "completed",
+    ].map((stage) => ({ stage, occurred_at: "2026-08-22T12:00:00Z" })),
+    alignment_result: {
+      reference_channel: "camera_1",
+      method: "linear_drift_regression",
+      parameters: { camera_1: 0, camera_4: -0.08 },
+      drift_rates_s_per_s: { camera_1: 0, camera_4: -0.03 },
+      anchors: { camera_1: [1, 2, 3] },
+      pre_alignment: {
+        camera_4: { offset_s: 0.08, jitter_ms: 2, drift_s_per_s: 0.03 },
+      },
+      post_alignment: {
+        camera_4: {
+          max_residual_ms: 10,
+          mean_residual_ms: 4,
+          p95_residual_ms: 9,
+        },
+      },
+      trend: { camera_4: [1, 2, 3] },
+      anchor_details: [
+        {
+          id: "camera_4:event-0",
+          channel: "camera_4",
+          event_index: 0,
+          detected_time_s: 1.08,
+          reviewed_time_s: 1.08,
+          included: true,
+          source: "video_flash",
+        },
+        {
+          id: "imu:event-0",
+          channel: "imu",
+          event_index: 0,
+          detected_time_s: 1.04,
+          reviewed_time_s: 1.04,
+          included: true,
+          source: "imu_peak",
+        },
+      ],
+      content_sync: {
+        status: "passed",
+        video_event_count: 3,
+        imu_event_count: 3,
+        matched_event_count: 3,
+        message: "视频闪光与 IMU 冲击峰值按事件序号一一对应",
+      },
+      review_revision: 0,
+      truth_comparison: "matched",
+    },
+  };
+  const reviewedRun = {
+    ...completedRun,
+    alignment_result: {
+      ...completedRun.alignment_result,
+      review_revision: 1,
+      parameters: { camera_1: 0, camera_4: -0.113 },
+    },
+  };
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "ok", database: "ok" })),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([task])))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify(queuedRun), { status: 201 }),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify(completedRun)))
+    .mockResolvedValueOnce(new Response(JSON.stringify(reviewedRun)));
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
+  expect(
+    await screen.findByText("画面内容同步（独立评价）"),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/按事件序号一一对应/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "应用锚点复核" }));
+
+  expect(await screen.findByText("锚点复核版本：1")).toBeInTheDocument();
+  expect(await screen.findByText("应用锚点复核")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith("/api/runs/9/alignment-review", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: expect.any(String),
+  });
+});

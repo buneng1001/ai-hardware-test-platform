@@ -1,4 +1,10 @@
-import type { RunRecord, RunStatus } from "./collectionTasksApi";
+import { useEffect, useState } from "react";
+
+import type {
+  AlignmentReviewItem,
+  RunRecord,
+  RunStatus,
+} from "./collectionTasksApi";
 import { ManualCheckResultsPanel } from "./ManualCheckResultsPanel";
 
 const terminalRunStatuses = new Set<RunStatus>([
@@ -38,9 +44,39 @@ type RunDetailProps = {
   run: RunRecord;
   onCancel: () => void;
   onRerun: () => void;
+  onReviewAlignment: (anchors: AlignmentReviewItem[]) => void;
 };
 
-export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
+export function RunDetail({
+  run,
+  onCancel,
+  onRerun,
+  onReviewAlignment,
+}: RunDetailProps) {
+  const [anchorDrafts, setAnchorDrafts] = useState<
+    Record<string, AlignmentReviewItem>
+  >({});
+
+  useEffect(() => {
+    const details = run.alignment_result?.anchor_details ?? [];
+    setAnchorDrafts(
+      Object.fromEntries(
+        details.map((anchor) => [
+          anchor.id,
+          {
+            anchor_id: anchor.id,
+            reviewed_time_s: anchor.reviewed_time_s ?? anchor.detected_time_s,
+            included: anchor.included,
+          },
+        ]),
+      ),
+    );
+  }, [run.id, run.alignment_result?.review_revision]);
+
+  const submitAnchorReview = () => {
+    onReviewAlignment(Object.values(anchorDrafts));
+  };
+
   return (
     <section className="run-detail" aria-labelledby="run-detail-title">
       <p className="eyebrow">运行详情</p>
@@ -255,6 +291,80 @@ export function RunDetail({ run, onCancel, onRerun }: RunDetailProps) {
                 : run.alignment_result.truth_comparison === "missed"
                   ? "未命中"
                   : "不适用"}
+            </p>
+            <h4>跨模态锚点复核</h4>
+            <p>锚点复核版本：{run.alignment_result.review_revision}</p>
+            <p>自动识别结果保留在“检测时间”，复核时间只用于重新计算对齐。</p>
+            <ul>
+              {run.alignment_result.anchor_details.map((anchor) => {
+                const draft = anchorDrafts[anchor.id];
+                return (
+                  <li key={anchor.id}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={draft?.included ?? anchor.included}
+                        onChange={(event) =>
+                          setAnchorDrafts((current) => ({
+                            ...current,
+                            [anchor.id]: {
+                              ...(current[anchor.id] ?? {
+                                anchor_id: anchor.id,
+                                reviewed_time_s: anchor.detected_time_s,
+                              }),
+                              included: event.target.checked,
+                            },
+                          }))
+                        }
+                      />
+                      使用 {anchor.id}（
+                      {anchor.source === "imu_peak" ? "IMU 冲击" : "视频闪光"}）
+                    </label>
+                    <span>
+                      ，检测 {anchor.detected_time_s.toFixed(3)} s，复核{" "}
+                    </span>
+                    <input
+                      aria-label={`${anchor.id} 复核时间`}
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={draft?.reviewed_time_s ?? anchor.detected_time_s}
+                      onChange={(event) =>
+                        setAnchorDrafts((current) => ({
+                          ...current,
+                          [anchor.id]: {
+                            ...(current[anchor.id] ?? {
+                              anchor_id: anchor.id,
+                              included: anchor.included,
+                            }),
+                            reviewed_time_s: Number(event.target.value),
+                          },
+                        }))
+                      }
+                    />
+                    <span> s</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <button type="button" onClick={submitAnchorReview}>
+              应用锚点复核
+            </button>
+            <h4>画面内容同步（独立评价）</h4>
+            <p>
+              状态：
+              {run.alignment_result.content_sync.status === "passed"
+                ? "通过"
+                : run.alignment_result.content_sync.status === "failed"
+                  ? "失败"
+                  : "降级"}
+              ；{run.alignment_result.content_sync.message}
+            </p>
+            <p>
+              视频事件 {run.alignment_result.content_sync.video_event_count}{" "}
+              个，IMU 事件 {run.alignment_result.content_sync.imu_event_count}{" "}
+              个，按序对应{" "}
+              {run.alignment_result.content_sync.matched_event_count} 个。
             </p>
           </>
         )}

@@ -104,7 +104,47 @@ class TimeAlignmentResult(BaseModel):
     pre_alignment: dict[str, dict[str, float]]
     post_alignment: dict[str, dict[str, float]]
     trend: dict[str, list[float]] = Field(default_factory=dict)
+    anchor_details: list["AlignmentAnchor"] = Field(default_factory=list)
+    content_sync: "ContentSyncResult"
+    review_revision: int = 0
     truth_comparison: Literal["matched", "missed", "not_applicable"] = "not_applicable"
+
+
+class AlignmentAnchor(BaseModel):
+    """跨模态事件锚点；复核时间与原始检测时间分开保存。"""
+
+    id: str
+    channel: str
+    event_index: int = Field(ge=0)
+    detected_time_s: float
+    reviewed_time_s: float | None
+    included: bool
+    source: Literal["video_flash", "imu_peak"]
+
+
+class ContentSyncResult(BaseModel):
+    """不依赖时间接近度的画面事件与 IMU 事件内容对应结果。"""
+
+    status: Literal["passed", "failed", "degraded"]
+    video_event_count: int = Field(ge=0)
+    imu_event_count: int = Field(ge=0)
+    matched_event_count: int = Field(ge=0)
+    matched_event_indices: list[int] = Field(default_factory=list)
+    message: str
+
+
+class AlignmentReviewItem(BaseModel):
+    """一次锚点人工复核提交的变更。"""
+
+    anchor_id: str
+    reviewed_time_s: float | None = Field(default=None, ge=0)
+    included: bool = True
+
+
+class AlignmentReviewCommand(BaseModel):
+    """只提交需要复核的锚点，未提交的锚点保持自动识别结果。"""
+
+    anchors: list[AlignmentReviewItem]
 
 
 class ManualCheckResult(BaseModel):
