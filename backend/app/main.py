@@ -10,6 +10,7 @@ from app.collection_tasks import router as collection_tasks_router
 from app.database import check_database
 from app.manual_check_results import router as manual_check_results_router
 from app.manual_result_import import router as manual_result_import_router
+from app.report import router as report_router
 from app.run_executor import RunExecutor
 from app.runs import process_run, recover_unfinished_runs
 from app.runs import router as runs_router
@@ -36,6 +37,7 @@ app.include_router(collection_tasks_router)
 app.include_router(manual_check_results_router)
 app.include_router(manual_result_import_router)
 app.include_router(runs_router)
+app.include_router(report_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)
