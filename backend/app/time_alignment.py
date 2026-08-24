@@ -42,7 +42,7 @@ def align_fixed_offset(
     )
 
     truth = read_fault_truth(artifacts, data_dir)
-    truth_offsets = truth.get("channel_offsets_s", {})
+    truth_offsets = _relative_truth_offsets(truth.get("alignment_corrections_s", {}), reference_channel)
     truth_comparison = _compare_offsets(estimated_offsets_s, truth_offsets)
 
     return TimeAlignmentResult(
@@ -187,6 +187,12 @@ def _compare_offsets(
         if abs(estimated.get(channel, 0.0) - true_offset) > tolerance_s:
             return "missed"
     return "matched"
+
+
+def _relative_truth_offsets(truth: dict[str, float], reference_channel: str) -> dict[str, float]:
+    """把以 camera_1 为原点的故障真值转换为所选参考通道的原点。"""
+    reference_offset = truth.get(reference_channel, 0.0)
+    return {channel: round(offset - reference_offset, 6) for channel, offset in truth.items()}
 
 
 def _std(values: list[float]) -> float:

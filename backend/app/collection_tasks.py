@@ -6,7 +6,13 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.database import open_database
-from app.run_models import ImuConfiguration, RunConfigurationSnapshot, Scenario, VideoConfiguration
+from app.run_models import (
+    ImuConfiguration,
+    ReferenceChannel,
+    RunConfigurationSnapshot,
+    Scenario,
+    VideoConfiguration,
+)
 
 router = APIRouter(prefix="/api/collection-tasks", tags=["collection tasks"])
 
@@ -35,7 +41,7 @@ class CollectionTaskCreate(BaseModel):
     video: VideoConfiguration | None = None
     imu: ImuConfiguration | None = None
     random_seed: int | None = None
-    reference_channel: str = "camera_1"
+    reference_channel: ReferenceChannel = "camera_1"
 
     @field_validator("name")
     @classmethod
@@ -80,7 +86,7 @@ class CollectionTask(BaseModel):
     video: VideoConfiguration
     imu: ImuConfiguration
     random_seed: int
-    reference_channel: str
+    reference_channel: ReferenceChannel
     status: Literal["draft"]
     created_at: datetime
 

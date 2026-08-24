@@ -43,7 +43,7 @@ def test_fixed_offset_scenario_estimates_known_offsets_relative_to_camera_1(tmp_
 
     truth_artifact = next(artifact for artifact in run["artifacts"] if artifact["kind"] == "fault_truth")
     truth_path = tmp_path / truth_artifact["path"]
-    expected_offsets = json.loads(truth_path.read_text(encoding="utf-8"))["channel_offsets_s"]
+    expected_offsets = json.loads(truth_path.read_text(encoding="utf-8"))["alignment_corrections_s"]
     estimated = alignment["parameters"]
     for channel, expected in expected_offsets.items():
         assert estimated[channel] == pytest.approx(expected, abs=0.001)
@@ -83,6 +83,28 @@ def test_engineer_can_select_alternative_reference_channel(tmp_path, monkeypatch
     assert alignment["parameters"]["camera_3"] == pytest.approx(0.0, abs=0.001)
     # camera_3 比 camera_1 晚 2 帧；对齐 camera_1 到 camera_3 需加上 2/15 秒
     assert alignment["parameters"]["camera_1"] == pytest.approx(2 / 15, abs=0.001)
+    assert alignment["truth_comparison"] == "matched"
+
+
+def test_reference_channel_must_exist_in_the_configured_video_channels(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    response = TestClient(app).post(
+        "/api/collection-tasks",
+        json={
+            "name": "不存在的参考通道",
+            "mode": "custom",
+            "scenario": "fixed_offset",
+            "duration_seconds": 2,
+            "video": {"channels": 1, "resolution": "640x360", "fps": 15, "container": "mp4"},
+            "imu": {"format": "csv", "sample_rate_hz": 50},
+            "random_seed": 7,
+            "reference_channel": "camera_3",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "不在当前视频通道范围内" in response.text
 
 
 def test_non_fixed_offset_scenarios_have_no_alignment_result(tmp_path, monkeypatch):

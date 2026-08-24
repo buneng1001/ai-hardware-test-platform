@@ -18,9 +18,7 @@ RunStatus = Literal[
 ]
 
 Scenario = Literal["normal", "video_drop", "imu_anomaly", "storage_exhaustion", "fixed_offset"]
-
-REFERENCE_CHANNELS = {"camera_1", "camera_2", "camera_3", "camera_4", "imu"}
-
+ReferenceChannel = Literal["camera_1", "camera_2", "camera_3", "camera_4", "imu"]
 
 class VideoConfiguration(BaseModel):
     channels: int = Field(ge=1, le=4)
@@ -42,7 +40,7 @@ class RunConfigurationSnapshot(BaseModel):
     video: VideoConfiguration
     imu: ImuConfiguration
     random_seed: int = Field(ge=0, le=2_147_483_647)
-    reference_channel: str = "camera_1"
+    reference_channel: ReferenceChannel = "camera_1"
 
     @model_validator(mode="after")
     def protect_local_file_size(self) -> "RunConfigurationSnapshot":
@@ -55,8 +53,10 @@ class RunConfigurationSnapshot(BaseModel):
 
     @model_validator(mode="after")
     def validate_reference_channel(self) -> "RunConfigurationSnapshot":
-        if self.reference_channel not in REFERENCE_CHANNELS:
-            raise ValueError("参考通道必须是 camera_1、camera_2、camera_3、camera_4 或 imu")
+        if self.reference_channel.startswith("camera_"):
+            channel = int(self.reference_channel.removeprefix("camera_"))
+            if channel > self.video.channels:
+                raise ValueError(f"参考通道 {self.reference_channel} 不在当前视频通道范围内")
         return self
 
 

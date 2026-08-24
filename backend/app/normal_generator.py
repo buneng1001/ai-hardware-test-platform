@@ -14,6 +14,7 @@ from app.run_models import (
     GenerationMetadata,
     RunConfigurationSnapshot,
 )
+from app.video_generation import channel_delay_s, video_filter
 
 
 def generate_normal_artifacts(
@@ -23,7 +24,8 @@ def generate_normal_artifacts(
     run_dir.mkdir(parents=True, exist_ok=False)
     actual_duration = _actual_duration_for_scenario(snapshot)
     fault_truth = _build_fault_truth(snapshot, actual_duration)
-    _write_fault_truth(run_dir / "fault_truth.json", fault_truth)
+    truth_path = run_dir / "fault_truth.json"
+    truth_path.write_text(json.dumps(fault_truth, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     video_paths = [
         run_dir / f"camera_{channel}.{snapshot.video.container}" for channel in range(1, snapshot.video.channels + 1)
     ]
@@ -72,7 +74,7 @@ def _generate_video(
         "-t",
         str(actual_duration_seconds),
         "-vf",
-        _video_filter(snapshot, channel, fault_truth, _channel_delay_s(snapshot, channel), actual_duration_seconds),
+        video_filter(snapshot, channel, fault_truth, actual_duration_seconds),
         "-c:v",
         "libx264",
         "-fflags",
@@ -101,7 +103,7 @@ def _generate_imu(
     sample_count = actual_duration_seconds * snapshot.imu.sample_rate_hz
     generator = random.Random(snapshot.random_seed)
     rows = []
-    imu_delay_s = _channel_delay_s(snapshot, "imu")
+    imu_delay_s = channel_delay_s(snapshot, "imu")
     spike_index: int | None = None
     if snapshot.scenario == "fixed_offset":
         # 冲击峰值的真实发生时刻为内容中点；加上 IMU 延迟后会出现在更晚的本地时间戳
@@ -277,55 +279,13 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
     elif snapshot.scenario == "fixed_offset":
         truth["reference_channel"] = snapshot.reference_channel
         # 保存对齐时需要添加的校正量（延迟的相反数）
-        truth["channel_offsets_s"] = {
-            f"camera_{channel}": -_channel_delay_s(snapshot, channel)
+        truth["alignment_corrections_s"] = {
+            f"camera_{channel}": -channel_delay_s(snapshot, channel)
             for channel in range(1, snapshot.video.channels + 1)
         }
-        truth["channel_offsets_s"]["imu"] = -_channel_delay_s(snapshot, "imu")
+        truth["alignment_corrections_s"]["imu"] = -channel_delay_s(snapshot, "imu")
         truth["expected_basic_result"] = "fixed_offset_aligned"
     return truth
-
-
-def _write_fault_truth(path: Path, truth: dict) -> None:
-    path.write_text(json.dumps(truth, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
-def _channel_delay_s(snapshot: RunConfigurationSnapshot, channel: int | str) -> float:
-    """返回固定偏移场景下通道相对参考时钟的延迟（正值表示更晚开始）。"""
-    if snapshot.scenario != "fixed_offset":
-        return 0.0
-    if channel == 1 or channel == "camera_1":
-        return 0.0
-    if isinstance(channel, int):
-        # camera_2/3/4 使用整数帧延迟，使闪光锚点落在离散帧上，避免帧间隔量化歧义
-        delay_frames = channel - 1
-        return round(delay_frames / snapshot.video.fps, 6)
-    return 0.08
-
-
-def _video_filter(
-    snapshot: RunConfigurationSnapshot,
-    channel: int,
-    fault_truth: dict,
-    delay_s: float = 0.0,
-    actual_duration_seconds: int = 0,
-) -> str:
-    hue = f"hue=h={(snapshot.random_seed + channel * 17) % 360}"
-    if snapshot.scenario == "fixed_offset" and actual_duration_seconds > 0:
-        # 为所有视频通道注入白帧闪光作为共同事件锚点；参考通道在内容中点，其余通道按帧延迟偏移
-        base_frame = round(actual_duration_seconds * snapshot.video.fps / 2)
-        if isinstance(channel, int):
-            delay_frames = channel - 1
-        else:
-            delay_frames = 0
-        flash_frame = base_frame + delay_frames
-        return f"{hue},drawbox=x=0:y=0:w=iw:h=ih:color=white@1.0:t=fill:enable='eq(n\\,{flash_frame})'"
-    if snapshot.scenario != "video_drop" or channel != fault_truth["faults"][0]["channel"]:
-        return hue
-    fault = fault_truth["faults"][0]
-    upper_bound = fault["end_s"] - 1 / (snapshot.video.fps * 100)
-    return f"{hue},select=not(between(t\\,{fault['start_s']}\\,{upper_bound:.6f}))"
-
 
 def _artifact(kind: str, path: Path, run_dir: Path, source: str = "actual_generated") -> Artifact:
     content = path.read_bytes()
