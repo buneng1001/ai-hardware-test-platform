@@ -32,7 +32,7 @@ def generate_normal_artifacts(
     imu_path = run_dir / f"imu.{snapshot.imu.format}"
     _generate_imu(imu_path, snapshot, actual_duration, fault_truth)
     timeline_source = "virtual_time_simulated" if snapshot.duration_seconds > actual_duration else "actual_generated"
-    _generate_device_status(run_dir / "device_status.csv", snapshot, actual_duration, fault_truth)
+    _generate_device_status(run_dir / "device_status.csv", snapshot, fault_truth)
     _generate_device_log(run_dir / "device.log", snapshot, fault_truth)
 
     artifacts = [
@@ -146,7 +146,6 @@ def _actual_duration_for_scenario(snapshot: RunConfigurationSnapshot) -> int:
 def _generate_device_status(
     path: Path,
     snapshot: RunConfigurationSnapshot,
-    actual_duration_seconds: int,
     fault_truth: dict,
 ) -> None:
     duration = snapshot.duration_seconds

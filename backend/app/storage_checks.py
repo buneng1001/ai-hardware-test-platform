@@ -3,6 +3,8 @@
 import csv
 from pathlib import Path
 
+import imageio_ffmpeg
+
 from app.artifact_io import read_fault_truth
 from app.run_models import Artifact, BasicCheck, RunConfigurationSnapshot
 
@@ -63,8 +65,6 @@ def _probe_actual_video_duration(video_artifacts: list[Artifact], data_dir: Path
     if not video_artifacts:
         return 0.0
     # 多路视频应同时停止，取第一路实际时长作为代表
-    import imageio_ffmpeg
-
     _, duration = imageio_ffmpeg.count_frames_and_secs(data_dir / video_artifacts[0].path)
     return float(duration)
 
