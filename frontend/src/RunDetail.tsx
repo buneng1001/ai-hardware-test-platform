@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 
 import type {
   AlignmentReviewItem,
+  DiagnosisRun,
   RunRecord,
   RunStatus,
 } from "./collectionTasksApi";
+import { createMockDiagnosis } from "./collectionTasksApi";
 import { ManualCheckResultsPanel } from "./ManualCheckResultsPanel";
 
 const terminalRunStatuses = new Set<RunStatus>([
@@ -56,6 +58,8 @@ export function RunDetail({
   const [anchorDrafts, setAnchorDrafts] = useState<
     Record<string, AlignmentReviewItem>
   >({});
+  const [diagnosis, setDiagnosis] = useState<DiagnosisRun | null>(null);
+  const [diagnosisError, setDiagnosisError] = useState<string | null>(null);
 
   useEffect(() => {
     const details = run.alignment_result?.anchor_details ?? [];
@@ -72,6 +76,16 @@ export function RunDetail({
       ),
     );
   }, [run.id, run.alignment_result?.review_revision]);
+
+  const generateDiagnosis = async () => {
+    setDiagnosisError(null);
+    try {
+      setDiagnosis(await createMockDiagnosis(run.id));
+    } catch {
+      console.error("Mock 诊断生成失败");
+      setDiagnosisError("Mock 诊断生成失败，请稍后重试");
+    }
+  };
 
   const submitAnchorReview = () => {
     onReviewAlignment(Object.values(anchorDrafts));
@@ -134,6 +148,49 @@ export function RunDetail({
             下载 ZIP 证据包
           </a>
         </p>
+        {run.status === "completed" && (
+          <section aria-labelledby="diagnosis-title">
+            <h4 id="diagnosis-title">Mock 结构化诊断</h4>
+            <button type="button" onClick={() => void generateDiagnosis()}>
+              生成 Mock 诊断
+            </button>
+            {diagnosisError && <p role="alert">{diagnosisError}</p>}
+            {diagnosis?.output && (
+              <>
+                <p>
+                  模型：{diagnosis.model} · Prompt：{diagnosis.prompt_version} ·
+                  证据 {diagnosis.evidence_package.items.length} 条，约{" "}
+                  {diagnosis.evidence_package.estimated_tokens} Token
+                </p>
+                <h5>异常现象</h5>
+                <ul>
+                  {diagnosis.output.phenomena.map((item) => (
+                    <li key={item.description}>
+                      {item.description}（
+                      {item.evidence_refs.join("、") || "无证据"}）
+                    </li>
+                  ))}
+                </ul>
+                <h5>可能原因</h5>
+                <ul>
+                  {diagnosis.output.possible_causes.map((item) => (
+                    <li key={item.cause}>
+                      {item.cause} · {item.confidence} ·{" "}
+                      {item.is_speculation ? "推测" : "有证据支持"} ·{" "}
+                      {item.evidence_refs.join("、") || "无证据"}
+                    </li>
+                  ))}
+                </ul>
+                <p>影响范围：{diagnosis.output.impact_scope.join("；")}</p>
+                <p>
+                  复测建议：{diagnosis.output.retest_recommendations.join("；")}
+                </p>
+                <p>缺失证据：{diagnosis.output.missing_evidence.join("；")}</p>
+                <p>限制：{diagnosis.output.limitations.join("；")}</p>
+              </>
+            )}
+          </section>
+        )}
         {run.evaluation_result && (
           <section aria-labelledby="evaluation-result-title">
             <h4 id="evaluation-result-title">判定结果</h4>

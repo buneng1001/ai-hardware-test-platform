@@ -143,6 +143,47 @@ export type RunRecord = {
   error: string | null;
 };
 
+export type DiagnosisRun = {
+  id: number;
+  run_id: number;
+  status: "pending" | "generating" | "completed" | "failed";
+  model: string;
+  prompt_version: string;
+  is_mock: boolean;
+  evidence_package: {
+    items: Array<{
+      ref: string;
+      kind: string;
+      source: string;
+      content: string;
+      size_bytes: number;
+      estimated_tokens: number;
+    }>;
+    total_bytes: number;
+    estimated_tokens: number;
+    max_bytes: number;
+    max_tokens: number;
+    truncated: boolean;
+  };
+  output: {
+    diagnosis_status: "completed" | "failed";
+    phenomena: Array<{ description: string; evidence_refs: string[] }>;
+    possible_causes: Array<{
+      cause: string;
+      evidence_refs: string[];
+      confidence: "high" | "medium" | "low";
+      is_speculation: boolean;
+    }>;
+    impact_scope: string[];
+    retest_recommendations: string[];
+    missing_evidence: string[];
+    limitations: string[];
+  } | null;
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
 export type AlignmentAnchor = {
   id: string;
   channel: string;
@@ -206,6 +247,16 @@ export async function getRun(runId: number): Promise<RunRecord> {
   const response = await fetch(`/api/runs/${runId}`);
   if (!response.ok) throw new Error("运行记录加载失败");
   return (await response.json()) as RunRecord;
+}
+
+export async function createMockDiagnosis(
+  runId: number,
+): Promise<DiagnosisRun> {
+  const response = await fetch(`/api/runs/${runId}/diagnoses`, {
+    method: "POST",
+  });
+  if (!response.ok) throw new Error("Mock 诊断生成失败");
+  return (await response.json()) as DiagnosisRun;
 }
 
 export async function cancelRun(runId: number): Promise<RunRecord> {

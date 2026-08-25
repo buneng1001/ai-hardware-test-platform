@@ -231,6 +231,72 @@ class ManualCheckResult(BaseModel):
     updated_at: datetime
 
 
+class DiagnosisEvidenceItem(BaseModel):
+    """诊断证据包中的限量条目；ref 是诊断输出可引用的稳定编号。"""
+
+    ref: str = Field(pattern=r"^E[0-9]{3}$")
+    kind: Literal[
+        "configuration",
+        "threshold",
+        "failed_check",
+        "anomaly_window",
+        "resource_metric",
+        "device_log",
+        "imu_summary",
+        "keyframe",
+        "manual_result",
+    ]
+    source: str
+    content: str
+    size_bytes: int = Field(ge=0)
+    estimated_tokens: int = Field(ge=0)
+
+
+class DiagnosisEvidencePackage(BaseModel):
+    items: list[DiagnosisEvidenceItem]
+    total_bytes: int = Field(ge=0)
+    estimated_tokens: int = Field(ge=0)
+    max_bytes: int = Field(gt=0)
+    max_tokens: int = Field(gt=0)
+    truncated: bool
+
+
+class DiagnosisPhenomenon(BaseModel):
+    description: str
+    evidence_refs: list[str]
+
+
+class DiagnosisCause(BaseModel):
+    cause: str
+    evidence_refs: list[str]
+    confidence: Literal["high", "medium", "low"]
+    is_speculation: bool
+
+
+class StructuredDiagnosis(BaseModel):
+    diagnosis_status: Literal["completed", "failed"]
+    phenomena: list[DiagnosisPhenomenon]
+    possible_causes: list[DiagnosisCause]
+    impact_scope: list[str]
+    retest_recommendations: list[str]
+    missing_evidence: list[str]
+    limitations: list[str]
+
+
+class DiagnosisRun(BaseModel):
+    id: int
+    run_id: int
+    status: Literal["pending", "generating", "completed", "failed"]
+    model: str
+    prompt_version: str
+    is_mock: bool
+    evidence_package: DiagnosisEvidencePackage
+    output: StructuredDiagnosis | None
+    error: str | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
 class RunRecord(BaseModel):
     id: int
     collection_task_id: int
@@ -243,6 +309,7 @@ class RunRecord(BaseModel):
     alignment_result: TimeAlignmentResult | None
     evaluation_result: EvaluationResult | None
     manual_check_results: list[ManualCheckResult]
+    diagnosis_runs: list[DiagnosisRun] = Field(default_factory=list)
     created_at: datetime
     completed_at: datetime | None
     error: str | None

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.artifact_io import read_fault_truth
 from app.database import get_data_dir
+from app.diagnosis import latest_diagnosis
 from app.run_models import (
     Artifact,
     BasicCheck,
@@ -25,11 +26,6 @@ router = APIRouter(tags=["reports"])
 type JsonValue = dict[str, object] | list[object] | str | int | float | bool | None
 
 
-class DiagnosisReport(BaseModel):
-    status: str
-    message: str
-
-
 class ReportDocument(BaseModel):
     run_id: int
     status: str
@@ -43,7 +39,7 @@ class ReportDocument(BaseModel):
     alignment_result: TimeAlignmentResult | None
     evaluation_result: EvaluationResult | None
     manual_check_results: list[ManualCheckResult]
-    diagnosis: DiagnosisReport
+    diagnosis: dict[str, object]
     created_at: str
     completed_at: str | None
 
@@ -59,6 +55,7 @@ def _read_fault_truth(run: RunRecord) -> JsonValue:
 def _report_document(run: RunRecord) -> ReportDocument:
     """把运行记录投影成报告文档，保持事实区块彼此独立。"""
     data = run.model_dump(mode="json")
+    diagnosis = latest_diagnosis(run.id)
     return ReportDocument(
         run_id=run.id,
         status=run.status,
@@ -72,8 +69,9 @@ def _report_document(run: RunRecord) -> ReportDocument:
         alignment_result=run.alignment_result,
         evaluation_result=run.evaluation_result,
         manual_check_results=run.manual_check_results,
-        # 诊断运行尚未实现时明确标注，避免把空值误读成诊断通过。
-        diagnosis=DiagnosisReport(status="not_generated", message="诊断尚未生成"),
+        diagnosis=diagnosis.model_dump(mode="json")
+        if diagnosis
+        else {"status": "not_generated", "message": "诊断尚未生成"},
         created_at=data["created_at"],
         completed_at=data["completed_at"],
     )
