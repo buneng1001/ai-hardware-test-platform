@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   type CollectionTask,
   type CollectionTaskCommand,
+  type AiSettings,
   type DiagnosisMode,
   type RunRecord,
   cancelRun,
@@ -12,6 +13,7 @@ import {
   listCollectionTasks,
   rerun,
   reviewAlignment,
+  getAiSettings,
   testAiConnection,
 } from "./collectionTasksApi";
 import { CollectionTaskForm } from "./CollectionTaskForm";
@@ -38,6 +40,9 @@ export function App() {
   );
   const [temporaryApiKey, setTemporaryApiKey] = useState("");
   const [connectionMessage, setConnectionMessage] = useState<string | null>(
+    null,
+  );
+  const [backendSettings, setBackendSettings] = useState<AiSettings | null>(
     null,
   );
 
@@ -151,6 +156,14 @@ export function App() {
     }
   };
 
+  const loadBackendSettings = async () => {
+    try {
+      setBackendSettings(await getAiSettings());
+    } catch {
+      setConnectionMessage("后端设置状态读取失败，请检查服务状态");
+    }
+  };
+
   return (
     <main className="status-page">
       <p className="eyebrow">本地运行基线</p>
@@ -198,6 +211,15 @@ export function App() {
         <button type="button" onClick={() => void checkAiConnection()}>
           测试硅基流动连接
         </button>
+        <button type="button" onClick={() => void loadBackendSettings()}>
+          读取后端配置状态
+        </button>
+        {backendSettings && (
+          <p>
+            后端 Key 状态：
+            {backendSettings.api_key_configured ? "已配置" : "未配置"}
+          </p>
+        )}
         {connectionMessage && <p role="status">{connectionMessage}</p>}
       </section>
 

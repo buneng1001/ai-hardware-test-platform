@@ -289,5 +289,5 @@ AI 负责归纳异常、提出可能原因、引用证据、说明不确定性�
 - 通过独立硅基流动适配层发送 OpenAI 兼容结构化请求；业务层只接收 JSON，不依赖服务商 HTTP 细节。设置页支持 Mock/硅基流动切换、模型输入、连接测试和会话内临时 Key。
 - 适配器对限流、暂时服务错误和超时/网络错误最多自动重试两次；认证和非法请求不重试。真实输出仍经过既有诊断 Schema、稳定证据引用和无证据推测校验。
 - 模型认证失败的公开 API 契约验证为独立诊断运行 `failed`，原运行仍为 `completed`，报告仍可读取；响应、设置 API 和测试证据均不包含 Key。
-- 验证结果：后端完整 Pytest 87 项、前端 Vitest 23 项、TypeScript、Ruff、Prettier 和 Vite 构建通过。
+- 验证结果：后端完整 Pytest 89 项、前端 Vitest 23 项、TypeScript、Ruff、Prettier 和 Vite 构建通过。
 - 边界说明：本次没有使用真实 API Key，Fake transport/adapter 只验证协议契约和错误降级，不把模拟结果描述为真实模型质量或线上可用性证明。

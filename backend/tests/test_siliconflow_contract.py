@@ -50,6 +50,7 @@ def test_adapter_returns_structured_json_from_openai_compatible_response():
     ("status", "expected_kind", "retryable"),
     [
         (401, ModelErrorKind.AUTHENTICATION, False),
+        (408, ModelErrorKind.TIMEOUT, True),
         (429, ModelErrorKind.RATE_LIMIT, True),
         (500, ModelErrorKind.TEMPORARY_SERVICE, True),
         (400, ModelErrorKind.INVALID_REQUEST, False),
@@ -68,6 +69,24 @@ def test_adapter_classifies_http_errors(status, expected_kind, retryable):
 
     assert error.value.kind == expected_kind
     assert error.value.retryable is retryable
+
+
+def test_adapter_does_not_retry_general_network_errors():
+    calls = 0
+
+    def transport(_request):
+        nonlocal calls
+        calls += 1
+        raise SiliconFlowError(ModelErrorKind.NETWORK, "连接被拒绝", False)
+
+    with pytest.raises(SiliconFlowError):
+        SiliconFlowAdapter(transport=transport, sleep=lambda _seconds: None).generate(
+            api_key="temporary-secret",
+            model="demo-model",
+            evidence_json="{}",
+        )
+
+    assert calls == 1
 
 
 def test_adapter_retries_retryable_errors_at_most_twice():
@@ -192,7 +211,7 @@ def test_model_failure_is_saved_without_blocking_original_run(tmp_path, monkeypa
     assert response.status_code == 201
     assert response.json()["status"] == "failed"
     assert response.json()["output"] is None
-    assert response.json()["error"] == "模型认证失败"
+    assert response.json()["error"] == "authentication: 模型认证失败"
     assert report["diagnosis"]["status"] == "failed"
     assert report["status"] == "completed"
     assert "bad-secret" not in response.text

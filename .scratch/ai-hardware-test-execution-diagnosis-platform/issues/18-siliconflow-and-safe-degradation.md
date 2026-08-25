@@ -18,5 +18,5 @@
 
 - **实现**：新增 `backend/app/siliconflow.py` 独立适配层、`backend/app/settings.py` 设置/连接测试 API；诊断 API 支持 Mock 和硅基流动模式，真实输出复用结构化 Schema 与证据引用校验。
 - **安全降级**：429、5xx、超时/网络错误最多重试两次；认证、非法请求和无效响应直接保存失败诊断。诊断失败不改变运行记录，原始报告仍可查看和导出。
-- **验证证据**：`backend/tests/test_siliconflow_contract.py` 覆盖成功、错误分类、重试边界、设置脱敏、真实结构化输出和失败降级；完整后端 Pytest 87 项通过；前端 Vitest 23 项、TypeScript、Ruff、Prettier 和 Vite 构建通过。
+- **验证证据**：`backend/tests/test_siliconflow_contract.py` 覆盖成功、错误分类、重试边界、设置脱敏、真实结构化输出和失败降级；完整后端 Pytest 89 项通过；前端 Vitest 23 项、TypeScript、Ruff、Prettier 和 Vite 构建通过。
 - **边界**：未使用真实 API Key，未宣称真实外网服务调用或模型效果已验证；Fake transport/adapter 仅验证协议契约和安全降级。

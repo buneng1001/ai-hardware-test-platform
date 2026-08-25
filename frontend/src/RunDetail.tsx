@@ -7,7 +7,7 @@ import type {
   RunRecord,
   RunStatus,
 } from "./collectionTasksApi";
-import { createDiagnosis } from "./collectionTasksApi";
+import { createDiagnosis, listDiagnoses } from "./collectionTasksApi";
 import { ManualCheckResultsPanel } from "./ManualCheckResultsPanel";
 
 const terminalRunStatuses = new Set<RunStatus>([
@@ -101,6 +101,16 @@ export function RunDetail({
     }
   };
 
+  const loadDiagnosisHistory = async () => {
+    try {
+      const history = await listDiagnoses(run.id);
+      setDiagnosis(history.at(-1) ?? null);
+    } catch {
+      console.error("诊断历史加载失败");
+      setDiagnosisError("诊断状态加载失败，请稍后重试");
+    }
+  };
+
   const submitAnchorReview = () => {
     onReviewAlignment(Object.values(anchorDrafts));
   };
@@ -170,7 +180,15 @@ export function RunDetail({
             <button type="button" onClick={() => void generateDiagnosis()}>
               生成 {diagnosisMode === "mock" ? "Mock" : "真实模型"} 诊断
             </button>
+            <button type="button" onClick={() => void loadDiagnosisHistory()}>
+              刷新诊断状态
+            </button>
             {diagnosisError && <p role="alert">{diagnosisError}</p>}
+            {diagnosis?.status === "failed" && (
+              <p role="alert">
+                诊断失败：{diagnosis.error ?? "模型服务不可用"}
+              </p>
+            )}
             {diagnosis?.output && (
               <>
                 <p>

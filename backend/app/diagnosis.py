@@ -270,6 +270,8 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
         output = validate_evidence_refs(StructuredDiagnosis.model_validate(raw_output), package)
     except (SiliconFlowError, ValidationError, HTTPException) as error:
         message = error.detail if isinstance(error, HTTPException) else str(error)
+        if isinstance(error, SiliconFlowError):
+            message = f"{error.kind}: {message}"
         return _save_diagnosis(
             run_id,
             package,

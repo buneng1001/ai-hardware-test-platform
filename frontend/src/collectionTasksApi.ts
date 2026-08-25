@@ -271,6 +271,12 @@ export async function getAiSettings(): Promise<AiSettings> {
   return (await response.json()) as AiSettings;
 }
 
+export async function listDiagnoses(runId: number): Promise<DiagnosisRun[]> {
+  const response = await fetch(`/api/runs/${runId}/diagnoses`);
+  if (!response.ok) throw new Error("诊断历史加载失败");
+  return (await response.json()) as DiagnosisRun[];
+}
+
 export async function testAiConnection(
   model: string,
   apiKey: string,

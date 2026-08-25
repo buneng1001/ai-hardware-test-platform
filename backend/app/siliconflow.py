@@ -1,10 +1,10 @@
 """硅基流动的独立适配层：只返回结构化 JSON，不把服务商细节带入诊断业务。"""
 
 import json
+import socket
 import time
 from collections.abc import Callable
 from enum import StrEnum
-from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -28,10 +28,10 @@ class SiliconFlowError(RuntimeError):
         self.retryable = retryable
 
 
-Transport = Callable[[dict[str, Any]], tuple[int, str]]
+Transport = Callable[[dict[str, object]], tuple[int, str]]
 
 
-def _default_transport(request_data: dict[str, Any]) -> tuple[int, str]:
+def _default_transport(request_data: dict[str, object]) -> tuple[int, str]:
     request = Request(
         "https://api.siliconflow.cn/v1/chat/completions",
         data=json.dumps(request_data["body"]).encode("utf-8"),
@@ -49,10 +49,15 @@ def _default_transport(request_data: dict[str, Any]) -> tuple[int, str]:
     except TimeoutError as error:
         raise SiliconFlowError(ModelErrorKind.TIMEOUT, "模型请求超时", True) from error
     except URLError as error:
-        raise SiliconFlowError(ModelErrorKind.NETWORK, "模型网络请求失败", True) from error
+        is_timeout = isinstance(error.reason, TimeoutError | socket.timeout)
+        kind = ModelErrorKind.TIMEOUT if is_timeout else ModelErrorKind.NETWORK
+        message = "模型请求超时" if is_timeout else "模型网络请求失败"
+        raise SiliconFlowError(kind, message, is_timeout) from error
 
 
 def _classify_status(status: int) -> tuple[ModelErrorKind, bool]:
+    if status == 408:
+        return ModelErrorKind.TIMEOUT, True
     if status == 401 or status == 403:
         return ModelErrorKind.AUTHENTICATION, False
     if status == 429:
@@ -62,7 +67,7 @@ def _classify_status(status: int) -> tuple[ModelErrorKind, bool]:
     return ModelErrorKind.INVALID_REQUEST, False
 
 
-def _extract_json(content: str) -> dict[str, Any]:
+def _extract_json(content: str) -> dict[str, object]:
     cleaned = content.strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.removeprefix("```").removeprefix("json").removesuffix("```").strip()
@@ -93,7 +98,7 @@ class SiliconFlowAdapter:
         model: str,
         evidence_json: str,
         prompt_version: str = "diagnosis-v1",
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         if not api_key:
             raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, "未配置硅基流动 API Key", False)
         request_data = {
