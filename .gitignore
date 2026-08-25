@@ -23,6 +23,7 @@ data/*
 !data/.gitkeep
 coverage/
 allure-results/
+.test-runs/
 tmp/
 
 # 编辑器与系统文件
