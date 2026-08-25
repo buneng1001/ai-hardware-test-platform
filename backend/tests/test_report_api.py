@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import io
 import json
@@ -125,6 +126,9 @@ def test_evidence_zip_is_self_verifiable_and_excludes_video_by_default(tmp_path,
             content = archive.read(entry["path"])
             assert entry["size_bytes"] == len(content)
             assert entry["sha256"] == hashlib.sha256(content).hexdigest()
+        for line in archive.read("SHA256SUMS.txt").decode("utf-8").splitlines():
+            digest, path = line.split("  ", maxsplit=1)
+            assert digest == hashlib.sha256(archive.read(path)).hexdigest()
         assert "API_KEY" not in archive.read("report.json").decode("utf-8")
 
 
@@ -185,3 +189,30 @@ def test_evidence_zip_redacts_sensitive_manual_text(tmp_path, monkeypatch):
     assert b"secret-token" not in package_text
     assert b"sk-test-secret" not in package_text
     assert b"[REDACTED]" in package_text
+
+
+def test_evidence_zip_rejects_sensitive_binary_attachment(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={"name": "二进制敏感扫描", "mode": "quick", "scenario": "normal"},
+        ).json()
+        run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+        client.post(
+            f"/api/runs/{run['id']}/manual-check-results",
+            json={
+                "name": "截图检查",
+                "status": "blocked",
+                "attachment": {
+                    "filename": "evidence.png",
+                    "content_type": "image/png",
+                    "content_base64": base64.b64encode(b"API_KEY=embedded-secret").decode("ascii"),
+                },
+            },
+        )
+        response = client.get(f"/api/runs/{run['id']}/evidence.zip")
+
+    assert response.status_code == 422
+    assert "敏感字段" in response.json()["detail"]

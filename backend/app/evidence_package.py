@@ -3,10 +3,12 @@ import hashlib
 import io
 import json
 import re
+import subprocess
 import zipfile
 from pathlib import Path
 from typing import cast
 
+import imageio_ffmpeg
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
@@ -19,6 +21,7 @@ router = APIRouter(tags=["evidence"])
 
 MAX_SAMPLE_BYTES = 5 * 1024 * 1024
 MAX_SAMPLE_TOTAL_BYTES = 10 * 1024 * 1024
+SAMPLE_DURATION_SECONDS = 1
 SENSITIVE_PATTERNS = (
     re.compile(r"(?i)(authorization\s*:\s*)[^\r\n,]+"),
     re.compile(r"(?i)(x-auth-token\s*[:=]\s*)[^\r\n,]+"),
@@ -76,6 +79,14 @@ def _sanitized_text_file(path: Path) -> bytes:
     if sanitized != text:
         raise HTTPException(status_code=422, detail=f"运行产物包含敏感字段：{path.name}")
     return text.encode("utf-8")
+
+
+def _assert_binary_safe(content: bytes, name: str) -> None:
+    """检查二进制交付物中的常见明文敏感标记，不尝试解析媒体格式。"""
+    lowered = content.lower()
+    markers = (b"authorization:", b"x-auth-token", b"api_key", b"api-key", b"sk-")
+    if any(marker in lowered for marker in markers):
+        raise HTTPException(status_code=422, detail=f"交付物包含敏感字段：{name}")
 
 
 def _add_manual_results(files: dict[str, bytes], results: list[ManualCheckResult]) -> None:
@@ -145,7 +156,9 @@ def _add_manual_attachments(files: dict[str, bytes], run: RunRecord) -> None:
                 path.read_text(encoding="utf-8")
             ).encode("utf-8")
         else:
-            files[f"manual-attachments/{result.id}-{filename}"] = path.read_bytes()
+            content = path.read_bytes()
+            _assert_binary_safe(content, filename)
+            files[f"manual-attachments/{result.id}-{filename}"] = content
 
 
 def _add_samples(files: dict[str, bytes], run: RunRecord, data_dir: Path, include_sample: bool) -> None:
@@ -160,8 +173,31 @@ def _add_samples(files: dict[str, bytes], run: RunRecord, data_dir: Path, includ
         if size > MAX_SAMPLE_BYTES or total + size > MAX_SAMPLE_TOTAL_BYTES:
             raise HTTPException(status_code=413, detail="视频小样超过证据包大小保护")
         package_path = f"samples/{Path(artifact.path).stem}.sample{Path(artifact.path).suffix}"
-        files[package_path] = path.read_bytes()
-        total += size
+        output_format = Path(artifact.path).suffix.removeprefix(".")
+        command = [
+            imageio_ffmpeg.get_ffmpeg_exe(),
+            "-v",
+            "error",
+            "-i",
+            str(path),
+            "-t",
+            str(SAMPLE_DURATION_SECONDS),
+            "-an",
+            "-c",
+            "copy",
+        ]
+        if output_format == "mp4":
+            command.extend(["-movflags", "frag_keyframe+empty_moov"])
+        command.extend(["-f", output_format, "pipe:1"])
+        try:
+            sample = subprocess.run(command, check=True, capture_output=True).stdout
+        except (OSError, subprocess.SubprocessError) as error:
+            raise HTTPException(status_code=500, detail="视频小样提取失败") from error
+        _assert_binary_safe(sample, package_path)
+        if len(sample) > MAX_SAMPLE_BYTES or total + len(sample) > MAX_SAMPLE_TOTAL_BYTES:
+            raise HTTPException(status_code=413, detail="视频小样超过证据包大小保护")
+        files[package_path] = sample
+        total += len(sample)
 
 
 def _manifest(files: dict[str, bytes], run: RunRecord, include_sample: bool) -> dict[str, object]:
