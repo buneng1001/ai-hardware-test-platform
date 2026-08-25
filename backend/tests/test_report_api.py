@@ -118,11 +118,11 @@ def test_evidence_zip_is_self_verifiable_and_excludes_video_by_default(tmp_path,
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
         names = set(archive.namelist())
         manifest = json.loads(archive.read("evidence-manifest.json"))
-        assert names == set(manifest["package_entries"])
+        assert names == set(manifest["files"])
         assert {"report.json", "report.html", "checks.csv", "manual-check-results.csv"} <= names
         assert {"device_status.csv", "device.log", "fault_truth.json", "SHA256SUMS.txt"} <= names
         assert not any(name.endswith((".mp4", ".mkv")) for name in names)
-        for entry in manifest["files"]:
+        for entry in manifest["hashed_files"]:
             content = archive.read(entry["path"])
             assert entry["size_bytes"] == len(content)
             assert entry["sha256"] == hashlib.sha256(content).hexdigest()
@@ -163,6 +163,23 @@ def test_evidence_zip_refuses_incomplete_run_without_creating_download(tmp_path,
 
     assert response.status_code == 409
     assert response.json()["detail"] == "只有已完成运行才能导出完整证据包"
+
+
+def test_evidence_zip_failure_does_not_leave_a_partial_zip(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={"name": "导出失败清理", "mode": "quick", "scenario": "normal"},
+        ).json()
+        run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+        artifact = next(item for item in run["artifacts"] if item["kind"] == "device_log")
+        (tmp_path / artifact["path"]).unlink()
+        response = client.get(f"/api/runs/{run['id']}/evidence.zip")
+
+    assert response.status_code == 500
+    assert list(tmp_path.rglob("*.zip")) == []
 
 
 def test_evidence_zip_redacts_sensitive_manual_text(tmp_path, monkeypatch):

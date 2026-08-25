@@ -169,9 +169,6 @@ def _add_samples(files: dict[str, bytes], run: RunRecord, data_dir: Path, includ
         if artifact.kind != "video":
             continue
         path = _safe_artifact_path(artifact, data_dir)
-        size = path.stat().st_size
-        if size > MAX_SAMPLE_BYTES or total + size > MAX_SAMPLE_TOTAL_BYTES:
-            raise HTTPException(status_code=413, detail="视频小样超过证据包大小保护")
         package_path = f"samples/{Path(artifact.path).stem}.sample{Path(artifact.path).suffix}"
         output_format = Path(artifact.path).suffix.removeprefix(".")
         command = [
@@ -214,8 +211,8 @@ def _manifest(files: dict[str, bytes], run: RunRecord, include_sample: bool) -> 
         "run_id": run.id,
         "included_video_sample": include_sample,
         "excluded_kinds": [] if include_sample else ["video"],
-        "package_entries": sorted([*files, "evidence-manifest.json", "SHA256SUMS.txt"]),
-        "files": entries,
+        "files": sorted([*files, "evidence-manifest.json", "SHA256SUMS.txt"]),
+        "hashed_files": entries,
     }
 
 
@@ -235,7 +232,7 @@ def _build_zip(run: RunRecord, include_sample: bool) -> bytes:
     manifest = _manifest(files, run, include_sample)
     files["evidence-manifest.json"] = _json_bytes(manifest)
     files["SHA256SUMS.txt"] = "".join(
-        f"{entry['sha256']}  {entry['path']}\n" for entry in cast(list[dict[str, object]], manifest["files"])
+        f"{entry['sha256']}  {entry['path']}\n" for entry in cast(list[dict[str, object]], manifest["hashed_files"])
     ).encode("utf-8")
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
