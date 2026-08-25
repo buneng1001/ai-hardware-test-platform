@@ -130,6 +130,9 @@ export function RunDetail({
           >
             打开独立 HTML 报告
           </a>
+          <a href={`/api/runs/${run.id}/evidence.zip`} download>
+            下载 ZIP 证据包
+          </a>
         </p>
         {run.evaluation_result && (
           <section aria-labelledby="evaluation-result-title">

@@ -187,6 +187,15 @@
 - 本轮真实验证为报告 API 3 项、前端运行管理测试 22 项，并通过 TypeScript 和 Ruff；前端测试首次受 Windows 沙箱 `spawn EPERM`
   影响，提升权限重跑通过。
 
+## 已验证的可校验 ZIP 证据包（2026-08-25）
+
+- 运行详情新增 ZIP 下载入口；公开 `GET /api/runs/{id}/evidence.zip` 只允许已完成运行导出，未完成运行返回 409，避免把不完整内容误交付。
+- ZIP 包含 `report.json`、独立 `report.html`、检查 CSV、人工结果 CSV、设备状态、日志、故障真值、人工附件、文件清单和 `SHA256SUMS.txt`；解包后可按清单重新计算每个文件大小与 SHA-256。
+- 原始视频默认不进入 ZIP；明确传入 `include_sample=true` 时，只有小于 5 MiB 且总量小于 10 MiB 的视频才作为 `samples/` 小样加入。
+- 导出前过滤认证头、API Key 和常见密钥形式；人工结果仍与自动化检测分列，ZIP 只是交付层汇总，不改变运行记录事实。
+- 真实验证为 Ticket 16 报告 API 定向 7 项、后端完整 Pytest 73 项、前端完整 Vitest 22 项，并通过 Ruff、TypeScript、Prettier 和 Vite 生产构建。
+- 面试表达边界：当前小样是受大小保护的显式视频副本，不是通用视频剪辑；结构化 AI 诊断仍由后续 ticket 负责，ZIP 不包含未实现的诊断结论。
+
 ## 核心链路
 
 ```text

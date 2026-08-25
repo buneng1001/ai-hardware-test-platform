@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.collection_tasks import router as collection_tasks_router
 from app.database import check_database
+from app.evidence_package import router as evidence_router
 from app.manual_check_results import router as manual_check_results_router
 from app.manual_result_import import router as manual_result_import_router
 from app.report import router as report_router
@@ -38,6 +39,7 @@ app.include_router(manual_check_results_router)
 app.include_router(manual_result_import_router)
 app.include_router(runs_router)
 app.include_router(report_router)
+app.include_router(evidence_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)

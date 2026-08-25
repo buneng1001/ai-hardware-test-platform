@@ -1,4 +1,8 @@
+import hashlib
+import io
+import json
 import time
+import zipfile
 
 from fastapi.testclient import TestClient
 
@@ -95,3 +99,88 @@ def test_report_api_includes_manual_results_without_merging_them_into_automation
 
     assert report["automated_checks"] == run["checks"]
     assert report["manual_check_results"] == [manual]
+
+
+def test_evidence_zip_is_self_verifiable_and_excludes_video_by_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={"name": "可校验证据包", "mode": "quick", "scenario": "normal"},
+        ).json()
+        run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+        response = client.get(f"/api/runs/{run['id']}/evidence.zip")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        names = set(archive.namelist())
+        manifest = json.loads(archive.read("evidence-manifest.json"))
+        assert {"report.json", "report.html", "checks.csv", "manual-check-results.csv"} <= names
+        assert {"device_status.csv", "device.log", "fault_truth.json", "SHA256SUMS.txt"} <= names
+        assert not any(name.endswith((".mp4", ".mkv")) for name in names)
+        for entry in manifest["files"]:
+            content = archive.read(entry["path"])
+            assert entry["size_bytes"] == len(content)
+            assert entry["sha256"] == hashlib.sha256(content).hexdigest()
+        assert "API_KEY" not in archive.read("report.json").decode("utf-8")
+
+
+def test_evidence_zip_allows_only_explicit_small_video_sample(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={"name": "可选小样", "mode": "quick", "scenario": "normal"},
+        ).json()
+        run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+        response = client.get(f"/api/runs/{run['id']}/evidence.zip?include_sample=true")
+
+    assert response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert any(name.startswith("samples/") for name in archive.namelist())
+        assert not any(name.startswith("runs/") for name in archive.namelist())
+
+
+def test_evidence_zip_refuses_incomplete_run_without_creating_download(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={"name": "未完成证据", "mode": "quick", "scenario": "normal"},
+        ).json()
+        queued = client.post(f"/api/collection-tasks/{task['id']}/runs").json()
+        client.post(f"/api/runs/{queued['id']}/cancel")
+        response = client.get(f"/api/runs/{queued['id']}/evidence.zip")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "只有已完成运行才能导出完整证据包"
+
+
+def test_evidence_zip_redacts_sensitive_manual_text(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={"name": "敏感字段扫描", "mode": "quick", "scenario": "normal"},
+        ).json()
+        run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+        client.post(
+            f"/api/runs/{run['id']}/manual-check-results",
+            json={
+                "name": "接口记录",
+                "status": "blocked",
+                "notes": "Authorization: Bearer secret-token API_KEY=sk-test-secret",
+            },
+        )
+        response = client.get(f"/api/runs/{run['id']}/evidence.zip")
+
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        package_text = b"".join(archive.read(name) for name in archive.namelist() if not name.endswith(".mp4"))
+    assert b"secret-token" not in package_text
+    assert b"sk-test-secret" not in package_text
+    assert b"[REDACTED]" in package_text

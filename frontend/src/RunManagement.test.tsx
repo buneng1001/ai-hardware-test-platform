@@ -94,6 +94,10 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
   expect(
     screen.getByRole("link", { name: "打开独立 HTML 报告" }),
   ).toHaveAttribute("href", "/api/runs/9/report.html");
+  expect(screen.getByRole("link", { name: "下载 ZIP 证据包" })).toHaveAttribute(
+    "href",
+    "/api/runs/9/evidence.zip",
+  );
 });
 
 test("测试工程师能取消运行并从原配置创建新的运行记录", async () => {
