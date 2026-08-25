@@ -8,7 +8,7 @@ jobs:
   mock-baseline:
     runs-on: ubuntu-latest
     env:
-      AI_MOCK_MODE: "true"
+      AI_DIAGNOSIS_MODE: "mock"
       APP_DATA_DIR: data
     steps:
       - uses: actions/checkout@v4

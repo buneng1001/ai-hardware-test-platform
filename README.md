@@ -86,10 +86,12 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 前端临时输入只存在当前请求内存：
 
 ```dotenv
-SILICONFLOW_API_KEY=<your-key>
+SILICONFLOW_API_KEY=
 SILICONFLOW_MODEL=Qwen/Qwen2.5-72B-Instruct
 AI_DIAGNOSIS_MODE=siliconflow
 ```
+
+只在本机 `.env` 的 `SILICONFLOW_API_KEY` 等号后填写真实 Key，不要把 Key 写进 README 或 `.env.example`。
 
 修改 `.env` 后重启后端，让 `--env-file .env` 重新加载配置。
 
