@@ -33,24 +33,65 @@ backend/.venv/Scripts/python.exe -m pytest backend/tests/test_temperature_combin
 
 ## 本地启动
 
+`.env.example` 是模板，不要把真实 API Key 写进这个文件。首次运行时复制一份为本机配置文件 `.env`，
+再只修改 `.env`；`.env` 已被 Git 忽略，不会提交到仓库：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+默认 Mock 模式不需要 API Key。后端和前端要分别占用两个终端窗口：
+
+终端 1：启动后端。
+
+```powershell
+backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload --env-file .env
+```
+
+终端 2：启动前端。
+
+```powershell
+pnpm --dir frontend dev
+```
+
+浏览器打开：
+
+```text
+http://127.0.0.1:5173
+```
+
+后端健康检查地址：
+
+```text
+http://127.0.0.1:8000/api/health
+```
+
+也可以不使用 `.env`，直接在当前 PowerShell 会话设置 Mock 模式：
+
 ```powershell
 $env:APP_DATA_DIR = "data"
 $env:AI_DIAGNOSIS_MODE = "mock"
 backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload
-pnpm --dir frontend dev
 ```
 
-打开 `http://127.0.0.1:5173`。任务详情可以查看运行状态、人工结果、HTML 报告和 ZIP 证据包。
+不要在已经运行 Uvicorn 的终端继续输入前端命令；请新开终端或 PyCharm 的新 Terminal 标签页。
+
+<!--
+启动命令拆成两个终端，后端终端不要继续输入前端命令。
+-->
 
 ## 可选真实模型
 
-Key 只放在后端环境变量，不提交 `.env`，前端临时输入只存在当前请求内存：
+如果要使用真实模型，编辑本机 `.env`，不要修改或提交 `.env.example`。Key 只放在后端环境变量，
+前端临时输入只存在当前请求内存：
 
-```powershell
-$env:SILICONFLOW_API_KEY = "<your-key>"
-$env:SILICONFLOW_MODEL = "Qwen/Qwen2.5-72B-Instruct"
-$env:AI_DIAGNOSIS_MODE = "siliconflow"
+```dotenv
+SILICONFLOW_API_KEY=<your-key>
+SILICONFLOW_MODEL=Qwen/Qwen2.5-72B-Instruct
+AI_DIAGNOSIS_MODE=siliconflow
 ```
+
+修改 `.env` 后重启后端，让 `--env-file .env` 重新加载配置。
 
 模型失败不会阻断生成、确定性检查或原始报告；自动重试只覆盖超时、限流和临时服务错误，最多两次。本仓库没有真实 Key，也没有宣称真实线上模型效果已验证。
 
