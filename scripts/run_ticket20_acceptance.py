@@ -8,7 +8,6 @@ import time
 import zipfile
 from pathlib import Path
 
-
 def wait_for_completion(client, run_id: int) -> dict:
     """通过公开 API 轮询，避免验收脚本绕过运行管理 seam。"""
     deadline = time.monotonic() + 30
@@ -18,8 +17,6 @@ def wait_for_completion(client, run_id: int) -> dict:
             return run
         time.sleep(0.02)
     raise RuntimeError(f"运行 #{run_id} 未在 30 秒内结束")
-
-
 def custom_task(name: str, scenario: str, evaluation: dict | None = None) -> dict:
     return {
         "name": name,
@@ -36,8 +33,6 @@ def custom_task(name: str, scenario: str, evaluation: dict | None = None) -> dic
         "random_seed": 20260822,
         "evaluation": evaluation or {},
     }
-
-
 EXPECTED_FAULT_TYPES = {
     "normal": set(),
     "video_drop": {"video_frame_drop"},
@@ -54,8 +49,6 @@ EXPECTED_FAULT_TYPES = {
     },
     "linear_drift": set(),
 }
-
-
 def assert_scenario_evidence(scenario: str, run: dict, evaluation: dict) -> None:
     """把场景真值、确定性检查和诊断评估连接成可失败的验收断言。"""
     expected = EXPECTED_FAULT_TYPES[scenario]
@@ -70,8 +63,6 @@ def assert_scenario_evidence(scenario: str, run: dict, evaluation: dict) -> None
             raise AssertionError(f"正常场景误报：{failed}")
     if scenario not in {"normal", "linear_drift"} and not expected.issubset(diagnosed):
         raise AssertionError(f"场景 {scenario} 未诊断出全部真值：{diagnosed}")
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="运行 Ticket 20 Mock 验收")
     parser.add_argument("--output", type=Path, default=Path("tmp/ticket20-acceptance"))
@@ -81,11 +72,9 @@ def main() -> int:
     os.environ["AI_DIAGNOSIS_MODE"] = "mock"
 
     from fastapi.testclient import TestClient
-
     from app import diagnosis as diagnosis_module
     from app.main import app
     from app.siliconflow import ModelErrorKind, SiliconFlowError
-
     class OfflineFailingAdapter:
         """模拟模型不可用，证明诊断失败不会改变已完成运行。"""
 
@@ -108,7 +97,6 @@ def main() -> int:
         "alignment": {},
         "security": {},
     }
-
     with TestClient(app) as client:
         for scenario in scenarios:
             task_response = client.post(
@@ -143,7 +131,6 @@ def main() -> int:
                 ],
                 "diagnosis_evaluation": diagnosis_result["evaluation"],
             }
-
         mode_cases = {
             "requirements_acceptance": "formal_specification",
             "engineering_target": "engineering_target",
@@ -166,7 +153,6 @@ def main() -> int:
                 "task_id": task["id"],
                 "threshold_source": task["evaluation"]["threshold_source"],
             }
-
         data_modes = {}
         for mode in ("quick", "standard", "custom"):
             payload = (
@@ -278,26 +264,15 @@ def main() -> int:
     )
     allure_dir = args.output / "allure-results"
     allure_dir.mkdir(exist_ok=True)
-    (allure_dir / "acceptance-summary.json").write_text(
-        summary_path.read_text(encoding="utf-8"), encoding="utf-8"
-    )
     (allure_dir / "ticket20-acceptance-result.json").write_text(
         json.dumps(
             {
                 "uuid": "ticket20-mock-acceptance",
                 "historyId": "ticket20-mock-acceptance",
                 "name": "Ticket 20 Mock 验收",
-                "fullName": "scripts.run_ticket20_acceptance",
                 "status": "passed",
-                "stage": "finished",
                 "labels": [{"name": "suite", "value": "Ticket 20"}],
-                "attachments": [
-                    {
-                        "name": "acceptance-summary.json",
-                        "source": "acceptance-summary.json",
-                        "type": "application/json",
-                    }
-                ],
+                "attachments": [{"name": "acceptance-summary.json", "source": "acceptance-summary.json", "type": "application/json"}],
             },
             ensure_ascii=False,
         ),
