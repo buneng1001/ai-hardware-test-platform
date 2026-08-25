@@ -178,6 +178,7 @@ def _diagnosis_from_row(row) -> DiagnosisRun:
         is_mock=bool(row["is_mock"]),
         evidence_package=json.loads(row["evidence_package"]),
         output=json.loads(row["output"]) if row["output"] else None,
+        evaluation=json.loads(row["evaluation"]) if row["evaluation"] else None,
         error=row["error"],
         created_at=row["created_at"],
         completed_at=row["completed_at"],
@@ -209,11 +210,32 @@ def _save_diagnosis(
 ) -> DiagnosisRun:
     created_at = datetime.now(UTC)
     diagnosis_status = "completed" if output else "failed"
+    run = _get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="运行记录不存在")
+    from app.ai_evaluation import evaluate_diagnosis
+
+    draft = DiagnosisRun(
+        id=0,
+        run_id=run_id,
+        status=diagnosis_status,
+        model=model,
+        prompt_version=prompt_version,
+        is_mock=is_mock,
+        evidence_package=package,
+        output=output,
+        evaluation=None,
+        error=error,
+        created_at=created_at,
+        completed_at=created_at,
+    )
+    evaluation = evaluate_diagnosis(run, draft)
     with open_database() as connection:
         cursor = connection.execute(
             """INSERT INTO diagnosis_runs
-            (run_id, status, model, prompt_version, is_mock, evidence_package, output, created_at, completed_at, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (run_id, status, model, prompt_version, is_mock, evidence_package, output,
+             evaluation, created_at, completed_at, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 run_id,
                 diagnosis_status,
@@ -222,6 +244,7 @@ def _save_diagnosis(
                 int(is_mock),
                 package.model_dump_json(),
                 output.model_dump_json() if output else None,
+                evaluation.model_dump_json(),
                 created_at.isoformat(),
                 created_at.isoformat(),
                 error,

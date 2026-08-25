@@ -284,6 +284,24 @@ class StructuredDiagnosis(BaseModel):
     limitations: list[str]
 
 
+class AiEvaluationResult(BaseModel):
+    """把 AI 诊断与预先保存的故障真值分开评价。"""
+
+    status: Literal["evaluated", "not_evaluated"]
+    structure_valid: bool
+    scenario: Scenario
+    expected_fault_types: list[str]
+    diagnosed_fault_types: list[str]
+    hit_fault_types: list[str]
+    missed_fault_types: list[str]
+    hit_count: int = Field(ge=0)
+    missed_count: int = Field(ge=0)
+    unsupported_speculation_count: int = Field(ge=0)
+    false_positive_count: int = Field(ge=0)
+    reason: str | None = None
+    summary: str
+
+
 class DiagnosisRun(BaseModel):
     id: int
     run_id: int
@@ -293,6 +311,7 @@ class DiagnosisRun(BaseModel):
     is_mock: bool
     evidence_package: DiagnosisEvidencePackage
     output: StructuredDiagnosis | None
+    evaluation: AiEvaluationResult | None
     error: str | None
     created_at: datetime
     completed_at: datetime | None

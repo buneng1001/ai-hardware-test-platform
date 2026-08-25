@@ -17,6 +17,7 @@ import {
   testAiConnection,
 } from "./collectionTasksApi";
 import { CollectionTaskForm } from "./CollectionTaskForm";
+import { DashboardPanel } from "./DashboardPanel";
 import { isTerminalRun, RunDetail } from "./RunDetail";
 
 type Health = {
@@ -164,6 +165,14 @@ export function App() {
     }
   };
 
+  const openDashboardRun = async (runId: number) => {
+    try {
+      setSelectedRun(await getRun(runId));
+    } catch {
+      setRunError("运行详情加载失败，请稍后重试");
+    }
+  };
+
   return (
     <main className="status-page">
       <p className="eyebrow">本地运行基线</p>
@@ -176,6 +185,8 @@ export function App() {
           <p>SQLite 可用</p>
         </section>
       )}
+
+      <DashboardPanel onOpenRun={(runId) => void openDashboardRun(runId)} />
 
       <section className="task-panel" aria-labelledby="ai-settings-title">
         <p className="eyebrow">设置</p>

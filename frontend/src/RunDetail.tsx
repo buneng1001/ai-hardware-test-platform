@@ -224,6 +224,25 @@ export function RunDetail({
                 <p>限制：{diagnosis.output.limitations.join("；")}</p>
               </>
             )}
+            {diagnosis?.evaluation && (
+              <section aria-labelledby="ai-evaluation-title">
+                <h5 id="ai-evaluation-title">AI 诊断效果评估</h5>
+                <p>{diagnosis.evaluation.summary}</p>
+                {diagnosis.evaluation.status === "evaluated" ? (
+                  <p>
+                    命中：
+                    {diagnosis.evaluation.hit_fault_types.join("、") || "无"}
+                    ；漏判：
+                    {diagnosis.evaluation.missed_fault_types.join("、") || "无"}
+                    ； 无证据推测：
+                    {diagnosis.evaluation.unsupported_speculation_count} 项。
+                  </p>
+                ) : (
+                  <p>未评估：{diagnosis.evaluation.reason ?? "诊断未完成"}</p>
+                )}
+                <p>这是 AI 辅助判断，不是检测结果、故障真值或根因证明。</p>
+              </section>
+            )}
           </section>
         )}
         {run.evaluation_result && (

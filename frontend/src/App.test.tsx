@@ -26,6 +26,94 @@ test("测试工程师能在状态页看到后端和数据库可用", async () =>
   expect(screen.getByText("SQLite 可用")).toBeInTheDocument();
 });
 
+test("测试工程师能刷新仪表盘并进入近期失败运行", async () => {
+  const failedRun = {
+    id: 9,
+    collection_task_id: 3,
+    status: "completed",
+    configuration_snapshot: {
+      mode: "quick",
+      scenario: "video_drop",
+      duration_seconds: 2,
+      video: {
+        channels: 1,
+        resolution: "640x360",
+        fps: 15,
+        container: "mp4",
+        codec: "h264",
+      },
+      imu: { format: "csv", sample_rate_hz: 50 },
+      random_seed: 20260822,
+      reference_channel: "camera_1",
+      evaluation: {
+        mode: "requirements_acceptance",
+        threshold_source: "formal_specification",
+        thresholds: { max_failed_checks: 0 },
+        priority: [
+          "formal_specification",
+          "engineering_target",
+          "version_baseline",
+        ],
+      },
+    },
+    events: [],
+    artifacts: [],
+    checks: [],
+    manual_check_results: [],
+    created_at: "2026-08-22T12:00:00Z",
+    completed_at: "2026-08-22T12:00:01Z",
+    error: null,
+  };
+  const dashboard = {
+    generated_at: "2026-08-22T12:00:02Z",
+    run_statistics: {
+      total: 2,
+      completed: 2,
+      failed: 0,
+      cancelled: 0,
+      interrupted: 0,
+    },
+    recent_failures: [
+      {
+        run_id: 9,
+        scenario: "video_drop",
+        status: "completed",
+        error: null,
+        failed_check_count: 1,
+        latest_diagnosis_status: "completed",
+      },
+    ],
+    diagnosis_status_counts: { completed: 1, failed: 0 },
+    evaluation_summary: {
+      evaluated_runs: 1,
+      hit_count: 1,
+      missed_count: 0,
+      unsupported_speculation_count: 0,
+      false_positive_count: 0,
+    },
+  };
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "ok", database: "ok" })),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([])))
+    .mockResolvedValueOnce(new Response(JSON.stringify(dashboard)))
+    .mockResolvedValueOnce(new Response(JSON.stringify(failedRun)));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole("button", { name: "刷新仪表盘" }));
+  expect(
+    await screen.findByText("运行 2 次 · 已完成 2 次 · 失败 0 次"),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /运行 #9 · video_drop/ }));
+  expect(
+    await screen.findByRole("heading", { name: "运行 #9" }),
+  ).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith("/api/runs/9");
+});
+
 test("测试工程师能创建快速正常采集任务并重新查看", async () => {
   const createdTask = {
     id: 1,

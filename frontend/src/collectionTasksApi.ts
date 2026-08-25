@@ -1,4 +1,10 @@
 import type { ManualCheckResult } from "./manualCheckResultsApi";
+import {
+  createDiagnosis,
+  listDiagnoses,
+  type DiagnosisMode,
+  type DiagnosisRun,
+} from "./diagnosisApi";
 
 export type CollectionTask = {
   id: number;
@@ -143,49 +149,9 @@ export type RunRecord = {
   error: string | null;
 };
 
-export type DiagnosisRun = {
-  id: number;
-  run_id: number;
-  status: "pending" | "generating" | "completed" | "failed";
-  model: string;
-  prompt_version: string;
-  is_mock: boolean;
-  evidence_package: {
-    items: Array<{
-      ref: string;
-      kind: string;
-      source: string;
-      content: string;
-      size_bytes: number;
-      estimated_tokens: number;
-    }>;
-    total_bytes: number;
-    estimated_tokens: number;
-    max_bytes: number;
-    max_tokens: number;
-    truncated: boolean;
-  };
-  output: {
-    diagnosis_status: "completed" | "failed";
-    phenomena: Array<{ description: string; evidence_refs: string[] }>;
-    possible_causes: Array<{
-      cause: string;
-      evidence_refs: string[];
-      confidence: "high" | "medium" | "low";
-      is_speculation: boolean;
-    }>;
-    impact_scope: string[];
-    retest_recommendations: string[];
-    missing_evidence: string[];
-    uncertainties: string[];
-    limitations: string[];
-  } | null;
-  error: string | null;
-  created_at: string;
-  completed_at: string | null;
-};
-
-export type DiagnosisMode = "mock" | "siliconflow";
+export type { DiagnosisRun } from "./diagnosisApi";
+export type { DiagnosisMode } from "./diagnosisApi";
+export { createDiagnosis, listDiagnoses } from "./diagnosisApi";
 export type AiSettings = {
   provider: "siliconflow";
   model: string;
@@ -271,12 +237,6 @@ export async function getAiSettings(): Promise<AiSettings> {
   return (await response.json()) as AiSettings;
 }
 
-export async function listDiagnoses(runId: number): Promise<DiagnosisRun[]> {
-  const response = await fetch(`/api/runs/${runId}/diagnoses`);
-  if (!response.ok) throw new Error("诊断历史加载失败");
-  return (await response.json()) as DiagnosisRun[];
-}
-
 export async function testAiConnection(
   model: string,
   apiKey: string,
@@ -288,21 +248,6 @@ export async function testAiConnection(
   });
   if (!response.ok) throw new Error("AI 连接测试失败");
   return (await response.json()) as ConnectionTestResult;
-}
-
-export async function createDiagnosis(
-  runId: number,
-  mode: DiagnosisMode,
-  model: string,
-  apiKey: string,
-): Promise<DiagnosisRun> {
-  const response = await fetch(`/api/runs/${runId}/diagnoses`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode, model, api_key: apiKey }),
-  });
-  if (!response.ok) throw new Error("结构化诊断生成失败");
-  return (await response.json()) as DiagnosisRun;
 }
 
 export const createMockDiagnosis = (runId: number) =>

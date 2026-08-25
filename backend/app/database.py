@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 9
+LATEST_SCHEMA_VERSION = 10
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -148,6 +148,15 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             CREATE INDEX idx_diagnosis_runs_run_id ON diagnosis_runs(run_id);
             INSERT INTO schema_migrations (version) VALUES (9);
             PRAGMA user_version = 9;
+            """
+        )
+
+    if current_version < 10:
+        connection.executescript(
+            """
+            ALTER TABLE diagnosis_runs ADD COLUMN evaluation TEXT;
+            INSERT INTO schema_migrations (version) VALUES (10);
+            PRAGMA user_version = 10;
             """
         )
 
