@@ -40,6 +40,32 @@
 - AI：硅基流动为默认服务，通过独立适配层调用。
 - 持续集成：GitHub Actions，默认使用 Mock 模式。
 
+## Ticket 20 可复现演示
+
+### 演示脚本
+
+```powershell
+$env:AI_DIAGNOSIS_MODE = "mock"
+backend/.venv/Scripts/python.exe scripts/run_ticket20_acceptance.py
+backend/.venv/Scripts/python.exe scripts/check_artifact_safety.py tmp/ticket20-acceptance
+```
+
+脚本通过公开 API 实际完成六个场景、两种对齐、三种数据模式、三种判定模式、人工结果、Mock 诊断、模型失败降级、HTML 和 ZIP 导出；真实运行 ID 和数量以 `acceptance-summary.json` 为准，不能从文档手填。
+
+### STAR 素材
+
+- **Situation**：没有真实设备和公司数据，但需要让面试官复现多传感器测试异常。
+- **Task**：建立不依赖真实模型的可重复首版验收，并保留可独立核验的证据。
+- **Action**：用固定种子合成数据，确定性检查与 AI 诊断分离；以公开 API 验收脚本串起运行、报告、ZIP 和安全扫描；CI 上传 Allure 兼容结果。
+- **Result**：本地脚本实际覆盖六个场景，摘要包含每次运行的 ID、失败检查和诊断评估；远端 CI 和真实模型效果明确标记为未验证。
+
+### 高频追问
+
+1. 为什么不把 AI 放进测试关键路径？因为模型不可用时仍必须生成事实和原始报告，AI 只消费限量证据并独立保存状态。
+2. 如何证明诊断不是“Schema 通过就算正确”？用生成时保存的故障真值分别统计命中、漏判、无证据推测和误报。
+3. 为什么 ZIP 默认不放原始视频？控制体积和敏感信息扩散，只交付结构化结果、日志、清单、哈希和受保护小样。
+4. 哪些结果不能过度宣传？真实硅基流动线上调用、远端 CI 运行记录和通用模型准确率目前均未验证。
+
 ## 已验证的工程骨架（2026-08-22）
 
 - 已从空仓库建立 FastAPI、React/TypeScript、pnpm 与 SQLite 最小链路。

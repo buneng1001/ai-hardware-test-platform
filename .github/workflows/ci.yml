@@ -29,9 +29,13 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: 后端测试与格式检查
         run: |
-          python -m pytest backend/tests
+          python -m pytest backend/tests --alluredir=tmp/ticket20-acceptance/allure-results
           python -m ruff check backend
           python -m ruff format --check backend
+      - name: 公开 API 主 seam 与 Mock 验收
+        run: |
+          python scripts/run_ticket20_acceptance.py --output tmp/ticket20-acceptance
+          python scripts/check_artifact_safety.py tmp/ticket20-acceptance
       - name: 前端测试、类型与构建检查
         run: |
           pnpm test
@@ -40,3 +44,10 @@ jobs:
           pnpm --dir frontend build
       - name: 仓库安全扫描
         run: python scripts/check_repository_safety.py
+      - name: 上传 Allure 与验收证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ticket20-allure-and-acceptance
+          path: tmp/ticket20-acceptance
+          if-no-files-found: error
