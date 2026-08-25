@@ -280,6 +280,7 @@ class StructuredDiagnosis(BaseModel):
     impact_scope: list[str]
     retest_recommendations: list[str]
     missing_evidence: list[str]
+    uncertainties: list[str]
     limitations: list[str]
 
 

@@ -4,7 +4,7 @@
 
 **Blocked by:** 15 — 交付应用内报告与独立 HTML
 
-**Status:** claimed
+**Status:** resolved
 
 - [x] 诊断证据包从任务配置、阈值来源、失败指标、异常窗口日志、资源指标、关键帧、IMU 摘要和人工结果中限量选取证据。
 - [x] 每条证据具有稳定引用编号，证据包同时受大小和 Token 上限约束。
@@ -17,6 +17,6 @@
 ## Answer
 
 - 实现了独立 `diagnosis_runs` SQLite 持久化、`POST/GET /api/runs/{id}/diagnoses` 和报告/运行详情展示。
-- 证据包固定生成 `E001` 等引用，限制为 32 KiB 与 4,000 Token 估算；Mock 输出覆盖结构化诊断字段，越权引用返回 422，无证据原因标记为推测。
+- 证据包固定生成 `E001` 等引用，限制为 32 KiB 与 4,000 Token 估算；Mock 输出覆盖结构化诊断字段和独立不确定性，越权引用返回 422，无证据原因标记为推测。
 - 验证证据：`backend/.venv/Scripts/python.exe -m pytest tests/test_mock_diagnosis_api.py -q`（2 passed）；完整后端 Pytest 77 passed；Ruff、前端 TypeScript、Vitest 22 passed、Prettier 和 Vite build 均通过。前端在受限沙箱首次 `spawn EPERM`，提升权限重跑通过。
 - 已知限制：本 ticket 不接入真实模型、重试或安全降级；关键帧只保留缺失证据说明，这些不属于 Ticket 17 的交付范围。

@@ -177,6 +177,7 @@ export type DiagnosisRun = {
     impact_scope: string[];
     retest_recommendations: string[];
     missing_evidence: string[];
+    uncertainties: string[];
     limitations: string[];
   } | null;
   error: string | null;

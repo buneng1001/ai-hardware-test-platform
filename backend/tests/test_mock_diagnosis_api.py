@@ -2,7 +2,9 @@ import time
 
 from fastapi.testclient import TestClient
 
+from app import diagnosis as diagnosis_module
 from app.main import app
+from app.run_models import StructuredDiagnosis
 
 
 def wait_for_completion(client: TestClient, run_id: int) -> dict:
@@ -53,6 +55,7 @@ def test_mock_diagnosis_is_structured_repeatable_and_reported(tmp_path, monkeypa
     assert diagnosis["impact_scope"]
     assert diagnosis["retest_recommendations"]
     assert diagnosis["missing_evidence"]
+    assert diagnosis["uncertainties"]
     assert diagnosis["limitations"]
     evidence_refs = {item["ref"] for item in first_data["evidence_package"]["items"]}
     assert all(ref in evidence_refs for cause in diagnosis["possible_causes"] for ref in cause["evidence_refs"])
@@ -72,10 +75,27 @@ def test_diagnosis_does_not_change_test_execution_and_rejects_invalid_evidence_r
             json={"name": "Mock 诊断校验", "mode": "quick", "scenario": "normal"},
         ).json()
         run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
-        invalid = client.post(
-            f"/api/runs/{run['id']}/diagnoses",
-            json={"mock_output": {"possible_causes": [{"cause": "未证实", "evidence_refs": ["E999"]}]}},
-        )
+        def invalid_mock_output(current_run, package):
+            return StructuredDiagnosis(
+                diagnosis_status="completed",
+                phenomena=[],
+                possible_causes=[
+                    {
+                        "cause": "未证实",
+                        "evidence_refs": ["E999"],
+                        "confidence": "low",
+                        "is_speculation": False,
+                    }
+                ],
+                impact_scope=[],
+                retest_recommendations=[],
+                missing_evidence=[],
+                uncertainties=[],
+                limitations=[],
+            )
+
+        monkeypatch.setattr(diagnosis_module, "build_mock_diagnosis", invalid_mock_output)
+        invalid = client.post(f"/api/runs/{run['id']}/diagnoses")
         after = client.get(f"/api/runs/{run['id']}").json()
 
     assert invalid.status_code == 422

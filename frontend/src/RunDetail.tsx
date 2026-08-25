@@ -186,6 +186,7 @@ export function RunDetail({
                   复测建议：{diagnosis.output.retest_recommendations.join("；")}
                 </p>
                 <p>缺失证据：{diagnosis.output.missing_evidence.join("；")}</p>
+                <p>不确定性：{diagnosis.output.uncertainties.join("；")}</p>
                 <p>限制：{diagnosis.output.limitations.join("；")}</p>
               </>
             )}

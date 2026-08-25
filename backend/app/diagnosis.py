@@ -4,7 +4,6 @@ import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
 
 from app.database import open_database
 from app.run_models import (
@@ -22,11 +21,6 @@ router = APIRouter(prefix="/api/runs/{run_id}/diagnoses", tags=["diagnoses"])
 
 MAX_EVIDENCE_BYTES = 32 * 1024
 MAX_EVIDENCE_TOKENS = 4_000
-
-
-class DiagnosisCommand(BaseModel):
-    # 仅用于契约测试适配器的异常输出，不代表真实模型接口。
-    mock_output: dict[str, object] | None = Field(default=None, exclude=True)
 
 
 def _json(value: object) -> str:
@@ -140,6 +134,7 @@ def build_mock_diagnosis(run: RunRecord, package: DiagnosisEvidencePackage) -> S
         impact_scope=["当前运行记录的对应采集窗口"],
         retest_recommendations=["保持相同随机种子复测，并比较确定性检查结果与引用证据。"],
         missing_evidence=["关键帧或视觉分析结果未生成，无法进行画面语义复核。"],
+        uncertainties=["当前结果只表示证据相关性，不能确认采集质量异常的根因。"],
         limitations=["Mock 诊断不调用模型，不能证明根因；时间相关性不等于因果关系。"],
     )
 
@@ -162,23 +157,6 @@ def validate_evidence_refs(output: StructuredDiagnosis, package: DiagnosisEviden
     if unsupported:
         raise HTTPException(status_code=422, detail="无证据支持的诊断原因必须标记为推测")
     return output
-
-
-def _validate_override_refs(override: dict[str, object], package: DiagnosisEvidencePackage) -> None:
-    """在结构化校验前检查适配器返回的引用，避免异常输出变成 500。"""
-    causes = override.get("possible_causes")
-    if not isinstance(causes, list):
-        return
-    refs = {
-        ref
-        for cause in causes
-        if isinstance(cause, dict)
-        for ref in cause.get("evidence_refs", [])
-        if isinstance(ref, str)
-    }
-    invalid = sorted(refs - {item.ref for item in package.items})
-    if invalid:
-        raise HTTPException(status_code=422, detail=f"诊断包含无效证据引用：{', '.join(invalid)}")
 
 
 def _diagnosis_from_row(row) -> DiagnosisRun:
@@ -211,7 +189,7 @@ def latest_diagnosis(run_id: int) -> DiagnosisRun | None:
 
 
 @router.post("", response_model=DiagnosisRun, status_code=status.HTTP_201_CREATED)
-def create_mock_diagnosis(run_id: int, command: DiagnosisCommand | None = None) -> DiagnosisRun:
+def create_mock_diagnosis(run_id: int) -> DiagnosisRun:
     run = _get_run(run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
@@ -219,11 +197,6 @@ def create_mock_diagnosis(run_id: int, command: DiagnosisCommand | None = None) 
         raise HTTPException(status_code=409, detail="只有已完成运行才能生成诊断")
     package = build_evidence_package(run)
     output = build_mock_diagnosis(run, package)
-    if command and command.mock_output:
-        _validate_override_refs(command.mock_output, package)
-        data = output.model_dump()
-        data.update(command.mock_output)
-        output = StructuredDiagnosis.model_validate(data)
     output = validate_evidence_refs(output, package)
     created_at = datetime.now(UTC)
     with open_database() as connection:

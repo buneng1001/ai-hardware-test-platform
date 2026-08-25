@@ -11,6 +11,7 @@ from app.diagnosis import latest_diagnosis
 from app.run_models import (
     Artifact,
     BasicCheck,
+    DiagnosisRun,
     EvaluationResult,
     ManualCheckResult,
     RunConfigurationSnapshot,
@@ -26,6 +27,11 @@ router = APIRouter(tags=["reports"])
 type JsonValue = dict[str, object] | list[object] | str | int | float | bool | None
 
 
+class DiagnosisNotGenerated(BaseModel):
+    status: str
+    message: str
+
+
 class ReportDocument(BaseModel):
     run_id: int
     status: str
@@ -39,7 +45,7 @@ class ReportDocument(BaseModel):
     alignment_result: TimeAlignmentResult | None
     evaluation_result: EvaluationResult | None
     manual_check_results: list[ManualCheckResult]
-    diagnosis: dict[str, object]
+    diagnosis: DiagnosisRun | DiagnosisNotGenerated
     created_at: str
     completed_at: str | None
 
