@@ -117,6 +117,7 @@ def test_evidence_zip_is_self_verifiable_and_excludes_video_by_default(tmp_path,
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
         names = set(archive.namelist())
         manifest = json.loads(archive.read("evidence-manifest.json"))
+        assert names == set(manifest["package_entries"])
         assert {"report.json", "report.html", "checks.csv", "manual-check-results.csv"} <= names
         assert {"device_status.csv", "device.log", "fault_truth.json", "SHA256SUMS.txt"} <= names
         assert not any(name.endswith((".mp4", ".mkv")) for name in names)

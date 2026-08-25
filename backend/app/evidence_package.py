@@ -20,7 +20,8 @@ router = APIRouter(tags=["evidence"])
 MAX_SAMPLE_BYTES = 5 * 1024 * 1024
 MAX_SAMPLE_TOTAL_BYTES = 10 * 1024 * 1024
 SENSITIVE_PATTERNS = (
-    re.compile(r"(?i)(authorization\s*:\s*(?:bearer|basic)\s+)[^\s,;]+"),
+    re.compile(r"(?i)(authorization\s*:\s*)[^\r\n,]+"),
+    re.compile(r"(?i)(x-auth-token\s*[:=]\s*)[^\r\n,]+"),
     re.compile(r"(?i)(api[_ -]?key\s*[:=]\s*)[^\s,;]+"),
     re.compile(r"(?i)\bsk-[a-z0-9_-]{8,}\b"),
 )
@@ -68,12 +69,13 @@ def _safe_artifact_path(artifact: Artifact, data_dir: Path) -> Path:
     return path
 
 
-def _text_artifact_bytes(path: Path) -> bytes:
-    content = path.read_bytes()
-    try:
-        return _sanitize_text(content.decode("utf-8")).encode("utf-8")
-    except UnicodeDecodeError:
-        return content
+def _sanitized_text_file(path: Path) -> bytes:
+    """读取平台生成的文本产物；损坏的 UTF-8 直接让导出失败。"""
+    text = path.read_text(encoding="utf-8")
+    sanitized = _sanitize_text(text)
+    if sanitized != text:
+        raise HTTPException(status_code=422, detail=f"运行产物包含敏感字段：{path.name}")
+    return text.encode("utf-8")
 
 
 def _add_manual_results(files: dict[str, bytes], results: list[ManualCheckResult]) -> None:
@@ -125,7 +127,7 @@ def _add_artifacts(files: dict[str, bytes], run: RunRecord, data_dir: Path) -> l
         if artifact.kind == "video":
             continue
         path = names_by_kind.get(artifact.kind, Path(artifact.path).name)
-        files[path] = _text_artifact_bytes(_safe_artifact_path(artifact, data_dir))
+        files[path] = _sanitized_text_file(_safe_artifact_path(artifact, data_dir))
         included_artifacts.append(path)
     return included_artifacts
 
@@ -138,7 +140,12 @@ def _add_manual_attachments(files: dict[str, bytes], run: RunRecord) -> None:
         path = get_manual_attachment_path(run.id, result.id, filename)
         if not path.is_file():
             raise HTTPException(status_code=500, detail=f"人工附件不存在：{filename}")
-        files[f"manual-attachments/{result.id}-{filename}"] = _text_artifact_bytes(path)
+        if result.attachment["content_type"] == "text/plain":
+            files[f"manual-attachments/{result.id}-{filename}"] = _sanitize_text(
+                path.read_text(encoding="utf-8")
+            ).encode("utf-8")
+        else:
+            files[f"manual-attachments/{result.id}-{filename}"] = path.read_bytes()
 
 
 def _add_samples(files: dict[str, bytes], run: RunRecord, data_dir: Path, include_sample: bool) -> None:
@@ -171,6 +178,7 @@ def _manifest(files: dict[str, bytes], run: RunRecord, include_sample: bool) -> 
         "run_id": run.id,
         "included_video_sample": include_sample,
         "excluded_kinds": [] if include_sample else ["video"],
+        "package_entries": sorted([*files, "evidence-manifest.json", "SHA256SUMS.txt"]),
         "files": entries,
     }
 
