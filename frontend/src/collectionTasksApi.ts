@@ -185,6 +185,21 @@ export type DiagnosisRun = {
   completed_at: string | null;
 };
 
+export type DiagnosisMode = "mock" | "siliconflow";
+export type AiSettings = {
+  provider: "siliconflow";
+  model: string;
+  mode: DiagnosisMode;
+  api_key_configured: boolean;
+};
+export type ConnectionTestResult = {
+  ok: boolean;
+  provider: "siliconflow";
+  model: string;
+  error_kind: string | null;
+  message: string;
+};
+
 export type AlignmentAnchor = {
   id: string;
   channel: string;
@@ -250,15 +265,42 @@ export async function getRun(runId: number): Promise<RunRecord> {
   return (await response.json()) as RunRecord;
 }
 
-export async function createMockDiagnosis(
+export async function getAiSettings(): Promise<AiSettings> {
+  const response = await fetch("/api/settings/ai");
+  if (!response.ok) throw new Error("AI 设置加载失败");
+  return (await response.json()) as AiSettings;
+}
+
+export async function testAiConnection(
+  model: string,
+  apiKey: string,
+): Promise<ConnectionTestResult> {
+  const response = await fetch("/api/settings/ai/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, api_key: apiKey }),
+  });
+  if (!response.ok) throw new Error("AI 连接测试失败");
+  return (await response.json()) as ConnectionTestResult;
+}
+
+export async function createDiagnosis(
   runId: number,
+  mode: DiagnosisMode,
+  model: string,
+  apiKey: string,
 ): Promise<DiagnosisRun> {
   const response = await fetch(`/api/runs/${runId}/diagnoses`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode, model, api_key: apiKey }),
   });
-  if (!response.ok) throw new Error("Mock 诊断生成失败");
+  if (!response.ok) throw new Error("结构化诊断生成失败");
   return (await response.json()) as DiagnosisRun;
 }
+
+export const createMockDiagnosis = (runId: number) =>
+  createDiagnosis(runId, "mock", "mock-diagnosis-v1", "");
 
 export async function cancelRun(runId: number): Promise<RunRecord> {
   const response = await fetch(`/api/runs/${runId}/cancel`, { method: "POST" });

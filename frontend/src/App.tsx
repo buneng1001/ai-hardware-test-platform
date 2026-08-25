@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   type CollectionTask,
   type CollectionTaskCommand,
+  type DiagnosisMode,
   type RunRecord,
   cancelRun,
   createCollectionTask,
@@ -11,6 +12,7 @@ import {
   listCollectionTasks,
   rerun,
   reviewAlignment,
+  testAiConnection,
 } from "./collectionTasksApi";
 import { CollectionTaskForm } from "./CollectionTaskForm";
 import { isTerminalRun, RunDetail } from "./RunDetail";
@@ -30,6 +32,14 @@ export function App() {
   const [executingTaskId, setExecutingTaskId] = useState<number | null>(null);
   const [selectedRun, setSelectedRun] = useState<RunRecord | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [diagnosisMode, setDiagnosisMode] = useState<DiagnosisMode>("mock");
+  const [diagnosisModel, setDiagnosisModel] = useState(
+    "Qwen/Qwen2.5-72B-Instruct",
+  );
+  const [temporaryApiKey, setTemporaryApiKey] = useState("");
+  const [connectionMessage, setConnectionMessage] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const loadPage = async () => {
@@ -129,6 +139,18 @@ export function App() {
     }
   };
 
+  const checkAiConnection = async () => {
+    setConnectionMessage(null);
+    try {
+      const result = await testAiConnection(diagnosisModel, temporaryApiKey);
+      setConnectionMessage(
+        result.ok ? result.message : `连接失败：${result.message}`,
+      );
+    } catch {
+      setConnectionMessage("连接测试请求失败，请检查后端状态");
+    }
+  };
+
   return (
     <main className="status-page">
       <p className="eyebrow">本地运行基线</p>
@@ -141,6 +163,43 @@ export function App() {
           <p>SQLite 可用</p>
         </section>
       )}
+
+      <section className="task-panel" aria-labelledby="ai-settings-title">
+        <p className="eyebrow">设置</p>
+        <h2 id="ai-settings-title">AI 诊断连接</h2>
+        <p>API Key 只保存在当前页面内存，后端不会返回、掩码或保存它。</p>
+        <label>
+          诊断模式
+          <select
+            value={diagnosisMode}
+            onChange={(event) =>
+              setDiagnosisMode(event.target.value as DiagnosisMode)
+            }
+          >
+            <option value="mock">Mock（离线）</option>
+            <option value="siliconflow">硅基流动</option>
+          </select>
+        </label>
+        <label>
+          模型
+          <input
+            value={diagnosisModel}
+            onChange={(event) => setDiagnosisModel(event.target.value)}
+          />
+        </label>
+        <label>
+          临时 API Key
+          <input
+            type="password"
+            value={temporaryApiKey}
+            onChange={(event) => setTemporaryApiKey(event.target.value)}
+          />
+        </label>
+        <button type="button" onClick={() => void checkAiConnection()}>
+          测试硅基流动连接
+        </button>
+        {connectionMessage && <p role="status">{connectionMessage}</p>}
+      </section>
 
       <section className="task-panel" aria-labelledby="new-task-title">
         <div>
@@ -188,6 +247,9 @@ export function App() {
           onCancel={() => void cancelSelectedRun()}
           onRerun={() => void rerunSelectedRun()}
           onReviewAlignment={(anchors) => void reviewSelectedAlignment(anchors)}
+          diagnosisMode={diagnosisMode}
+          diagnosisModel={diagnosisModel}
+          temporaryApiKey={temporaryApiKey}
         />
       )}
     </main>

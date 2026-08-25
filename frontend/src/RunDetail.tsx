@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 
 import type {
   AlignmentReviewItem,
+  DiagnosisMode,
   DiagnosisRun,
   RunRecord,
   RunStatus,
 } from "./collectionTasksApi";
-import { createMockDiagnosis } from "./collectionTasksApi";
+import { createDiagnosis } from "./collectionTasksApi";
 import { ManualCheckResultsPanel } from "./ManualCheckResultsPanel";
 
 const terminalRunStatuses = new Set<RunStatus>([
@@ -47,6 +48,9 @@ type RunDetailProps = {
   onCancel: () => void;
   onRerun: () => void;
   onReviewAlignment: (anchors: AlignmentReviewItem[]) => void;
+  diagnosisMode: DiagnosisMode;
+  diagnosisModel: string;
+  temporaryApiKey: string;
 };
 
 export function RunDetail({
@@ -54,6 +58,9 @@ export function RunDetail({
   onCancel,
   onRerun,
   onReviewAlignment,
+  diagnosisMode,
+  diagnosisModel,
+  temporaryApiKey,
 }: RunDetailProps) {
   const [anchorDrafts, setAnchorDrafts] = useState<
     Record<string, AlignmentReviewItem>
@@ -80,10 +87,17 @@ export function RunDetail({
   const generateDiagnosis = async () => {
     setDiagnosisError(null);
     try {
-      setDiagnosis(await createMockDiagnosis(run.id));
+      setDiagnosis(
+        await createDiagnosis(
+          run.id,
+          diagnosisMode,
+          diagnosisModel,
+          temporaryApiKey,
+        ),
+      );
     } catch {
-      console.error("Mock 诊断生成失败");
-      setDiagnosisError("Mock 诊断生成失败，请稍后重试");
+      console.error("结构化诊断生成失败");
+      setDiagnosisError("结构化诊断生成失败，请查看诊断运行状态");
     }
   };
 
@@ -150,9 +164,11 @@ export function RunDetail({
         </p>
         {run.status === "completed" && (
           <section aria-labelledby="diagnosis-title">
-            <h4 id="diagnosis-title">Mock 结构化诊断</h4>
+            <h4 id="diagnosis-title">
+              {diagnosisMode === "mock" ? "Mock" : "硅基流动"} 结构化诊断
+            </h4>
             <button type="button" onClick={() => void generateDiagnosis()}>
-              生成 Mock 诊断
+              生成 {diagnosisMode === "mock" ? "Mock" : "真实模型"} 诊断
             </button>
             {diagnosisError && <p role="alert">{diagnosisError}</p>}
             {diagnosis?.output && (

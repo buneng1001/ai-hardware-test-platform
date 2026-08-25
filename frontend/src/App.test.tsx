@@ -116,6 +116,45 @@ test("空白任务名称在前端被拒绝且不会调用保存 API", async () =
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
+test("设置页用会话内临时 Key 测试硅基流动且不持久化", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "ok", database: "ok" })),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([])))
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          provider: "siliconflow",
+          model: "demo-model",
+          error_kind: null,
+          message: "硅基流动连接可用",
+        }),
+      ),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  await screen.findByText("还没有采集任务。");
+
+  fireEvent.change(screen.getByLabelText("模型"), {
+    target: { value: "demo-model" },
+  });
+  fireEvent.change(screen.getByLabelText("临时 API Key"), {
+    target: { value: "session-secret" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "测试硅基流动连接" }));
+
+  expect(await screen.findByText("硅基流动连接可用")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/settings/ai/test",
+    expect.objectContaining({
+      body: JSON.stringify({ model: "demo-model", api_key: "session-secret" }),
+    }),
+  );
+});
+
 test("测试工程师能执行正常任务并查看运行阶段产物和检查结果", async () => {
   const task = {
     id: 3,

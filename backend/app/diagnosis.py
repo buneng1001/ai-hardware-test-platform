@@ -1,9 +1,10 @@
-"""Mock 诊断适配层：只消费已完成运行的限量证据，不进入测试执行关键路径。"""
+"""结构化诊断业务：Mock 与硅基流动均只消费限量证据，不进入测试关键路径。"""
 
 import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field, ValidationError
 
 from app.database import open_database
 from app.run_models import (
@@ -16,11 +17,19 @@ from app.run_models import (
     StructuredDiagnosis,
 )
 from app.runs import _get_run
+from app.settings import configured_api_key, current_settings
+from app.siliconflow import SiliconFlowAdapter, SiliconFlowError
 
 router = APIRouter(prefix="/api/runs/{run_id}/diagnoses", tags=["diagnoses"])
 
 MAX_EVIDENCE_BYTES = 32 * 1024
 MAX_EVIDENCE_TOKENS = 4_000
+
+
+class DiagnosisRequest(BaseModel):
+    mode: str = "mock"
+    model: str | None = Field(default=None, min_length=1, max_length=200)
+    api_key: str = ""
 
 
 def _json(value: object) -> str:
@@ -188,28 +197,34 @@ def latest_diagnosis(run_id: int) -> DiagnosisRun | None:
     return diagnoses[-1] if diagnoses else None
 
 
-@router.post("", response_model=DiagnosisRun, status_code=status.HTTP_201_CREATED)
-def create_mock_diagnosis(run_id: int) -> DiagnosisRun:
-    run = _get_run(run_id)
-    if run is None:
-        raise HTTPException(status_code=404, detail="运行记录不存在")
-    if run.status != "completed":
-        raise HTTPException(status_code=409, detail="只有已完成运行才能生成诊断")
-    package = build_evidence_package(run)
-    output = build_mock_diagnosis(run, package)
-    output = validate_evidence_refs(output, package)
+def _save_diagnosis(
+    run_id: int,
+    package: DiagnosisEvidencePackage,
+    *,
+    model: str,
+    prompt_version: str,
+    is_mock: bool,
+    output: StructuredDiagnosis | None,
+    error: str | None,
+) -> DiagnosisRun:
     created_at = datetime.now(UTC)
+    diagnosis_status = "completed" if output else "failed"
     with open_database() as connection:
         cursor = connection.execute(
             """INSERT INTO diagnosis_runs
-            (run_id, status, model, prompt_version, is_mock, evidence_package, output, created_at, completed_at)
-            VALUES (?, 'completed', 'mock-diagnosis-v1', 'mock-v1', 1, ?, ?, ?, ?)""",
+            (run_id, status, model, prompt_version, is_mock, evidence_package, output, created_at, completed_at, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 run_id,
+                diagnosis_status,
+                model,
+                prompt_version,
+                int(is_mock),
                 package.model_dump_json(),
-                output.model_dump_json(),
+                output.model_dump_json() if output else None,
                 created_at.isoformat(),
                 created_at.isoformat(),
+                error,
             ),
         )
         if cursor.lastrowid is None:
@@ -218,6 +233,61 @@ def create_mock_diagnosis(run_id: int) -> DiagnosisRun:
     if row is None:
         raise HTTPException(status_code=500, detail="诊断运行保存失败")
     return _diagnosis_from_row(row)
+
+
+@router.post("", response_model=DiagnosisRun, status_code=status.HTTP_201_CREATED)
+def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> DiagnosisRun:
+    run = _get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="运行记录不存在")
+    if run.status != "completed":
+        raise HTTPException(status_code=409, detail="只有已完成运行才能生成诊断")
+    package = build_evidence_package(run)
+    request = request or DiagnosisRequest()
+    if request.mode == "mock":
+        output = validate_evidence_refs(build_mock_diagnosis(run, package), package)
+        return _save_diagnosis(
+            run_id,
+            package,
+            model="mock-diagnosis-v1",
+            prompt_version="mock-v1",
+            is_mock=True,
+            output=output,
+            error=None,
+        )
+    if request.mode != "siliconflow":
+        raise HTTPException(status_code=422, detail="不支持的诊断模式")
+
+    settings = current_settings()
+    model = request.model or settings.model
+    api_key = request.api_key or configured_api_key()
+    try:
+        raw_output = SiliconFlowAdapter().generate(
+            api_key=api_key,
+            model=model,
+            evidence_json=package.model_dump_json(),
+        )
+        output = validate_evidence_refs(StructuredDiagnosis.model_validate(raw_output), package)
+    except (SiliconFlowError, ValidationError, HTTPException) as error:
+        message = error.detail if isinstance(error, HTTPException) else str(error)
+        return _save_diagnosis(
+            run_id,
+            package,
+            model=model,
+            prompt_version="diagnosis-v1",
+            is_mock=False,
+            output=None,
+            error=message,
+        )
+    return _save_diagnosis(
+        run_id,
+        package,
+        model=model,
+        prompt_version="diagnosis-v1",
+        is_mock=False,
+        output=output,
+        error=None,
+    )
 
 
 @router.get("", response_model=list[DiagnosisRun])
