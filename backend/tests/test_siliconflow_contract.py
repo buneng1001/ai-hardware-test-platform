@@ -25,17 +25,7 @@ def wait_for_completion(client, run_id: int) -> dict:
 
 def test_adapter_returns_structured_json_from_openai_compatible_response():
     def transport(_request):
-        return 200, json.dumps(
-            {
-                "choices": [
-                    {
-                        "message": {
-                            "content": '{"diagnosis_status":"completed"}'
-                        }
-                    }
-                ]
-            }
-        )
+        return 200, json.dumps({"choices": [{"message": {"content": '{"diagnosis_status":"completed"}'}}]})
 
     result = SiliconFlowAdapter(transport=transport).generate(
         api_key="temporary-secret",

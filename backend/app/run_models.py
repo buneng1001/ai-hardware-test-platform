@@ -75,6 +75,7 @@ class EvaluationConfiguration(BaseModel):
             raise ValueError("判定优先级不能重复")
         return self
 
+
 class VideoConfiguration(BaseModel):
     channels: int = Field(ge=1, le=4)
     resolution: Literal["640x360", "1280x720", "1920x1080"]

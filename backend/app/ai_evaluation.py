@@ -38,11 +38,13 @@ def _cause_fault_types(diagnosis: DiagnosisRun) -> list[str]:
             continue
         text = cause.cause.casefold()
         for fault_type, aliases in FAULT_ALIASES.items():
-            if any(
-                alias.casefold() in text
-                and not NEGATED_FAULT_PATTERN.search(text[: text.find(alias.casefold())])
-                for alias in aliases
-            ) and fault_type not in types:
+            if (
+                any(
+                    alias.casefold() in text and not NEGATED_FAULT_PATTERN.search(text[: text.find(alias.casefold())])
+                    for alias in aliases
+                )
+                and fault_type not in types
+            ):
                 types.append(fault_type)
     return types
 
@@ -73,10 +75,7 @@ def evaluate_diagnosis(run: RunRecord, diagnosis: DiagnosisRun) -> AiEvaluationR
     diagnosed_set = set(diagnosed)
     hits = [fault_type for fault_type in expected if fault_type in diagnosed_set]
     missed = [fault_type for fault_type in expected if fault_type not in diagnosed_set]
-    unsupported = sum(
-        cause.is_speculation and not cause.evidence_refs
-        for cause in diagnosis.output.possible_causes
-    )
+    unsupported = sum(cause.is_speculation and not cause.evidence_refs for cause in diagnosis.output.possible_causes)
     false_positive_count = len(diagnosed_set - expected_set)
     return AiEvaluationResult(
         status="evaluated",

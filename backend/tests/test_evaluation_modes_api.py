@@ -72,11 +72,14 @@ def test_run_evaluation_modes_are_observable_and_snapshot_is_immutable(
     assert result["threshold_source"] == task["evaluation"]["threshold_source"]
     assert result["conclusion"] == expected_conclusion
     assert result["is_product_commitment"] is product_commitment
-    assert result["priority_rank"] == {
-        "requirements_acceptance": 0,
-        "engineering_target": 1,
-        "baseline_analysis": 2,
-    }[mode]
+    assert (
+        result["priority_rank"]
+        == {
+            "requirements_acceptance": 0,
+            "engineering_target": 1,
+            "baseline_analysis": 2,
+        }[mode]
+    )
 
 
 def test_requirements_acceptance_reports_failed_when_a_deterministic_check_fails(tmp_path, monkeypatch):

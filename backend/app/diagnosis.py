@@ -80,10 +80,7 @@ def build_evidence_package(run: RunRecord) -> DiagnosisEvidencePackage:
     for index, (kind, source, content) in enumerate(candidates, start=1):
         size_bytes = len(content.encode("utf-8"))
         estimated_tokens = max(1, (size_bytes + 3) // 4)
-        if (
-            total_bytes + size_bytes > MAX_EVIDENCE_BYTES
-            or total_tokens + estimated_tokens > MAX_EVIDENCE_TOKENS
-        ):
+        if total_bytes + size_bytes > MAX_EVIDENCE_BYTES or total_tokens + estimated_tokens > MAX_EVIDENCE_TOKENS:
             truncated = True
             break
         items.append(
@@ -119,9 +116,7 @@ def build_mock_diagnosis(run: RunRecord, package: DiagnosisEvidencePackage) -> S
     phenomena = [
         DiagnosisPhenomenon(
             description=(
-                "；".join(check.message for check in failed)
-                if failed
-                else "本次运行未检测到失败的确定性检查。"
+                "；".join(check.message for check in failed) if failed else "本次运行未检测到失败的确定性检查。"
             ),
             evidence_refs=phenomenon_refs,
         )
@@ -159,9 +154,7 @@ def validate_evidence_refs(output: StructuredDiagnosis, package: DiagnosisEviden
     if invalid:
         raise HTTPException(status_code=422, detail=f"诊断包含无效证据引用：{', '.join(invalid)}")
     unsupported = [
-        cause.cause
-        for cause in output.possible_causes
-        if not cause.evidence_refs and not cause.is_speculation
+        cause.cause for cause in output.possible_causes if not cause.evidence_refs and not cause.is_speculation
     ]
     if unsupported:
         raise HTTPException(status_code=422, detail="无证据支持的诊断原因必须标记为推测")
@@ -187,9 +180,7 @@ def _diagnosis_from_row(row) -> DiagnosisRun:
 
 def list_diagnoses(run_id: int) -> list[DiagnosisRun]:
     with open_database() as connection:
-        rows = connection.execute(
-            "SELECT * FROM diagnosis_runs WHERE run_id = ? ORDER BY id", (run_id,)
-        ).fetchall()
+        rows = connection.execute("SELECT * FROM diagnosis_runs WHERE run_id = ? ORDER BY id", (run_id,)).fetchall()
     return [_diagnosis_from_row(row) for row in rows]
 
 

@@ -377,6 +377,7 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
             truth["expected_basic_result"] = "fixed_offset_aligned"
     return truth
 
+
 def _artifact(kind: str, path: Path, run_dir: Path, source: str = "actual_generated") -> Artifact:
     content = path.read_bytes()
     relative_path = Path("runs") / run_dir.name / path.name

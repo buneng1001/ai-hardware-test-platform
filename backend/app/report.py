@@ -99,13 +99,16 @@ def _render_html(report: ReportDocument) -> str:
     report_data = report.model_dump(mode="json")
     run_id = html.escape(str(report.run_id))
     status = html.escape(report.status)
-    alignment_rows = "".join(
-        f"<tr><td>{html.escape(channel)}</td><td>"
-        f"{(report.alignment_result.pre_alignment.get(channel, {}).get('offset_s', '—'))}</td>"
-        f"<td>{metrics.get('max_residual_ms', '—')}</td><td>{metrics.get('mean_residual_ms', '—')}</td>"
-        f"<td>{metrics.get('p95_residual_ms', '—')}</td></tr>"
-        for channel, metrics in (report.alignment_result.post_alignment.items() if report.alignment_result else [])
-    ) or "<tr><td colspan='5'>未生成时间对齐结果</td></tr>"
+    alignment_rows = (
+        "".join(
+            f"<tr><td>{html.escape(channel)}</td><td>"
+            f"{(report.alignment_result.pre_alignment.get(channel, {}).get('offset_s', '—'))}</td>"
+            f"<td>{metrics.get('max_residual_ms', '—')}</td><td>{metrics.get('mean_residual_ms', '—')}</td>"
+            f"<td>{metrics.get('p95_residual_ms', '—')}</td></tr>"
+            for channel, metrics in (report.alignment_result.post_alignment.items() if report.alignment_result else [])
+        )
+        or "<tr><td colspan='5'>未生成时间对齐结果</td></tr>"
+    )
     evaluation = report.evaluation_result
     distribution = evaluation.distribution if evaluation else {}
     passed = int(distribution.get("passed", 0))
@@ -131,13 +134,16 @@ def _render_html(report: ReportDocument) -> str:
         f"<td>{html.escape(json.dumps(check.anomaly_windows, ensure_ascii=False))}</td></tr>"
         for check in report.automated_checks
     )
-    manual_rows = "".join(
-        f"<tr><td>{html.escape(result.name)}</td>"
-        f"<td>{html.escape(result.status)}</td>"
-        f"<td>{html.escape(result.actual_result or '')}</td>"
-        f"<td>{html.escape(result.notes or '')}</td></tr>"
-        for result in report.manual_check_results
-    ) or "<tr><td colspan='4'>暂无人工检查结果</td></tr>"
+    manual_rows = (
+        "".join(
+            f"<tr><td>{html.escape(result.name)}</td>"
+            f"<td>{html.escape(result.status)}</td>"
+            f"<td>{html.escape(result.actual_result or '')}</td>"
+            f"<td>{html.escape(result.notes or '')}</td></tr>"
+            for result in report.manual_check_results
+        )
+        or "<tr><td colspan='4'>暂无人工检查结果</td></tr>"
+    )
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -146,20 +152,20 @@ def _render_html(report: ReportDocument) -> str:
 table{{border-collapse:collapse;width:100%;margin:1rem 0}}th,td{{border:1px solid #bbb;padding:.45rem;text-align:left}}
 pre{{white-space:pre-wrap;background:#f5f5f5;padding:1rem;overflow:auto}}.status{{font-weight:700}}</style>
 </head><body><h1>运行 #{run_id} 分析报告</h1><p class="status">状态：{status}</p>
-<h2>配置快照</h2><pre>{_json_block(report_data['configuration_snapshot'])}</pre>
-<h2>运行阶段</h2><pre>{_json_block(report_data['stage_events'])}</pre>
-<h2>产物与来源</h2><pre>{_json_block(report_data['artifacts'])}</pre>
-<h2>故障真值</h2><pre>{_json_block(report.fault_truth or '未找到故障真值内容')}</pre>
+<h2>配置快照</h2><pre>{_json_block(report_data["configuration_snapshot"])}</pre>
+<h2>运行阶段</h2><pre>{_json_block(report_data["stage_events"])}</pre>
+<h2>产物与来源</h2><pre>{_json_block(report_data["artifacts"])}</pre>
+<h2>故障真值</h2><pre>{_json_block(report.fault_truth or "未找到故障真值内容")}</pre>
 <h2>自动化检测结果与故障真值对照</h2>
 <table><thead><tr><th>检查项</th><th>类别</th><th>状态</th><th>真值对照</th><th>说明</th><th>异常窗口</th></tr></thead>
 <tbody>{check_rows}</tbody></table>
 <h2>时间分析</h2><table><thead><tr><th>通道</th><th>对齐前偏移(s)</th>
 <th>对齐后最大(ms)</th><th>对齐后平均(ms)</th><th>对齐后 P95(ms)</th></tr></thead>
-<tbody>{alignment_rows}</tbody></table><pre>{_json_block(report_data['alignment_result'] or '未生成时间对齐结果')}</pre>
-<h2>判定依据</h2>{evaluation_summary}<pre>{_json_block(report_data['evaluation_result'] or '未生成判定结果')}</pre>
+<tbody>{alignment_rows}</tbody></table><pre>{_json_block(report_data["alignment_result"] or "未生成时间对齐结果")}</pre>
+<h2>判定依据</h2>{evaluation_summary}<pre>{_json_block(report_data["evaluation_result"] or "未生成判定结果")}</pre>
 <h2>人工检查结果</h2><table><thead><tr><th>检查项</th><th>状态</th><th>实际结果</th><th>备注</th></tr></thead>
 <tbody>{manual_rows}</tbody></table>
-<h2>诊断状态</h2><pre>{_json_block(report_data['diagnosis'])}</pre>
+<h2>诊断状态</h2><pre>{_json_block(report_data["diagnosis"])}</pre>
 <h2>原始报告数据</h2><pre>{_json_block(report_data)}</pre>
 </body></html>"""
 

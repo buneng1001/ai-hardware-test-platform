@@ -42,9 +42,9 @@ def evaluate_run(
     if "max_alignment_residual_ms" in configuration.thresholds:
         within_thresholds &= "max_alignment_residual_ms" in metrics
         if "max_alignment_residual_ms" in metrics:
-            within_thresholds &= metrics["max_alignment_residual_ms"] <= configuration.thresholds[
-                "max_alignment_residual_ms"
-            ]
+            within_thresholds &= (
+                metrics["max_alignment_residual_ms"] <= configuration.thresholds["max_alignment_residual_ms"]
+            )
     conclusion = "passed" if within_thresholds else "failed"
     mode_label = "需求验收" if configuration.mode == "requirements_acceptance" else "工程目标"
     commitment = configuration.mode == "requirements_acceptance"

@@ -6,9 +6,7 @@ from app.database import open_database
 def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
     connection = sqlite3.connect(tmp_path / "platform.sqlite3")
-    connection.execute(
-        "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT)"
-    )
+    connection.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT)")
     connection.execute(
         """
         CREATE TABLE runs (
@@ -38,7 +36,10 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
     assert version == 10
     assert "alignment_result" in columns
     with open_database() as connection:
-        assert connection.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'diagnosis_runs'"
-        ).fetchone() is not None
+        assert (
+            connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'diagnosis_runs'"
+            ).fetchone()
+            is not None
+        )
     assert "evaluation_result" in columns

@@ -42,15 +42,13 @@ def align_fixed_offset(
     detected_anchors = _detect_anchor_times(all_channels)
     reviewed_anchors = _apply_anchor_overrides(detected_anchors, anchor_overrides)
     active_anchors = {
-        channel: [value for value in values if value >= 0]
-        for channel, values in reviewed_anchors.items()
+        channel: [value for value in values if value >= 0] for channel, values in reviewed_anchors.items()
     }
     if reference_channel not in active_anchors:
         return None
     reference_anchor = active_anchors[reference_channel][0]
     estimated_offsets_s = {
-        channel: round(reference_anchor - values[0], 3)
-        for channel, values in active_anchors.items()
+        channel: round(reference_anchor - values[0], 3) for channel, values in active_anchors.items()
     }
 
     pre_alignment = _pre_alignment_metrics(all_channels, estimated_offsets_s, reference_channel, snapshot)
@@ -104,10 +102,7 @@ def align_linear_drift(
         for index in range(len(reviewed_anchors.get(snapshot.reference_channel, [])))
         if all(index < len(times) and times[index] >= 0 for times in reviewed_anchors.values())
     ]
-    anchors = {
-        channel: [times[index] for index in common_indices]
-        for channel, times in reviewed_anchors.items()
-    }
+    anchors = {channel: [times[index] for index in common_indices] for channel, times in reviewed_anchors.items()}
     reference_anchors = anchors[snapshot.reference_channel]
     if (
         len(reference_anchors) < 3
@@ -144,9 +139,7 @@ def align_linear_drift(
 
     truth = read_fault_truth(artifacts, data_dir)
     truth_offsets = _relative_truth_offsets(truth.get("alignment_corrections_s", {}), snapshot.reference_channel)
-    truth_drifts = _relative_truth_rates(
-        truth.get("alignment_drift_rates_s_per_s", {}), snapshot.reference_channel
-    )
+    truth_drifts = _relative_truth_rates(truth.get("alignment_drift_rates_s_per_s", {}), snapshot.reference_channel)
     truth_comparison = _compare_linear_model(parameters, drift_rates, truth_offsets, truth_drifts)
     return TimeAlignmentResult(
         reference_channel=snapshot.reference_channel,
@@ -221,9 +214,7 @@ def _anchor_time(channel: str, timeline: list[tuple[float, float]]) -> float:
     return max(timeline, key=lambda sample: sample[1])[0]
 
 
-def _detect_anchor_times(
-    channels: dict[str, list[tuple[float, float]]]
-) -> dict[str, list[float]]:
+def _detect_anchor_times(channels: dict[str, list[tuple[float, float]]]) -> dict[str, list[float]]:
     """从视频闪光和 IMU 冲击峰值提取稳定的、按事件顺序排列的锚点。"""
     return {channel: _anchor_times(channel, timeline) for channel, timeline in channels.items()}
 
@@ -242,9 +233,7 @@ def _apply_anchor_overrides(
     return adjusted
 
 
-def _anchor_details(
-    detected: dict[str, list[float]], adjusted: dict[str, list[float]]
-) -> list[AlignmentAnchor]:
+def _anchor_details(detected: dict[str, list[float]], adjusted: dict[str, list[float]]) -> list[AlignmentAnchor]:
     details: list[AlignmentAnchor] = []
     for channel, detected_times in detected.items():
         active_times = adjusted.get(channel, [])

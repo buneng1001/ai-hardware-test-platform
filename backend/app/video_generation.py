@@ -3,9 +3,7 @@
 from app.run_models import RunConfigurationSnapshot
 
 
-def channel_delay_s(
-    snapshot: RunConfigurationSnapshot, channel: int | str, event_time_s: float = 0.0
-) -> float:
+def channel_delay_s(snapshot: RunConfigurationSnapshot, channel: int | str, event_time_s: float = 0.0) -> float:
     """返回时间对齐场景中通道相对参考时钟的事件延迟。"""
     if snapshot.scenario not in {"fixed_offset", "linear_drift"}:
         return 0.0

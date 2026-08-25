@@ -75,6 +75,7 @@ def test_diagnosis_does_not_change_test_execution_and_rejects_invalid_evidence_r
             json={"name": "Mock 诊断校验", "mode": "quick", "scenario": "normal"},
         ).json()
         run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+
         def invalid_mock_output(current_run, package):
             return StructuredDiagnosis(
                 diagnosis_status="completed",

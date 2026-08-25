@@ -192,13 +192,10 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
             }
             for check in record.checks:
                 check.evidence_refs = evidence_by_check.get(check.name, check.evidence_refs)
-        record.alignment_result = (
-            align_fixed_offset(record.artifacts, get_data_dir(), record.configuration_snapshot)
-            or align_linear_drift(record.artifacts, get_data_dir(), record.configuration_snapshot)
-        )
-        record.evaluation_result = evaluate_run(
-            record.checks, record.alignment_result, record.configuration_snapshot
-        )
+        record.alignment_result = align_fixed_offset(
+            record.artifacts, get_data_dir(), record.configuration_snapshot
+        ) or align_linear_drift(record.artifacts, get_data_dir(), record.configuration_snapshot)
+        record.evaluation_result = evaluate_run(record.checks, record.alignment_result, record.configuration_snapshot)
         if _stop_requested(record, application_stopping):
             return
         record.status = "summarizing_results"
@@ -298,26 +295,20 @@ def review_alignment(run_id: int, command: AlignmentReviewCommand) -> RunRecord:
     if unknown_ids:
         raise HTTPException(status_code=422, detail=f"未知锚点引用：{', '.join(unknown_ids)}")
 
-    overrides = {
-        item.anchor_id: (item.reviewed_time_s, item.included)
-        for item in command.anchors
-    }
+    overrides = {item.anchor_id: (item.reviewed_time_s, item.included) for item in command.anchors}
     snapshot = record.configuration_snapshot
-    alignment = (
-        align_fixed_offset(
-            record.artifacts,
-            get_data_dir(),
-            snapshot,
-            overrides,
-            record.alignment_result.review_revision + 1,
-        )
-        or align_linear_drift(
-            record.artifacts,
-            get_data_dir(),
-            snapshot,
-            overrides,
-            record.alignment_result.review_revision + 1,
-        )
+    alignment = align_fixed_offset(
+        record.artifacts,
+        get_data_dir(),
+        snapshot,
+        overrides,
+        record.alignment_result.review_revision + 1,
+    ) or align_linear_drift(
+        record.artifacts,
+        get_data_dir(),
+        snapshot,
+        overrides,
+        record.alignment_result.review_revision + 1,
     )
     if alignment is None:
         raise HTTPException(status_code=422, detail="复核后有效共同锚点不足，无法重新计算")
