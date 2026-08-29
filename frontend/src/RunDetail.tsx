@@ -139,7 +139,17 @@ export function RunDetail({
         {run.artifacts.map((artifact) => (
           <li key={artifact.path}>
             <span>
-              {artifact.path.split("/").at(-1)} ·{" "}
+              {artifact.kind === "frame_imu_alignment" ? (
+                <a
+                  href={`/api/runs/${run.id}/frame-imu-alignment.csv`}
+                  download
+                >
+                  逐帧视频—IMU映射 CSV
+                </a>
+              ) : (
+                artifact.path.split("/").at(-1)
+              )}{" "}
+              ·{" "}
               {artifact.source === "actual_generated"
                 ? "实际生成"
                 : "虚拟时间模拟"}

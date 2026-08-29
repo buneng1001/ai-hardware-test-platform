@@ -40,7 +40,8 @@ def generate_normal_artifacts(
     _generate_device_log(run_dir / "device.log", snapshot, fault_truth)
 
     artifacts = [
-        *[_artifact("video", video_path, run_dir) for video_path in video_paths],
+        *[_artifact("video", video_path, run_dir, start_raw_device_timestamp_ns=RAW_DEVICE_START_NS)
+          for video_path in video_paths],
         _artifact("imu", imu_path, run_dir),
         _artifact("device_status", run_dir / "device_status.csv", run_dir, timeline_source),
         _artifact("device_log", run_dir / "device.log", run_dir),
@@ -412,7 +413,13 @@ def _build_fault_truth(snapshot: RunConfigurationSnapshot, actual_duration_secon
     return truth
 
 
-def _artifact(kind: str, path: Path, run_dir: Path, source: str = "actual_generated") -> Artifact:
+def _artifact(
+    kind: str,
+    path: Path,
+    run_dir: Path,
+    source: str = "actual_generated",
+    start_raw_device_timestamp_ns: int | None = None,
+) -> Artifact:
     content = path.read_bytes()
     relative_path = Path("runs") / run_dir.name / path.name
     return Artifact(
@@ -422,4 +429,5 @@ def _artifact(kind: str, path: Path, run_dir: Path, source: str = "actual_genera
         size_bytes=len(content),
         sha256=hashlib.sha256(content).hexdigest(),
         codec="h264" if kind == "video" else None,
+        start_raw_device_timestamp_ns=start_raw_device_timestamp_ns,
     )

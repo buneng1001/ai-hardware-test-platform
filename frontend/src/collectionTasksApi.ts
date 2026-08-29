@@ -122,6 +122,7 @@ export type RunRecord = {
     size_bytes: number;
     sha256: string;
     codec: "h264" | null;
+    start_raw_device_timestamp_ns: number | null;
   }>;
   generation_metadata: {
     timeline_source: "actual_generated" | "virtual_time_simulated";
@@ -166,6 +167,15 @@ export type RunRecord = {
     trend: Record<string, number[]>;
     anchor_details: AlignmentAnchor[];
     content_sync: ContentSyncResult;
+    frame_imu_alignment: {
+      artifact_path: string;
+      frame_count: number;
+      matched_count: number;
+      unmatched_count: number;
+      imu_sample_rate_hz: number;
+      tolerance_s: number;
+      columns: string[];
+    } | null;
     review_revision: number;
     truth_comparison: "matched" | "missed" | "not_applicable";
   } | null;

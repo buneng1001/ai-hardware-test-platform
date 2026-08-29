@@ -69,7 +69,11 @@ def test_alignment_review_changes_analysis_without_overwriting_raw_artifacts(tmp
     with TestClient(app) as client:
         task = client.post("/api/collection-tasks", json=command).json()
         run = _wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
-        original_hashes = {artifact["path"]: artifact["sha256"] for artifact in run["artifacts"]}
+        original_hashes = {
+            artifact["path"]: artifact["sha256"]
+            for artifact in run["artifacts"]
+            if artifact["kind"] != "frame_imu_alignment"
+        }
         camera_anchor = next(
             anchor for anchor in run["alignment_result"]["anchor_details"] if anchor["channel"] == "camera_4"
         )
@@ -95,7 +99,12 @@ def test_alignment_review_changes_analysis_without_overwriting_raw_artifacts(tmp
     assert updated_anchor["reviewed_time_s"] == pytest.approx(camera_anchor["detected_time_s"] + 0.033)
     assert alignment["parameters"]["camera_4"] != pytest.approx(-0.03, abs=0.004)
     assert alignment["content_sync"]["status"] == "passed"
-    assert {artifact["path"]: artifact["sha256"] for artifact in reviewed["artifacts"]} == original_hashes
+    assert {
+        artifact["path"]: artifact["sha256"]
+        for artifact in reviewed["artifacts"]
+        if artifact["kind"] != "frame_imu_alignment"
+    } == original_hashes
+    assert reviewed["alignment_result"]["frame_imu_alignment"] is not None
 
 
 def test_alignment_review_rejects_excluding_too_many_common_anchors(tmp_path, monkeypatch):

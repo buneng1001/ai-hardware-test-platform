@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import Response
 
 from app.database import get_data_dir, open_database
 from app.evaluation import evaluate_run
@@ -14,7 +15,7 @@ from app.normal_generator import generate_normal_artifacts
 from app.resource_checks import run_resource_checks
 from app.run_models import AlignmentReviewCommand, RunConfigurationSnapshot, RunRecord, StageEvent
 from app.storage_checks import run_storage_checks
-from app.time_alignment import align_fixed_offset, align_linear_drift
+from app.time_alignment import align_fixed_offset, align_linear_drift, build_frame_imu_alignment
 from app.video_checks import run_video_checks
 
 router = APIRouter(tags=["runs"])
@@ -224,6 +225,17 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
         record.alignment_result = align_fixed_offset(
             record.artifacts, get_data_dir(), record.configuration_snapshot
         ) or align_linear_drift(record.artifacts, get_data_dir(), record.configuration_snapshot)
+        if record.alignment_result is not None:
+            mapping_artifact, mapping_summary = build_frame_imu_alignment(
+                record.artifacts,
+                get_data_dir(),
+                record.configuration_snapshot,
+                record.alignment_result,
+            )
+            record.artifacts.append(mapping_artifact)
+            record.alignment_result = record.alignment_result.model_copy(
+                update={"frame_imu_alignment": mapping_summary}
+            )
         record.evaluation_result = evaluate_run(record.checks, record.alignment_result, record.configuration_snapshot)
         if _stop_requested(record, application_stopping):
             return
@@ -310,6 +322,29 @@ def get_run(run_id: int) -> RunRecord:
     return record
 
 
+@router.get("/api/runs/{run_id}/frame-imu-alignment.csv")
+def get_frame_imu_alignment(run_id: int) -> Response:
+    """下载独立逐帧映射，不把派生时间写回原始视频或 IMU。"""
+    record = _get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="运行记录不存在")
+    artifact = next((item for item in record.artifacts if item.kind == "frame_imu_alignment"), None)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="该运行没有逐帧映射产物")
+    path = (get_data_dir() / artifact.path).resolve()
+    try:
+        path.relative_to(get_data_dir().resolve())
+    except ValueError as error:
+        raise HTTPException(status_code=500, detail="逐帧映射路径不安全") from error
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="逐帧映射产物不存在")
+    return Response(
+        content=path.read_bytes(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="run-{run_id}-frame-imu-alignment.csv"'},
+    )
+
+
 @router.post("/api/runs/{run_id}/alignment-review", response_model=RunRecord)
 def review_alignment(run_id: int, command: AlignmentReviewCommand) -> RunRecord:
     """应用锚点复核并只替换分析快照，原始产物和检测结果保持不变。"""
@@ -342,10 +377,27 @@ def review_alignment(run_id: int, command: AlignmentReviewCommand) -> RunRecord:
     if alignment is None:
         raise HTTPException(status_code=422, detail="复核后有效共同锚点不足，无法重新计算")
 
+    alignment = alignment.model_copy(
+        update={"frame_imu_alignment": record.alignment_result.frame_imu_alignment}
+    )
+    mapping_artifact, mapping_summary = build_frame_imu_alignment(
+        record.artifacts,
+        get_data_dir(),
+        snapshot,
+        alignment,
+    )
+    record.artifacts = [
+        item for item in record.artifacts if item.kind != "frame_imu_alignment"
+    ] + [mapping_artifact]
+    alignment = alignment.model_copy(update={"frame_imu_alignment": mapping_summary})
     with open_database() as connection:
         connection.execute(
             "UPDATE runs SET alignment_result = ? WHERE id = ?",
             (alignment.model_dump_json(), run_id),
+        )
+        connection.execute(
+            "UPDATE runs SET artifacts = ? WHERE id = ?",
+            (json.dumps([artifact.model_dump(mode="json") for artifact in record.artifacts]), run_id),
         )
     record.alignment_result = alignment
     return record

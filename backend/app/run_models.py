@@ -135,12 +135,13 @@ class StageEvent(BaseModel):
 
 
 class Artifact(BaseModel):
-    kind: Literal["video", "imu", "device_status", "device_log", "fault_truth"]
+    kind: Literal["video", "imu", "device_status", "device_log", "fault_truth", "frame_imu_alignment"]
     path: str
     source: Literal["actual_generated", "virtual_time_simulated"]
     size_bytes: int
     sha256: str
     codec: Literal["h264"] | None = None
+    start_raw_device_timestamp_ns: int | None = None
 
 
 class BasicCheck(BaseModel):
@@ -165,6 +166,7 @@ class TimeAlignmentResult(BaseModel):
     trend: dict[str, list[float]] = Field(default_factory=dict)
     anchor_details: list["AlignmentAnchor"] = Field(default_factory=list)
     content_sync: "ContentSyncResult"
+    frame_imu_alignment: "FrameImuAlignmentSummary | None" = None
     review_revision: int = 0
     truth_comparison: Literal["matched", "missed", "not_applicable"] = "not_applicable"
 
@@ -190,6 +192,18 @@ class ContentSyncResult(BaseModel):
     matched_event_count: int = Field(ge=0)
     matched_event_indices: list[int] = Field(default_factory=list)
     message: str
+
+
+class FrameImuAlignmentSummary(BaseModel):
+    """逐帧映射派生产物的可追溯摘要；详细行保存在独立 CSV 中。"""
+
+    artifact_path: str
+    frame_count: int = Field(ge=0)
+    matched_count: int = Field(ge=0)
+    unmatched_count: int = Field(ge=0)
+    imu_sample_rate_hz: int
+    tolerance_s: float = Field(ge=0)
+    columns: list[str]
 
 
 class EvaluationResult(BaseModel):
