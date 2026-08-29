@@ -33,7 +33,7 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         columns = {row[1] for row in connection.execute("PRAGMA table_info(runs)").fetchall()}
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
-    assert version == 10
+    assert version == 11
     assert "alignment_result" in columns
     with open_database() as connection:
         assert (

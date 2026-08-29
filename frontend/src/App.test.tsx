@@ -204,6 +204,95 @@ test("空白任务名称在前端被拒绝且不会调用保存 API", async () =
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
+test("页面提供明确导航、设置顶栏入口和根据导入生成入口", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([]))),
+  );
+  render(<App />);
+  expect(
+    await screen.findByRole("navigation", { name: "主导航" }),
+  ).toBeInTheDocument();
+  for (const label of [
+    "仪表盘",
+    "新建任务",
+    "根据导入生成",
+    "已保存任务",
+    "运行详情",
+  ]) {
+    expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+  }
+  expect(screen.getByRole("button", { name: "设置" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "根据导入生成" }));
+  expect(
+    screen.getByRole("heading", { name: "根据导入生成" }),
+  ).toBeInTheDocument();
+});
+
+test("已保存任务展示筛选、分页以及删除和归档边界", async () => {
+  const tasks = [
+    {
+      id: 3,
+      name: "有运行任务",
+      mode: "quick",
+      scenario: "normal",
+      source: "synthetic_generated",
+      execution_status: "has_runs",
+      archived: false,
+      run_count: 1,
+      created_at: "2026-08-22T12:00:00Z",
+    },
+    {
+      id: 2,
+      name: "未执行任务",
+      mode: "quick",
+      scenario: "normal",
+      source: "imported_actual_data",
+      execution_status: "never_executed",
+      archived: false,
+      run_count: 0,
+      created_at: "2026-08-22T12:00:00Z",
+    },
+  ];
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "ok", database: "ok" })),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([])))
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ items: tasks, page: 1, page_size: 10, total: 2 }),
+      ),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "刷新已保存任务" }),
+  );
+  expect(await screen.findByText("有运行任务")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      (content) =>
+        content.includes("来源：合成数据") && content.includes("已有运行"),
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "归档任务 有运行任务" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "删除任务 有运行任务" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "删除任务 未执行任务" }),
+  ).toBeInTheDocument();
+});
+
 test("设置页用会话内临时 Key 测试硅基流动且不持久化", async () => {
   const fetchMock = vi
     .fn()

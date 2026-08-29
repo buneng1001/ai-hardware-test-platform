@@ -32,9 +32,22 @@ def _event(stage: str) -> StageEvent:
 
 def _record_from_row(row: sqlite3.Row) -> RunRecord:
     alignment_raw = json.loads(row["alignment_result"])
+    with open_database() as connection:
+        task_name = connection.execute(
+            "SELECT name FROM collection_tasks WHERE id = ?", (row["collection_task_id"],)
+        ).fetchone()["name"]
+        queue_position = None
+        if row["status"] == "queued":
+            queue_position = connection.execute(
+                "SELECT COUNT(*) + 1 FROM runs WHERE status = 'queued' AND id < ?", (row["id"],)
+            ).fetchone()[0]
     return RunRecord(
         id=row["id"],
         collection_task_id=row["collection_task_id"],
+        task_name=task_name,
+        task_execution_number=row["task_execution_number"],
+        queue_position=queue_position,
+        stage_status=row["status"],
         status=row["status"],
         configuration_snapshot=json.loads(row["configuration_snapshot"]),
         events=json.loads(row["events"]),
@@ -106,25 +119,41 @@ def _create_run(collection_task_id: int, snapshot: RunConfigurationSnapshot) -> 
     created_at = _now()
     events = [_event("queued")]
     with open_database() as connection:
+        task_name = connection.execute(
+            "SELECT name FROM collection_tasks WHERE id = ?", (collection_task_id,)
+        ).fetchone()["name"]
+        task_execution_number = connection.execute(
+            "SELECT COUNT(*) + 1 FROM runs WHERE collection_task_id = ?", (collection_task_id,)
+        ).fetchone()[0]
         cursor = connection.execute(
             """
             INSERT INTO runs (
-                collection_task_id, status, configuration_snapshot, events, artifacts, checks, created_at
-            ) VALUES (?, 'queued', ?, ?, '[]', '[]', ?)
+                collection_task_id, status, configuration_snapshot, events, artifacts, checks,
+                created_at, task_execution_number
+            ) VALUES (?, 'queued', ?, ?, '[]', '[]', ?, ?)
             """,
             (
                 collection_task_id,
                 snapshot.model_dump_json(),
                 json.dumps([event.model_dump(mode="json") for event in events]),
                 created_at.isoformat(),
+                task_execution_number,
             ),
         )
         run_id = cursor.lastrowid
     if run_id is None:
         raise HTTPException(status_code=500, detail="运行记录创建失败")
+    with open_database() as connection:
+        queue_position = connection.execute(
+            "SELECT COUNT(*) FROM runs WHERE status = 'queued' AND id <= ?", (run_id,)
+        ).fetchone()[0]
     return RunRecord(
         id=run_id,
         collection_task_id=collection_task_id,
+        task_name=task_name,
+        task_execution_number=task_execution_number,
+        queue_position=queue_position,
+        stage_status="queued",
         status="queued",
         configuration_snapshot=snapshot,
         events=events,

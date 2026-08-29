@@ -119,6 +119,15 @@ export function RunDetail({
     <section className="run-detail" aria-labelledby="run-detail-title">
       <p className="eyebrow">运行详情</p>
       <h2 id="run-detail-title">运行 #{run.id}</h2>
+      <p>
+        任务：{run.task_name || `任务 #${run.collection_task_id}`} ·
+        任务内执行序号：
+        {run.task_execution_number ?? 1} · 内部运行 ID：{run.id}
+      </p>
+      <p>
+        队列位置：{run.queue_position ?? "当前执行器或已结束"} · 阶段状态：
+        {statusLabels[run.stage_status ?? run.status]}
+      </p>
       <p className="run-status">{statusLabels[run.status]}</p>
       <p>
         进度：{run.events.length}/5（{run.events.length * 20}%）

@@ -321,6 +321,10 @@ class DiagnosisRun(BaseModel):
 class RunRecord(BaseModel):
     id: int
     collection_task_id: int
+    task_name: str = ""
+    task_execution_number: int = Field(default=1, ge=1)
+    queue_position: int | None = Field(default=None, ge=1)
+    stage_status: RunStatus = "queued"
     status: RunStatus
     configuration_snapshot: RunConfigurationSnapshot
     events: list[StageEvent]

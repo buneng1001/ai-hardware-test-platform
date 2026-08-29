@@ -2,7 +2,7 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.database import open_database
@@ -99,13 +99,35 @@ class CollectionTask(BaseModel):
     reference_channel: ReferenceChannel
     evaluation: EvaluationConfiguration
     status: Literal["draft"]
+    source: Literal["synthetic_generated", "imported_actual_data"] = "synthetic_generated"
+    archived: bool = False
     created_at: datetime
 
 
 def task_from_row(row: sqlite3.Row) -> CollectionTask:
     values = dict(row)
     snapshot = RunConfigurationSnapshot.model_validate_json(values.pop("configuration"))
+    values["archived"] = bool(values.get("archived", 0))
     return CollectionTask.model_validate(values | snapshot.model_dump())
+
+
+class SavedTask(BaseModel):
+    """已保存任务的列表读模型，集中表达来源与生命周期状态。"""
+
+    id: int
+    name: str
+    source: Literal["synthetic_generated", "imported_actual_data"]
+    execution_status: Literal["never_executed", "has_runs"]
+    archived: bool
+    run_count: int
+    created_at: datetime
+
+
+class SavedTaskPage(BaseModel):
+    items: list[SavedTask]
+    page: int
+    page_size: int
+    total: int
 
 
 @router.post("", response_model=CollectionTask, status_code=status.HTTP_201_CREATED)
@@ -139,6 +161,92 @@ def list_collection_tasks() -> list[CollectionTask]:
         rows = connection.execute("SELECT * FROM collection_tasks ORDER BY id DESC").fetchall()
 
     return [task_from_row(row) for row in rows]
+
+
+def _saved_task_from_row(row: sqlite3.Row) -> SavedTask:
+    return SavedTask(
+        id=row["id"],
+        name=row["name"],
+        source=row["source"],
+        execution_status="has_runs" if row["run_count"] else "never_executed",
+        archived=bool(row["archived"]),
+        run_count=row["run_count"],
+        created_at=row["created_at"],
+    )
+
+
+@router.get("/saved", response_model=SavedTaskPage)
+def list_saved_tasks(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=10),
+    source: Literal["synthetic_generated", "imported_actual_data"] | None = None,
+    execution_status: Literal["never_executed", "has_runs"] | None = None,
+    archived: bool | None = None,
+) -> SavedTaskPage:
+    filters: list[str] = []
+    parameters: list[object] = []
+    if source is not None:
+        filters.append("t.source = ?")
+        parameters.append(source)
+    if archived is not None:
+        filters.append("t.archived = ?")
+        parameters.append(int(archived))
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
+    having = ""
+    if execution_status == "never_executed":
+        having = "HAVING COUNT(r.id) = 0"
+    elif execution_status == "has_runs":
+        having = "HAVING COUNT(r.id) > 0"
+    with open_database() as connection:
+        total = connection.execute(
+            f"SELECT COUNT(*) FROM (SELECT t.id FROM collection_tasks t LEFT JOIN runs r "
+            f"ON r.collection_task_id = t.id {where} GROUP BY t.id {having})",
+            parameters,
+        ).fetchone()[0]
+        rows = connection.execute(
+            f"SELECT t.id, t.name, t.source, t.archived, t.created_at, COUNT(r.id) AS run_count "
+            f"FROM collection_tasks t LEFT JOIN runs r ON r.collection_task_id = t.id {where} "
+            f"GROUP BY t.id {having} ORDER BY t.id DESC LIMIT ? OFFSET ?",
+            [*parameters, page_size, (page - 1) * page_size],
+        ).fetchall()
+    return SavedTaskPage(
+        items=[_saved_task_from_row(row) for row in rows],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_collection_task(task_id: int) -> None:
+    with open_database() as connection:
+        task = connection.execute("SELECT id FROM collection_tasks WHERE id = ?", (task_id,)).fetchone()
+        if task is None:
+            raise HTTPException(status_code=404, detail="采集任务不存在")
+        run_count = connection.execute("SELECT COUNT(*) FROM runs WHERE collection_task_id = ?", (task_id,)).fetchone()[
+            0
+        ]
+        if run_count:
+            raise HTTPException(status_code=409, detail="已有运行记录的任务只能归档，不能删除")
+        connection.execute("DELETE FROM collection_tasks WHERE id = ?", (task_id,))
+
+
+@router.post("/{task_id}/archive", response_model=SavedTask)
+def archive_collection_task(task_id: int) -> SavedTask:
+    with open_database() as connection:
+        task = connection.execute("SELECT id FROM collection_tasks WHERE id = ?", (task_id,)).fetchone()
+        if task is None:
+            raise HTTPException(status_code=404, detail="采集任务不存在")
+        connection.execute("UPDATE collection_tasks SET archived = 1 WHERE id = ?", (task_id,))
+        row = connection.execute(
+            "SELECT t.id, t.name, t.source, t.archived, t.created_at, COUNT(r.id) AS run_count "
+            "FROM collection_tasks t LEFT JOIN runs r ON r.collection_task_id = t.id "
+            "WHERE t.id = ? GROUP BY t.id",
+            (task_id,),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=500, detail="任务归档状态读取失败")
+    return _saved_task_from_row(row)
 
 
 @router.get("/{task_id}", response_model=CollectionTask)

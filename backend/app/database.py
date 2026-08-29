@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 10
+LATEST_SCHEMA_VERSION = 11
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -157,6 +157,31 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             ALTER TABLE diagnosis_runs ADD COLUMN evaluation TEXT;
             INSERT INTO schema_migrations (version) VALUES (10);
             PRAGMA user_version = 10;
+            """
+        )
+
+    if current_version < 11:
+        collection_tasks_exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'collection_tasks'"
+        ).fetchone()
+        if collection_tasks_exists:
+            connection.executescript(
+                """
+                ALTER TABLE collection_tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'synthetic_generated';
+                ALTER TABLE collection_tasks ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+                """
+            )
+        connection.executescript(
+            """
+            ALTER TABLE runs ADD COLUMN task_execution_number INTEGER NOT NULL DEFAULT 1;
+            UPDATE runs AS current_run
+            SET task_execution_number = (
+                SELECT COUNT(*) FROM runs AS previous_run
+                WHERE previous_run.collection_task_id = current_run.collection_task_id
+                  AND previous_run.id <= current_run.id
+            );
+            INSERT INTO schema_migrations (version) VALUES (11);
+            PRAGMA user_version = 11;
             """
         )
 

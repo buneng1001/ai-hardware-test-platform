@@ -15,6 +15,18 @@ body {
   background: radial-gradient(circle at top right, #183c4a, transparent 42%);
 }
 
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.topbar button[aria-current="page"] {
+  outline: 2px solid #e8edf2;
+  outline-offset: 2px;
+}
+
 .eyebrow {
   color: #60d6c4;
   letter-spacing: 0.12em;

@@ -11,6 +11,10 @@ import {
   executeCollectionTask,
   getRun,
   listCollectionTasks,
+  listSavedTasks,
+  deleteCollectionTask,
+  archiveCollectionTask,
+  type SavedTaskPage,
   rerun,
   reviewAlignment,
   getAiSettings,
@@ -26,6 +30,14 @@ type Health = {
 };
 
 type PageState = Health | "loading" | "unavailable";
+type PageKey =
+  | "all"
+  | "dashboard"
+  | "new-task"
+  | "import"
+  | "saved"
+  | "run-detail"
+  | "settings";
 
 export function App() {
   const [state, setState] = useState<PageState>("loading");
@@ -46,6 +58,15 @@ export function App() {
   const [backendSettings, setBackendSettings] = useState<AiSettings | null>(
     null,
   );
+  const [activePage, setActivePage] = useState<PageKey>("all");
+  const [savedTasks, setSavedTasks] = useState<SavedTaskPage | null>(null);
+  const [savedTaskError, setSavedTaskError] = useState<string | null>(null);
+  const [savedTaskPage, setSavedTaskPage] = useState(1);
+  const [savedTaskFilters, setSavedTaskFilters] = useState<{
+    source?: "synthetic_generated" | "imported_actual_data";
+    execution_status?: "never_executed" | "has_runs";
+    archived?: boolean;
+  }>({});
 
   useEffect(() => {
     const loadPage = async () => {
@@ -104,6 +125,7 @@ export function App() {
 
   const executeTask = async (taskId: number) => {
     setExecutingTaskId(taskId);
+    setActivePage("run-detail");
     setRunError(null);
     try {
       setSelectedRun(await executeCollectionTask(taskId));
@@ -166,6 +188,7 @@ export function App() {
   };
 
   const openDashboardRun = async (runId: number) => {
+    setActivePage("run-detail");
     try {
       setSelectedRun(await getRun(runId));
     } catch {
@@ -173,8 +196,74 @@ export function App() {
     }
   };
 
+  const refreshSavedTasks = async (
+    page = savedTaskPage,
+    filters = savedTaskFilters,
+  ) => {
+    setSavedTaskError(null);
+    try {
+      setSavedTasks(await listSavedTasks(page, filters));
+      setSavedTaskPage(page);
+    } catch {
+      console.error("已保存任务加载失败");
+      setSavedTaskError("已保存任务加载失败，请稍后重试");
+    }
+  };
+
+  const removeSavedTask = async (taskId: number) => {
+    try {
+      await deleteCollectionTask(taskId);
+      await refreshSavedTasks();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "任务删除失败";
+      setSavedTaskError(
+        message.includes("只能归档") ? message : "任务删除失败，请刷新后重试",
+      );
+    }
+  };
+
+  const archiveSavedTask = async (taskId: number) => {
+    try {
+      await archiveCollectionTask(taskId);
+      await refreshSavedTasks();
+    } catch {
+      setSavedTaskError("任务归档失败，请刷新后重试");
+    }
+  };
+
+  const navigate = (page: PageKey) => {
+    setActivePage(page);
+    if (page === "saved") void refreshSavedTasks();
+  };
+
+  const isPageVisible = (page: PageKey) =>
+    activePage === "all" || activePage === page;
+
   return (
     <main className="status-page">
+      <nav aria-label="主导航" className="topbar">
+        {(
+          [
+            ["dashboard", "仪表盘"],
+            ["new-task", "新建任务"],
+            ["import", "根据导入生成"],
+            ["saved", "已保存任务"],
+            ["run-detail", "运行详情"],
+          ] as const
+        ).map(([page, label]) => (
+          <button
+            key={page}
+            type="button"
+            aria-current={activePage === page ? "page" : undefined}
+            onClick={() => navigate(page)}
+          >
+            {label}
+          </button>
+        ))}
+        <button type="button" onClick={() => navigate("settings")}>
+          设置
+        </button>
+      </nav>
       <p className="eyebrow">本地运行基线</p>
       <h1>智能硬件测试执行与诊断平台</h1>
       {state === "loading" && <p role="status">正在检查服务状态…</p>}
@@ -186,9 +275,26 @@ export function App() {
         </section>
       )}
 
-      <DashboardPanel onOpenRun={(runId) => void openDashboardRun(runId)} />
+      <div hidden={!isPageVisible("dashboard")}>
+        <DashboardPanel onOpenRun={(runId) => void openDashboardRun(runId)} />
+      </div>
 
-      <section className="task-panel" aria-labelledby="ai-settings-title">
+      <section
+        hidden={!isPageVisible("import")}
+        className="task-panel"
+        aria-labelledby="import-task-title"
+      >
+        <p className="eyebrow">根据导入生成</p>
+        <h2 id="import-task-title">根据导入生成</h2>
+        <p>实际测试 ZIP 导入将在独立流程中校验后加入任务列表。</p>
+        <p role="status">导入能力尚未在本 ticket 开放。</p>
+      </section>
+
+      <section
+        hidden={!isPageVisible("settings")}
+        className="task-panel"
+        aria-labelledby="ai-settings-title"
+      >
         <p className="eyebrow">设置</p>
         <h2 id="ai-settings-title">AI 诊断连接</h2>
         <p>API Key 只保存在当前页面内存，后端不会返回、掩码或保存它。</p>
@@ -234,7 +340,11 @@ export function App() {
         {connectionMessage && <p role="status">{connectionMessage}</p>}
       </section>
 
-      <section className="task-panel" aria-labelledby="new-task-title">
+      <section
+        hidden={!isPageVisible("new-task")}
+        className="task-panel"
+        aria-labelledby="new-task-title"
+      >
         <div>
           <p className="eyebrow">新建任务</p>
           <h2 id="new-task-title">配置正常采集</h2>
@@ -250,7 +360,11 @@ export function App() {
         {formError && <p role="alert">{formError}</p>}
       </section>
 
-      <section className="task-list" aria-labelledby="task-list-title">
+      <section
+        hidden={!isPageVisible("saved")}
+        className="task-list"
+        aria-labelledby="task-list-title"
+      >
         <p className="eyebrow">已保存任务</p>
         <h2 id="task-list-title">采集任务</h2>
         {tasks === null && <p role="status">正在加载采集任务…</p>}
@@ -273,8 +387,143 @@ export function App() {
         ))}
       </section>
 
-      {runError && <p role="alert">{runError}</p>}
-      {selectedRun && (
+      <section
+        hidden={!isPageVisible("saved")}
+        className="task-list"
+        aria-labelledby="saved-task-title"
+      >
+        <p className="eyebrow">已保存任务</p>
+        <h2 id="saved-task-title">任务生命周期</h2>
+        <p>列表按来源、执行状态和归档状态提供筛选；每页最多 10 条。</p>
+        <div className="configuration-grid" aria-label="已保存任务筛选">
+          <label>
+            来源
+            <select
+              value={savedTaskFilters.source ?? ""}
+              onChange={(event) => {
+                const source = event.target
+                  .value as typeof savedTaskFilters.source;
+                const next = {
+                  ...savedTaskFilters,
+                  source: source || undefined,
+                };
+                setSavedTaskFilters(next);
+                void refreshSavedTasks(1, next);
+              }}
+            >
+              <option value="">全部来源</option>
+              <option value="synthetic_generated">合成数据</option>
+              <option value="imported_actual_data">导入实际数据</option>
+            </select>
+          </label>
+          <label>
+            执行状态
+            <select
+              value={savedTaskFilters.execution_status ?? ""}
+              onChange={(event) => {
+                const executionStatus = event.target
+                  .value as typeof savedTaskFilters.execution_status;
+                const next = {
+                  ...savedTaskFilters,
+                  execution_status: executionStatus || undefined,
+                };
+                setSavedTaskFilters(next);
+                void refreshSavedTasks(1, next);
+              }}
+            >
+              <option value="">全部执行状态</option>
+              <option value="never_executed">未执行</option>
+              <option value="has_runs">已有运行</option>
+            </select>
+          </label>
+          <label>
+            归档状态
+            <select
+              value={
+                savedTaskFilters.archived === undefined
+                  ? ""
+                  : String(savedTaskFilters.archived)
+              }
+              onChange={(event) => {
+                const archived =
+                  event.target.value === ""
+                    ? undefined
+                    : event.target.value === "true";
+                const next = { ...savedTaskFilters, archived };
+                setSavedTaskFilters(next);
+                void refreshSavedTasks(1, next);
+              }}
+            >
+              <option value="">全部归档状态</option>
+              <option value="false">未归档</option>
+              <option value="true">已归档</option>
+            </select>
+          </label>
+        </div>
+        <button type="button" onClick={() => void refreshSavedTasks()}>
+          刷新已保存任务
+        </button>
+        {savedTaskError && <p role="alert">{savedTaskError}</p>}
+        {savedTasks && (
+          <>
+            <p>
+              第 {savedTasks.page} 页 · 共 {savedTasks.total} 条
+            </p>
+            {savedTasks.items.map((task) => (
+              <article className="task-card" key={task.id}>
+                <h3>{task.name}</h3>
+                <p>
+                  来源：
+                  {task.source === "synthetic_generated"
+                    ? "合成数据"
+                    : "导入实际数据"}{" "}
+                  ·
+                  {task.execution_status === "has_runs" ? "已有运行" : "未执行"}{" "}
+                  ·{task.archived ? "已归档" : "未归档"}
+                </p>
+                {task.execution_status === "has_runs" ? (
+                  <button
+                    type="button"
+                    onClick={() => void archiveSavedTask(task.id)}
+                  >
+                    归档任务 {task.name}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void removeSavedTask(task.id)}
+                  >
+                    删除任务 {task.name}
+                  </button>
+                )}
+              </article>
+            ))}
+            <div className="pagination" aria-label="已保存任务分页">
+              <button
+                type="button"
+                disabled={savedTasks.page <= 1}
+                onClick={() => void refreshSavedTasks(savedTasks.page - 1)}
+              >
+                上一页
+              </button>
+              <button
+                type="button"
+                disabled={
+                  savedTasks.page * savedTasks.page_size >= savedTasks.total
+                }
+                onClick={() => void refreshSavedTasks(savedTasks.page + 1)}
+              >
+                下一页
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+
+      {isPageVisible("run-detail") && runError && (
+        <p role="alert">{runError}</p>
+      )}
+      {isPageVisible("run-detail") && selectedRun && (
         <RunDetail
           run={selectedRun}
           onCancel={() => void cancelSelectedRun()}

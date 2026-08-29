@@ -18,7 +18,26 @@ export type CollectionTask = {
   reference_channel: ReferenceChannel;
   evaluation: EvaluationConfiguration;
   status: "draft";
+  source?: "synthetic_generated" | "imported_actual_data";
+  archived?: boolean;
   created_at: string;
+};
+
+export type SavedTask = {
+  id: number;
+  name: string;
+  source: "synthetic_generated" | "imported_actual_data";
+  execution_status: "never_executed" | "has_runs";
+  archived: boolean;
+  run_count: number;
+  created_at: string;
+};
+
+export type SavedTaskPage = {
+  items: SavedTask[];
+  page: number;
+  page_size: number;
+  total: number;
 };
 
 export type DataMode = "quick" | "standard" | "custom";
@@ -78,6 +97,10 @@ export type RunStatus =
 export type RunRecord = {
   id: number;
   collection_task_id: number;
+  task_name?: string;
+  task_execution_number?: number;
+  queue_position?: number | null;
+  stage_status?: RunStatus;
   status: RunStatus;
   configuration_snapshot: {
     mode: DataMode;
@@ -197,6 +220,47 @@ export async function listCollectionTasks(): Promise<CollectionTask[]> {
     throw new Error("采集任务列表加载失败");
   }
   return (await response.json()) as CollectionTask[];
+}
+
+export async function listSavedTasks(
+  page = 1,
+  filters: {
+    source?: SavedTask["source"];
+    execution_status?: SavedTask["execution_status"];
+    archived?: boolean;
+  } = {},
+): Promise<SavedTaskPage> {
+  const params = new URLSearchParams({ page: String(page), page_size: "10" });
+  if (filters.source) params.set("source", filters.source);
+  if (filters.execution_status)
+    params.set("execution_status", filters.execution_status);
+  if (filters.archived !== undefined)
+    params.set("archived", String(filters.archived));
+  const response = await fetch(
+    `/api/collection-tasks/saved?${params.toString()}`,
+  );
+  if (!response.ok) throw new Error("已保存任务加载失败");
+  return (await response.json()) as SavedTaskPage;
+}
+
+export async function deleteCollectionTask(taskId: number): Promise<void> {
+  const response = await fetch(`/api/collection-tasks/${taskId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const body = (await response.json()) as { detail?: string };
+    throw new Error(body.detail ?? "任务删除失败");
+  }
+}
+
+export async function archiveCollectionTask(
+  taskId: number,
+): Promise<SavedTask> {
+  const response = await fetch(`/api/collection-tasks/${taskId}/archive`, {
+    method: "POST",
+  });
+  if (!response.ok) throw new Error("任务归档失败");
+  return (await response.json()) as SavedTask;
 }
 
 export async function createCollectionTask(
