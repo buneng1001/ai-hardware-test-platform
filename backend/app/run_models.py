@@ -82,6 +82,8 @@ class VideoConfiguration(BaseModel):
     fps: Literal[15, 24, 25, 30, 60]
     container: Literal["mp4", "mkv"]
     codec: Literal["h264"] = "h264"
+    bitrate_kbps: int = Field(default=2500, ge=256, le=50_000)
+    bitrate_mode: Literal["cbr", "vbr"] = "cbr"
 
 
 class ImuConfiguration(BaseModel):
@@ -124,6 +126,7 @@ class GenerationMetadata(BaseModel):
     reproducibility_fingerprint: str
     temperature_range_c: tuple[float, float]
     storage_range_mb: tuple[int, int]
+    time_contract: dict[str, object] = Field(default_factory=dict)
 
 
 class StageEvent(BaseModel):

@@ -53,6 +53,12 @@ def run_video_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunCon
     return [
         _result("video_channel_count", channel_count_passed, "视频路数符合配置", {"actual_channels": len(videos)}),
         _result("video_codec", codec_passed, "视频编码为 H.264", {"expected_codec": "h264"}),
+        _result(
+            "video_bitrate",
+            256 <= snapshot.video.bitrate_kbps <= 50_000,
+            "视频码率符合配置",
+            {"bitrate_kbps": snapshot.video.bitrate_kbps, "bitrate_mode": snapshot.video.bitrate_mode, "unit": "kbps"},
+        ),
         _result("video_frame_rate", fps_passed, "视频标称帧率符合配置", {"expected_fps": snapshot.video.fps}),
         _result(
             "video_duration",

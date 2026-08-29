@@ -57,6 +57,8 @@ export type VideoConfiguration = {
   fps: 15 | 24 | 25 | 30 | 60;
   container: "mp4" | "mkv";
   codec?: "h264";
+  bitrate_kbps?: number;
+  bitrate_mode?: "cbr" | "vbr";
 };
 export type ImuConfiguration = {
   format: "csv" | "jsonl";
@@ -128,6 +130,7 @@ export type RunRecord = {
     reproducibility_fingerprint: string;
     temperature_range_c: [number, number];
     storage_range_mb: [number, number];
+    time_contract?: Record<string, unknown>;
   } | null;
   evaluation_result: {
     mode: EvaluationMode;

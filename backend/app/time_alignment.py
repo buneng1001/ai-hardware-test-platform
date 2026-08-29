@@ -206,7 +206,13 @@ def _read_imu_timeline(artifacts: list[Artifact], data_dir: Path, imu_format: st
         else:
             rows = [json.loads(line) for line in file if line.strip()]
 
-    return [(float(row["timestamp_s"]), float(row["accel_x"])) for row in rows]
+    return [
+        (
+            float(row["relative_timestamp_s"] if "relative_timestamp_s" in row else row["timestamp_s"]),
+            float(row["accel_x"]),
+        )
+        for row in rows
+    ]
 
 
 def _anchor_time(channel: str, timeline: list[tuple[float, float]]) -> float:

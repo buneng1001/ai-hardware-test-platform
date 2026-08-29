@@ -49,6 +49,15 @@ test("测试工程师能从页面提交完整的自定义多通道配置", async
   fireEvent.change(screen.getByLabelText("数据模式"), {
     target: { value: "custom" },
   });
+  expect(screen.getByLabelText("视频码率（kbps）")).toHaveAttribute(
+    "min",
+    "256",
+  );
+  expect(screen.getByLabelText("视频码率（kbps）")).toHaveAttribute(
+    "max",
+    "50000",
+  );
+  expect(screen.getByLabelText("码率模式")).toHaveTextContent("cbrvbr");
   fireEvent.change(screen.getByLabelText("视频通道数"), {
     target: { value: "2" },
   });
@@ -84,6 +93,8 @@ test("测试工程师能从页面提交完整的自定义多通道配置", async
           resolution: "640x360",
           fps: 15,
           container: "mkv",
+          bitrate_kbps: 2500,
+          bitrate_mode: "cbr",
         },
         imu: { format: "jsonl", sample_rate_hz: 100 },
         random_seed: 42,

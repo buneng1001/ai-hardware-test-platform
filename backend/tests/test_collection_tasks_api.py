@@ -53,12 +53,14 @@ def test_quick_and_standard_modes_resolve_to_safe_repeatable_presets(client):
         json={"name": "标准预设", "mode": "standard", "scenario": "normal"},
     ).json()
 
-    assert (quick["duration_seconds"], quick["video"]["channels"], quick["imu"]["sample_rate_hz"]) == (2, 1, 50)
+    assert (quick["duration_seconds"], quick["video"]["channels"], quick["imu"]["sample_rate_hz"]) == (2, 1, 100)
     assert (standard["duration_seconds"], standard["video"]["channels"], standard["imu"]["sample_rate_hz"]) == (
         5,
         4,
         100,
     )
+    assert quick["video"]["bitrate_kbps"] == 2500
+    assert quick["video"]["bitrate_mode"] == "cbr"
 
 
 @pytest.mark.parametrize(
@@ -69,6 +71,8 @@ def test_quick_and_standard_modes_resolve_to_safe_repeatable_presets(client):
         ("video.resolution", ["640x360", "1280x720", "1920x1080"]),
         ("video.fps", [15, 24, 25, 30, 60]),
         ("video.container", ["mp4", "mkv"]),
+        ("video.bitrate_kbps", [256, 2500, 50000]),
+        ("video.bitrate_mode", ["cbr", "vbr"]),
         ("imu.format", ["csv", "jsonl"]),
         ("imu.sample_rate_hz", [50, 100, 200, 500]),
     ],
@@ -97,6 +101,9 @@ def test_custom_configuration_accepts_each_specified_boundary_and_enum(client, f
         ("video.resolution", "800x600"),
         ("video.fps", 29),
         ("video.container", "avi"),
+        ("video.bitrate_kbps", 255),
+        ("video.bitrate_kbps", 50001),
+        ("video.bitrate_mode", "abr"),
         ("imu.format", "json"),
         ("imu.sample_rate_hz", 400),
         ("random_seed", -1),

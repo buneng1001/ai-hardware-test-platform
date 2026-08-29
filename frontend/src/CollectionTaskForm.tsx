@@ -31,6 +31,8 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   const [fps, setFps] = useState<VideoConfiguration["fps"]>(15);
   const [container, setContainer] =
     useState<VideoConfiguration["container"]>("mp4");
+  const [bitrateKbps, setBitrateKbps] = useState(2500);
+  const [bitrateMode, setBitrateMode] = useState<"cbr" | "vbr">("cbr");
   const [imuFormat, setImuFormat] = useState<ImuConfiguration["format"]>("csv");
   const [sampleRate, setSampleRate] =
     useState<ImuConfiguration["sample_rate_hz"]>(50);
@@ -98,7 +100,14 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         return;
       }
       command.duration_seconds = duration;
-      command.video = { channels, resolution, fps, container };
+      command.video = {
+        channels,
+        resolution,
+        fps,
+        container,
+        bitrate_kbps: bitrateKbps,
+        bitrate_mode: bitrateMode,
+      };
       command.imu = { format: imuFormat, sample_rate_hz: sampleRate };
       command.random_seed = randomSeed;
     }
@@ -215,6 +224,21 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
               setResolution(value as VideoConfiguration["resolution"])
             }
           />
+          <NumberField
+            label="视频码率（kbps）"
+            id="bitrate-kbps"
+            min={256}
+            max={50000}
+            value={bitrateKbps}
+            onChange={setBitrateKbps}
+          />
+          <SelectField
+            label="码率模式"
+            id="bitrate-mode"
+            value={bitrateMode}
+            values={["cbr", "vbr"]}
+            onChange={(value) => setBitrateMode(value as "cbr" | "vbr")}
+          />
           <SelectField
             label="帧率"
             id="fps"
@@ -263,8 +287,8 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
       ) : (
         <p>
           {mode === "quick"
-            ? "2 秒 · 1 路 · 640×360 · 15 FPS"
-            : "5 秒 · 4 路 · 1280×720 · 30 FPS"}
+            ? "2 秒 · 1 路 · 640×360 · 15 FPS · IMU 100Hz · 2500kbps CBR"
+            : "5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 100Hz · 2500kbps CBR"}
         </p>
       )}
       <p>视频编码固定 H.264；故障场景使用配置中的固定随机种子。</p>

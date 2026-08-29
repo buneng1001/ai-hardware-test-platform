@@ -44,8 +44,16 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
         "mode": "quick",
         "scenario": "normal",
         "duration_seconds": 2,
-        "video": {"channels": 1, "resolution": "640x360", "fps": 15, "container": "mp4", "codec": "h264"},
-        "imu": {"format": "csv", "sample_rate_hz": 50},
+        "video": {
+            "channels": 1,
+            "resolution": "640x360",
+            "fps": 15,
+            "container": "mp4",
+            "codec": "h264",
+            "bitrate_kbps": 2500,
+            "bitrate_mode": "cbr",
+        },
+        "imu": {"format": "csv", "sample_rate_hz": 100},
         "random_seed": 20260822,
         "reference_channel": "camera_1",
         "evaluation": {
@@ -76,6 +84,7 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
         "video_duration",
         "video_frame_drop",
         "video_corruption",
+        "video_bitrate",
         "imu_sample_rate",
         "imu_missing_samples",
         "imu_duplicate_samples",
@@ -113,7 +122,7 @@ def test_engineer_can_generate_repeatable_custom_multichannel_artifacts(tmp_path
         second_run = wait_for_completion(client, second_queued["id"])
 
     expected_snapshot = {key: value for key, value in configuration.items() if key != "name"}
-    expected_snapshot["video"] = configuration["video"] | {"codec": "h264"}
+    expected_snapshot["video"] = configuration["video"] | {"codec": "h264", "bitrate_kbps": 2500, "bitrate_mode": "cbr"}
     expected_snapshot["reference_channel"] = "camera_1"
     expected_snapshot["evaluation"] = {
         "mode": "requirements_acceptance",
@@ -169,6 +178,7 @@ def test_long_run_uses_virtual_time_without_mislabeling_generated_media(tmp_path
         "reproducibility_fingerprint": run["generation_metadata"]["reproducibility_fingerprint"],
         "temperature_range_c": [40.0, 70.0],
         "storage_range_mb": [8192, 7592],
+        "time_contract": run["generation_metadata"]["time_contract"],
     }
     sources = {artifact["kind"]: artifact["source"] for artifact in run["artifacts"]}
     assert sources["video"] == "actual_generated"
@@ -243,6 +253,7 @@ def test_engineer_sees_expected_video_drop_result_for_each_scenario(
         "video_duration",
         "video_frame_drop",
         "video_corruption",
+        "video_bitrate",
     }
 
 
@@ -288,7 +299,7 @@ def test_engineer_runs_imu_anomaly_scenario_and_sees_truth_matched_results(tmp_p
         "imu_interval_distribution",
     }
     assert imu_checks["imu_sample_rate"]["status"] == "passed"
-    assert imu_checks["imu_sample_rate"]["metrics"]["actual_rate_hz"] == 50.0
+    assert imu_checks["imu_sample_rate"]["metrics"]["actual_rate_hz"] == 100.0
     for check_name in ("imu_missing_samples", "imu_duplicate_samples", "imu_timestamp_rollback"):
         assert imu_checks[check_name]["status"] == "failed"
         assert imu_checks[check_name]["metrics"]["count"] == 1
@@ -298,10 +309,10 @@ def test_engineer_runs_imu_anomaly_scenario_and_sees_truth_matched_results(tmp_p
     assert len(imu_checks["imu_interval_distribution"]["anomaly_windows"]) == 4
     assert imu_checks["imu_interval_distribution"]["truth_comparison"] == "matched"
     assert imu_checks["imu_interval_distribution"]["metrics"] == {
-        "expected_interval_ms": 20.0,
-        "minimum_interval_ms": -20.0,
-        "maximum_interval_ms": 60.0,
-        "mean_interval_ms": 20.0,
-        "p95_interval_ms": 20.0,
+        "expected_interval_ms": 10.0,
+        "minimum_interval_ms": -10.0,
+        "maximum_interval_ms": 30.0,
+        "mean_interval_ms": 10.0,
+        "p95_interval_ms": 10.0,
         "outlier_count": 4,
     }

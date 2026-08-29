@@ -22,7 +22,7 @@ PRESET_CONFIGURATIONS = {
     "quick": {
         "duration_seconds": 2,
         "video": {"channels": 1, "resolution": "640x360", "fps": 15, "container": "mp4"},
-        "imu": {"format": "csv", "sample_rate_hz": 50},
+        "imu": {"format": "csv", "sample_rate_hz": 100},
         "random_seed": 20260822,
     },
     "standard": {

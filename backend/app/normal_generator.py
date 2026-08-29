@@ -16,6 +16,8 @@ from app.run_models import (
 )
 from app.video_generation import channel_delay_s, linear_drift_rate, video_filter
 
+RAW_DEVICE_START_NS = 1_700_000_000_000_000_000
+
 
 def generate_normal_artifacts(
     run_dir: Path, snapshot: RunConfigurationSnapshot
@@ -57,6 +59,28 @@ def generate_normal_artifacts(
         reproducibility_fingerprint=hashlib.sha256(fingerprint_input.encode()).hexdigest(),
         temperature_range_c=temperature_range,
         storage_range_mb=(8192, max(0, 8192 - snapshot.duration_seconds * 2)),
+        time_contract={
+            "imu": {
+                "raw_timestamp_field": "raw_device_timestamp_ns",
+                "relative_timestamp_field": "relative_timestamp_s",
+                "raw_timestamp_unit": "nanoseconds",
+                "relative_timestamp_unit": "seconds",
+                "coordinate_system": "right_handed_body_frame",
+                "field_order": ["accel_x", "accel_y", "accel_z", "gyro_x", "gyro_y", "gyro_z"],
+                "acceleration_unit": "m/s^2",
+                "angular_velocity_unit": "rad/s",
+                "decimal_places": 6,
+            },
+            "videos": {
+                f"camera_{channel}": {
+                    "time_source": "container_pts",
+                    "start_raw_device_timestamp_ns": RAW_DEVICE_START_NS,
+                    "relative_time_unit": "seconds",
+                    "frame_number_origin": 0,
+                }
+                for channel in range(1, snapshot.video.channels + 1)
+            },
+        },
     )
     return artifacts, metadata
 
@@ -90,7 +114,11 @@ def _generate_video(
         "-1",
         "-pix_fmt",
         "yuv420p",
+        "-b:v",
+        f"{snapshot.video.bitrate_kbps}k",
     ]
+    if snapshot.video.bitrate_mode == "cbr":
+        command.extend(["-minrate", f"{snapshot.video.bitrate_kbps}k", "-maxrate", f"{snapshot.video.bitrate_kbps}k"])
     if snapshot.video.container == "mp4":
         command.extend(["-movflags", "+faststart"])
     if snapshot.scenario in {"video_drop", "temperature_combination"} and channel == next(
@@ -136,10 +164,14 @@ def _generate_imu(
         rows.append(
             {
                 "sample_index": index,
-                "timestamp_s": f"{timestamp:.6f}",
+                "raw_device_timestamp_ns": str(RAW_DEVICE_START_NS + round(timestamp * 1_000_000_000)),
+                "relative_timestamp_s": f"{timestamp:.6f}",
                 "accel_x": f"{accel_x:.6f}",
                 "accel_y": "0.000000",
                 "accel_z": "9.806650",
+                "gyro_x": f"{generator.uniform(-0.01, 0.01):.6f}",
+                "gyro_y": f"{generator.uniform(-0.01, 0.01):.6f}",
+                "gyro_z": f"{generator.uniform(-0.01, 0.01):.6f}",
             }
         )
 
@@ -153,7 +185,9 @@ def _generate_imu(
             rows.insert(duplicate_position + 1, rows[duplicate_position].copy())
             rollback_index = faults["imu_timestamp_rollback"]["sample_index"]
             rollback_row = next(row for row in rows if row["sample_index"] == rollback_index)
-            rollback_row["timestamp_s"] = f"{(rollback_index - 2) / snapshot.imu.sample_rate_hz:.6f}"
+            rollback_time = (rollback_index - 2) / snapshot.imu.sample_rate_hz
+            rollback_row["relative_timestamp_s"] = f"{rollback_time:.6f}"
+            rollback_row["raw_device_timestamp_ns"] = str(RAW_DEVICE_START_NS + round(rollback_time * 1_000_000_000))
 
     with path.open("w", encoding="utf-8", newline="") as file:
         if snapshot.imu.format == "csv":

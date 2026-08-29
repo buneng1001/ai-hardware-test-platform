@@ -52,7 +52,14 @@ def _temperature_rise_check(
 def _window_correlation_check(
     rows: list[dict[str, str]], window: tuple[float, float] | None, fault: dict | None
 ) -> BasicCheck:
-    in_window = [row for row in rows if window and window[0] <= float(row["timestamp_s"]) <= window[1]]
+    in_window = [
+        row
+        for row in rows
+        if window
+        and window[0]
+        <= float(row["relative_timestamp_s"] if "relative_timestamp_s" in row else row["timestamp_s"])
+        <= window[1]
+    ]
     rising = len(in_window) >= 2 and float(in_window[-1]["temperature_c"]) > float(in_window[0]["temperature_c"])
     expected = bool(fault)
     return BasicCheck(
@@ -95,5 +102,18 @@ def _temperature_window(rows: list[dict[str, str]]) -> tuple[float, float] | Non
     candidates = []
     for previous, current in zip(rows, rows[1:], strict=False):
         if float(current["temperature_c"]) - float(previous["temperature_c"]) >= 10.0:
-            candidates.append((float(previous["timestamp_s"]), float(current["timestamp_s"])))
+            candidates.append(
+                (
+                    float(
+                        previous["relative_timestamp_s"]
+                        if "relative_timestamp_s" in previous
+                        else previous["timestamp_s"]
+                    ),
+                    float(
+                        current["relative_timestamp_s"]
+                        if "relative_timestamp_s" in current
+                        else current["timestamp_s"]
+                    ),
+                )
+            )
     return candidates[-1] if candidates else None
