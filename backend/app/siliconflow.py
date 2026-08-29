@@ -1,4 +1,4 @@
-"""硅基流动的独立适配层：只返回结构化 JSON，不把服务商细节带入诊断业务。"""
+"""多服务商 OpenAI 兼容适配层：只返回结构化 JSON，不把密钥带入业务数据。"""
 
 import json
 import socket
@@ -31,9 +31,16 @@ class SiliconFlowError(RuntimeError):
 Transport = Callable[[dict[str, object]], tuple[int, str]]
 
 
+PROVIDER_ENDPOINTS = {
+    "siliconflow": "https://api.siliconflow.cn/v1/chat/completions",
+    "deepseek": "https://api.deepseek.com/chat/completions",
+    "kimi": "https://api.moonshot.cn/v1/chat/completions",
+}
+
+
 def _default_transport(request_data: dict[str, object]) -> tuple[int, str]:
     request = Request(
-        "https://api.siliconflow.cn/v1/chat/completions",
+        str(request_data["endpoint"]),
         data=json.dumps(request_data["body"]).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {request_data['api_key']}",
@@ -67,27 +74,40 @@ def _classify_status(status: int) -> tuple[ModelErrorKind, bool]:
     return ModelErrorKind.INVALID_REQUEST, False
 
 
-def _extract_json(content: str) -> dict[str, object]:
-    cleaned = content.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.removeprefix("```").removeprefix("json").removesuffix("```").strip()
-    try:
-        value = json.loads(cleaned)
-    except json.JSONDecodeError as error:
-        raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型未返回合法 JSON", False) from error
+def _extract_json(content: str | dict[str, object]) -> dict[str, object]:
+    if isinstance(content, dict):
+        value = content
+    else:
+        cleaned = content.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.removeprefix("```").removeprefix("json").removesuffix("```").strip()
+        try:
+            value = json.loads(cleaned)
+        except json.JSONDecodeError as error:
+            raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型未返回合法 JSON", False) from error
     if not isinstance(value, dict):
         raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型 JSON 顶层必须是对象", False)
+    for wrapper in ("diagnosis", "result", "data"):
+        wrapped = value.get(wrapper)
+        if isinstance(wrapped, dict) and "diagnosis_status" in wrapped:
+            return wrapped
+    if "diagnosis_status" not in value:
+        raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型 JSON 缺少诊断结构", False)
     return value
 
 
-class SiliconFlowAdapter:
+class ProviderAdapter:
     """调用 OpenAI 兼容接口，并对可恢复错误执行有界重试。"""
 
     def __init__(
         self,
+        provider: str,
+        endpoint: str | None = None,
         transport: Transport = _default_transport,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
+        self.provider = provider
+        self._endpoint = endpoint or PROVIDER_ENDPOINTS[provider]
         self._transport = transport
         self._sleep = sleep
 
@@ -100,9 +120,10 @@ class SiliconFlowAdapter:
         prompt_version: str = "diagnosis-v1",
     ) -> dict[str, object]:
         if not api_key:
-            raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, "未配置硅基流动 API Key", False)
+            raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, f"未配置 {self.provider} API Key", False)
         request_data = {
             "api_key": api_key,
+            "endpoint": self._endpoint,
             "body": {
                 "model": model,
                 "temperature": 0,
@@ -124,8 +145,8 @@ class SiliconFlowAdapter:
                     raise SiliconFlowError(kind, f"模型服务返回 HTTP {response_status}", retryable)
                 payload = json.loads(response_text)
                 content = payload["choices"][0]["message"]["content"]
-                if not isinstance(content, str):
-                    raise TypeError("content 不是字符串")
+                if not isinstance(content, str | dict):
+                    raise TypeError("content 不是允许的结构化内容")
                 return _extract_json(content)
             except SiliconFlowError as error:
                 if not error.retryable or attempt == 2:
@@ -134,3 +155,35 @@ class SiliconFlowAdapter:
             except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
                 raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型响应结构无效", False) from error
         raise AssertionError("模型重试循环未返回")
+
+
+class SiliconFlowAdapter(ProviderAdapter):
+    """保留 RC1 公共类名，兼容已有调用方和测试 seam。"""
+
+    def __init__(
+        self,
+        transport: Transport = _default_transport,
+        sleep: Callable[[float], None] = time.sleep,
+        endpoint: str | None = None,
+    ) -> None:
+        super().__init__("siliconflow", endpoint=endpoint, transport=transport, sleep=sleep)
+
+
+class DeepSeekAdapter(ProviderAdapter):
+    def __init__(
+        self,
+        transport: Transport = _default_transport,
+        sleep: Callable[[float], None] = time.sleep,
+        endpoint: str | None = None,
+    ) -> None:
+        super().__init__("deepseek", endpoint=endpoint, transport=transport, sleep=sleep)
+
+
+class KimiAdapter(ProviderAdapter):
+    def __init__(
+        self,
+        transport: Transport = _default_transport,
+        sleep: Callable[[float], None] = time.sleep,
+        endpoint: str | None = None,
+    ) -> None:
+        super().__init__("kimi", endpoint=endpoint, transport=transport, sleep=sleep)

@@ -185,6 +185,15 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             """
         )
 
+    if current_version < 12:
+        connection.executescript(
+            """
+            ALTER TABLE diagnosis_runs ADD COLUMN provider TEXT NOT NULL DEFAULT 'siliconflow';
+            INSERT INTO schema_migrations (version) VALUES (12);
+            PRAGMA user_version = 12;
+            """
+        )
+
 
 def get_data_dir() -> Path:
     return Path(os.getenv("APP_DATA_DIR", "data"))

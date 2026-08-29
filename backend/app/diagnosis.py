@@ -1,6 +1,7 @@
 """结构化诊断业务：Mock 与硅基流动均只消费限量证据，不进入测试关键路径。"""
 
 import json
+import os
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
@@ -17,7 +18,8 @@ from app.run_models import (
     StructuredDiagnosis,
 )
 from app.runs import _get_run
-from app.settings import configured_api_key, current_settings
+from app.settings import configured_api_key, current_settings, validate_model
+from app.settings import get_provider_adapter as configured_provider_adapter
 from app.siliconflow import SiliconFlowAdapter, SiliconFlowError
 
 router = APIRouter(prefix="/api/runs/{run_id}/diagnoses", tags=["diagnoses"])
@@ -26,8 +28,26 @@ MAX_EVIDENCE_BYTES = 32 * 1024
 MAX_EVIDENCE_TOKENS = 4_000
 
 
+def get_provider_adapter(provider: str):
+    """保留诊断模块的适配器注入 seam，同时兼容 RC1 的硅基流动测试。"""
+    if provider == "siliconflow":
+        endpoint = os.getenv("SILICONFLOW_ENDPOINT") or None
+        return SiliconFlowAdapter(endpoint=endpoint) if endpoint else SiliconFlowAdapter()
+    return configured_provider_adapter(provider)
+
+
+def _unwrap_structured_output(raw_output: dict[str, object]) -> dict[str, object]:
+    """接受有限的 diagnosis/result/data 包装，避免把任意响应当作诊断。"""
+    for wrapper in ("diagnosis", "result", "data"):
+        wrapped = raw_output.get(wrapper)
+        if isinstance(wrapped, dict) and "diagnosis_status" in wrapped:
+            return wrapped
+    return raw_output
+
+
 class DiagnosisRequest(BaseModel):
     mode: str = "mock"
+    provider: str | None = None
     model: str | None = Field(default=None, min_length=1, max_length=200)
     api_key: str = ""
 
@@ -169,6 +189,7 @@ def _diagnosis_from_row(row) -> DiagnosisRun:
         model=row["model"],
         prompt_version=row["prompt_version"],
         is_mock=bool(row["is_mock"]),
+        provider=row["provider"] if "provider" in row.keys() else "siliconflow",
         evidence_package=json.loads(row["evidence_package"]),
         output=json.loads(row["output"]) if row["output"] else None,
         evaluation=json.loads(row["evaluation"]) if row["evaluation"] else None,
@@ -193,14 +214,16 @@ def _save_diagnosis(
     run_id: int,
     package: DiagnosisEvidencePackage,
     *,
+    provider: str,
     model: str,
     prompt_version: str,
     is_mock: bool,
     output: StructuredDiagnosis | None,
     error: str | None,
+    status_override: str | None = None,
 ) -> DiagnosisRun:
     created_at = datetime.now(UTC)
-    diagnosis_status = "completed" if output else "failed"
+    diagnosis_status = status_override or ("completed" if output else "failed")
     run = _get_run(run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
@@ -225,8 +248,8 @@ def _save_diagnosis(
         cursor = connection.execute(
             """INSERT INTO diagnosis_runs
             (run_id, status, model, prompt_version, is_mock, evidence_package, output,
-             evaluation, created_at, completed_at, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             evaluation, created_at, completed_at, error, provider)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 run_id,
                 diagnosis_status,
@@ -239,6 +262,7 @@ def _save_diagnosis(
                 created_at.isoformat(),
                 created_at.isoformat(),
                 error,
+                provider,
             ),
         )
         if cursor.lastrowid is None:
@@ -264,24 +288,31 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
             run_id,
             package,
             model="mock-diagnosis-v1",
+            provider="mock",
             prompt_version="mock-v1",
             is_mock=True,
             output=output,
             error=None,
         )
-    if request.mode != "siliconflow":
+    provider = request.provider or request.mode
+    if provider not in {"siliconflow", "deepseek", "kimi"}:
         raise HTTPException(status_code=422, detail="不支持的诊断模式")
 
     settings = current_settings()
-    model = request.model or settings.model
-    api_key = request.api_key or configured_api_key()
+    model = request.model or (settings.model if provider == settings.provider else "")
+    if not model:
+        raise HTTPException(status_code=422, detail=f"未选择 {provider} 模型")
+    validate_model(provider, model)
+    api_key = request.api_key or configured_api_key(provider)
     try:
-        raw_output = SiliconFlowAdapter().generate(
+        raw_output = get_provider_adapter(provider).generate(
             api_key=api_key,
             model=model,
             evidence_json=package.model_dump_json(),
         )
-        output = validate_evidence_refs(StructuredDiagnosis.model_validate(raw_output), package)
+        output = validate_evidence_refs(
+            StructuredDiagnosis.model_validate(_unwrap_structured_output(raw_output)), package
+        )
     except (SiliconFlowError, ValidationError, HTTPException) as error:
         message = error.detail if isinstance(error, HTTPException) else str(error)
         if isinstance(error, SiliconFlowError):
@@ -290,15 +321,18 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
             run_id,
             package,
             model=model,
+            provider=provider,
             prompt_version="diagnosis-v1",
             is_mock=False,
             output=None,
             error=message,
+            status_override="retryable" if isinstance(error, SiliconFlowError) and error.retryable else None,
         )
     return _save_diagnosis(
         run_id,
         package,
         model=model,
+        provider=provider,
         prompt_version="diagnosis-v1",
         is_mock=False,
         output=output,

@@ -5,6 +5,7 @@ import {
   type CollectionTaskCommand,
   type AiSettings,
   type DiagnosisMode,
+  type DiagnosisProvider,
   type RunRecord,
   cancelRun,
   createCollectionTask,
@@ -48,6 +49,8 @@ export function App() {
   const [selectedRun, setSelectedRun] = useState<RunRecord | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [diagnosisMode, setDiagnosisMode] = useState<DiagnosisMode>("mock");
+  const [diagnosisProvider, setDiagnosisProvider] =
+    useState<DiagnosisProvider>("siliconflow");
   const [diagnosisModel, setDiagnosisModel] = useState(
     "Qwen/Qwen2.5-72B-Instruct",
   );
@@ -55,6 +58,7 @@ export function App() {
   const [connectionMessage, setConnectionMessage] = useState<string | null>(
     null,
   );
+  const [testingConnection, setTestingConnection] = useState(false);
   const [backendSettings, setBackendSettings] = useState<AiSettings | null>(
     null,
   );
@@ -169,13 +173,24 @@ export function App() {
 
   const checkAiConnection = async () => {
     setConnectionMessage(null);
+    setTestingConnection(true);
     try {
-      const result = await testAiConnection(diagnosisModel, temporaryApiKey);
+      const result = await testAiConnection(
+        diagnosisModel,
+        temporaryApiKey,
+        diagnosisProvider,
+      );
       setConnectionMessage(
-        result.ok ? result.message : `连接失败：${result.message}`,
+        result.ok
+          ? result.provider === "siliconflow"
+            ? result.message
+            : `${result.provider}/${result.model}：${result.message}`
+          : `连接失败：${result.message}`,
       );
     } catch {
       setConnectionMessage("连接测试请求失败，请检查后端状态");
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -301,21 +316,39 @@ export function App() {
         <label>
           诊断模式
           <select
-            value={diagnosisMode}
-            onChange={(event) =>
-              setDiagnosisMode(event.target.value as DiagnosisMode)
-            }
+            aria-label="诊断服务商"
+            value={diagnosisMode === "mock" ? "mock" : diagnosisProvider}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === "mock") setDiagnosisMode("mock");
+              else {
+                setDiagnosisProvider(value as DiagnosisProvider);
+                setDiagnosisMode(value as DiagnosisMode);
+              }
+            }}
           >
             <option value="mock">Mock（离线）</option>
             <option value="siliconflow">硅基流动</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="kimi">Kimi</option>
           </select>
         </label>
         <label>
           模型
           <input
+            list="available-models"
             value={diagnosisModel}
             onChange={(event) => setDiagnosisModel(event.target.value)}
           />
+          <datalist id="available-models">
+            {(
+              backendSettings?.providers.find(
+                (item) => item.provider === diagnosisProvider,
+              )?.models ?? []
+            ).map((model) => (
+              <option key={model} value={model} />
+            ))}
+          </datalist>
         </label>
         <label>
           临时 API Key
@@ -325,8 +358,16 @@ export function App() {
             onChange={(event) => setTemporaryApiKey(event.target.value)}
           />
         </label>
-        <button type="button" onClick={() => void checkAiConnection()}>
-          测试硅基流动连接
+        <button
+          type="button"
+          disabled={testingConnection}
+          onClick={() => void checkAiConnection()}
+        >
+          {testingConnection
+            ? "正在测试连接…"
+            : diagnosisMode === "mock" || diagnosisProvider === "siliconflow"
+              ? "测试硅基流动连接"
+              : `测试 ${diagnosisProvider} 连接`}
         </button>
         <button type="button" onClick={() => void loadBackendSettings()}>
           读取后端配置状态
@@ -530,6 +571,7 @@ export function App() {
           onRerun={() => void rerunSelectedRun()}
           onReviewAlignment={(anchors) => void reviewSelectedAlignment(anchors)}
           diagnosisMode={diagnosisMode}
+          diagnosisProvider={diagnosisProvider}
           diagnosisModel={diagnosisModel}
           temporaryApiKey={temporaryApiKey}
         />

@@ -187,18 +187,25 @@ export type RunRecord = {
 
 export type { DiagnosisRun } from "./diagnosisApi";
 export type { DiagnosisMode } from "./diagnosisApi";
+export type { DiagnosisProvider } from "./diagnosisApi";
 export { createDiagnosis, listDiagnoses } from "./diagnosisApi";
 export type AiSettings = {
-  provider: "siliconflow";
+  provider: "siliconflow" | "deepseek" | "kimi";
   model: string;
   mode: DiagnosisMode;
   api_key_configured: boolean;
+  providers: Array<{
+    provider: "siliconflow" | "deepseek" | "kimi";
+    models: string[];
+    api_key_configured: boolean;
+  }>;
 };
 export type ConnectionTestResult = {
   ok: boolean;
-  provider: "siliconflow";
+  provider: "siliconflow" | "deepseek" | "kimi";
   model: string;
   error_kind: string | null;
+  retryable: boolean;
   message: string;
 };
 
@@ -317,11 +324,16 @@ export async function getAiSettings(): Promise<AiSettings> {
 export async function testAiConnection(
   model: string,
   apiKey: string,
+  provider: "siliconflow" | "deepseek" | "kimi" = "siliconflow",
 ): Promise<ConnectionTestResult> {
   const response = await fetch("/api/settings/ai/test", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, api_key: apiKey }),
+    body: JSON.stringify({
+      model,
+      api_key: apiKey,
+      ...(provider !== "siliconflow" && { provider }),
+    }),
   });
   if (!response.ok) throw new Error("AI 连接测试失败");
   return (await response.json()) as ConnectionTestResult;

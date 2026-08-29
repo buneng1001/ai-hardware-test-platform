@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   AlignmentReviewItem,
   DiagnosisMode,
+  DiagnosisProvider,
   DiagnosisRun,
   RunRecord,
   RunStatus,
@@ -49,6 +50,7 @@ type RunDetailProps = {
   onRerun: () => void;
   onReviewAlignment: (anchors: AlignmentReviewItem[]) => void;
   diagnosisMode: DiagnosisMode;
+  diagnosisProvider: DiagnosisProvider;
   diagnosisModel: string;
   temporaryApiKey: string;
 };
@@ -59,6 +61,7 @@ export function RunDetail({
   onRerun,
   onReviewAlignment,
   diagnosisMode,
+  diagnosisProvider,
   diagnosisModel,
   temporaryApiKey,
 }: RunDetailProps) {
@@ -67,6 +70,8 @@ export function RunDetail({
   >({});
   const [diagnosis, setDiagnosis] = useState<DiagnosisRun | null>(null);
   const [diagnosisError, setDiagnosisError] = useState<string | null>(null);
+  const [diagnosisSubmitting, setDiagnosisSubmitting] = useState(false);
+  const previousRunId = useRef<number | null>(null);
 
   useEffect(() => {
     const details = run.alignment_result?.anchor_details ?? [];
@@ -86,6 +91,7 @@ export function RunDetail({
 
   const generateDiagnosis = async () => {
     setDiagnosisError(null);
+    setDiagnosisSubmitting(true);
     try {
       setDiagnosis(
         await createDiagnosis(
@@ -93,11 +99,14 @@ export function RunDetail({
           diagnosisMode,
           diagnosisModel,
           temporaryApiKey,
+          diagnosisMode === "mock" ? undefined : diagnosisProvider,
         ),
       );
     } catch {
       console.error("结构化诊断生成失败");
       setDiagnosisError("结构化诊断生成失败，请查看诊断运行状态");
+    } finally {
+      setDiagnosisSubmitting(false);
     }
   };
 
@@ -110,6 +119,18 @@ export function RunDetail({
       setDiagnosisError("诊断状态加载失败，请稍后重试");
     }
   };
+
+  useEffect(() => {
+    if (previousRunId.current === null) {
+      previousRunId.current = run.id;
+      return;
+    }
+    if (previousRunId.current === run.id) return;
+    previousRunId.current = run.id;
+    setDiagnosis(null);
+    setDiagnosisError(null);
+    void loadDiagnosisHistory();
+  }, [run.id]);
 
   const submitAnchorReview = () => {
     onReviewAlignment(Object.values(anchorDrafts));
@@ -194,18 +215,24 @@ export function RunDetail({
         {run.status === "completed" && (
           <section aria-labelledby="diagnosis-title">
             <h4 id="diagnosis-title">
-              {diagnosisMode === "mock" ? "Mock" : "硅基流动"} 结构化诊断
+              {diagnosisMode === "mock" ? "Mock" : diagnosisProvider} 结构化诊断
             </h4>
-            <button type="button" onClick={() => void generateDiagnosis()}>
+            <button
+              type="button"
+              disabled={diagnosisSubmitting}
+              onClick={() => void generateDiagnosis()}
+            >
               生成 {diagnosisMode === "mock" ? "Mock" : "真实模型"} 诊断
             </button>
             <button type="button" onClick={() => void loadDiagnosisHistory()}>
               刷新诊断状态
             </button>
             {diagnosisError && <p role="alert">{diagnosisError}</p>}
-            {diagnosis?.status === "failed" && (
+            {(diagnosis?.status === "failed" ||
+              diagnosis?.status === "retryable") && (
               <p role="alert">
-                诊断失败：{diagnosis.error ?? "模型服务不可用"}
+                {diagnosis.status === "retryable" ? "诊断可重试" : "诊断失败"}：
+                {diagnosis.error ?? "模型服务不可用"}
               </p>
             )}
             {diagnosis?.output && (

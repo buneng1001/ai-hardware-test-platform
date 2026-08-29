@@ -112,6 +112,89 @@ def test_settings_api_exposes_configuration_state_without_key_or_mask(tmp_path, 
     assert "***" not in response.text
 
 
+def test_settings_api_exposes_isolated_provider_catalogs_without_keys(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    monkeypatch.setenv("KIMI_API_KEY", "kimi-secret")
+
+    with TestClient(app) as client:
+        response = client.get("/api/settings/ai")
+
+    assert response.status_code == 200
+    body = response.json()
+    providers = {item["provider"]: item for item in body["providers"]}
+    assert set(providers) == {"siliconflow", "deepseek", "kimi"}
+    assert providers["deepseek"]["api_key_configured"] is True
+    assert providers["kimi"]["api_key_configured"] is True
+    assert providers["siliconflow"]["api_key_configured"] is False
+    assert "deepseek-secret" not in response.text
+    assert "kimi-secret" not in response.text
+
+
+def test_connection_test_reports_provider_and_rejects_unknown_model(monkeypatch):
+    calls = []
+
+    class FakeAdapter:
+        def __init__(self, provider):
+            self.provider = provider
+
+        def generate(self, *, api_key, model, evidence_json):
+            calls.append((self.provider, api_key, model, evidence_json))
+            return {"ok": True}
+
+    monkeypatch.setattr("app.settings.get_provider_adapter", FakeAdapter)
+    with TestClient(app) as client:
+        success = client.post(
+            "/api/settings/ai/test",
+            json={"provider": "deepseek", "model": "deepseek-chat", "api_key": "session-secret"},
+        )
+        invalid = client.post(
+            "/api/settings/ai/test",
+            json={"provider": "deepseek", "model": "not-a-supported-model", "api_key": "session-secret"},
+        )
+
+    assert success.status_code == 200
+    assert success.json()["provider"] == "deepseek"
+    assert success.json()["model"] == "deepseek-chat"
+    assert calls == [("deepseek", "session-secret", "deepseek-chat", "{}")]
+    assert invalid.status_code == 422
+    assert "模型" in invalid.json()["detail"]
+
+
+def test_diagnosis_accepts_allowed_structured_wrapper_and_saves_provider(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    class FakeAdapter:
+        def generate(self, **_kwargs):
+            return {
+                "diagnosis": {
+                    "diagnosis_status": "completed",
+                    "phenomena": [],
+                    "possible_causes": [],
+                    "impact_scope": ["当前窗口"],
+                    "retest_recommendations": [],
+                    "missing_evidence": [],
+                    "uncertainties": [],
+                    "limitations": [],
+                }
+            }
+
+    monkeypatch.setattr(diagnosis_module, "get_provider_adapter", lambda _provider: FakeAdapter())
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks", json={"name": "包装诊断", "mode": "quick", "scenario": "normal"}
+        ).json()
+        run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+        response = client.post(
+            f"/api/runs/{run['id']}/diagnoses",
+            json={"provider": "kimi", "mode": "kimi", "model": "moonshot-v1-8k", "api_key": "session-secret"},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["provider"] == "kimi"
+    assert response.json()["output"]["diagnosis_status"] == "completed"
+
+
 def test_connection_test_accepts_temporary_key_and_never_returns_it(monkeypatch):
     class FakeAdapter:
         def generate(self, *, api_key, model, evidence_json):

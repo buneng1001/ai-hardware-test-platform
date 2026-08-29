@@ -156,6 +156,59 @@ test("测试工程师能创建快速正常采集任务并重新查看", async ()
   );
 });
 
+test("设置页切换服务商并在连接请求中防止重复提交", async () => {
+  let resolveConnection: ((response: Response) => void) | undefined;
+  const connection = new Promise<Response>((resolve) => {
+    resolveConnection = resolve;
+  });
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "ok", database: "ok" })),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([])))
+    .mockReturnValueOnce(connection);
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.change(
+    await screen.findByRole("combobox", { name: "诊断服务商" }),
+    {
+      target: { value: "deepseek" },
+    },
+  );
+  fireEvent.change(screen.getByRole("combobox", { name: "模型" }), {
+    target: { value: "deepseek-chat" },
+  });
+  const button = screen.getByRole("button", { name: "测试 deepseek 连接" });
+  fireEvent.click(button);
+
+  expect(button).toBeDisabled();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/settings/ai/test",
+    expect.objectContaining({
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        api_key: "",
+        provider: "deepseek",
+      }),
+    }),
+  );
+  resolveConnection?.(
+    new Response(
+      JSON.stringify({
+        ok: true,
+        provider: "deepseek",
+        model: "deepseek-chat",
+        error_kind: null,
+        message: "deepseek 连接可用",
+      }),
+    ),
+  );
+  await screen.findByText("deepseek/deepseek-chat：deepseek 连接可用");
+  expect(button).not.toBeDisabled();
+});
+
 test("页面刷新后能从公开 API 重新显示已保存采集任务", async () => {
   vi.stubGlobal(
     "fetch",

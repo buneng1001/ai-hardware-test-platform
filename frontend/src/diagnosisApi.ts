@@ -19,7 +19,7 @@ export type AiEvaluationResult = {
 export type DiagnosisRun = {
   id: number;
   run_id: number;
-  status: "pending" | "generating" | "completed" | "failed";
+  status: "pending" | "generating" | "completed" | "failed" | "retryable";
   model: string;
   prompt_version: string;
   is_mock: boolean;
@@ -59,7 +59,8 @@ export type DiagnosisRun = {
   completed_at: string | null;
 };
 
-export type DiagnosisMode = "mock" | "siliconflow";
+export type DiagnosisProvider = "siliconflow" | "deepseek" | "kimi";
+export type DiagnosisMode = "mock" | DiagnosisProvider;
 
 export async function listDiagnoses(runId: number): Promise<DiagnosisRun[]> {
   const response = await fetch(`/api/runs/${runId}/diagnoses`);
@@ -72,11 +73,17 @@ export async function createDiagnosis(
   mode: DiagnosisMode,
   model: string,
   apiKey: string,
+  provider?: DiagnosisProvider,
 ): Promise<DiagnosisRun> {
   const response = await fetch(`/api/runs/${runId}/diagnoses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode, model, api_key: apiKey }),
+    body: JSON.stringify({
+      mode,
+      model,
+      api_key: apiKey,
+      ...(provider && { provider }),
+    }),
   });
   if (!response.ok) throw new Error("结构化诊断生成失败");
   return (await response.json()) as DiagnosisRun;
