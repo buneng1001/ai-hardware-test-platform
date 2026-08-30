@@ -10,7 +10,7 @@ export function Navigation({ activePage, onNavigate }: NavigationProps) {
     <nav aria-label="主导航" className="topbar">
       {(
         [
-          ["dashboard", "仪表盘"],
+          ["dashboard", "仪表盘与AI配置"],
           ["new-task", "新建任务"],
           ["import", "根据导入生成"],
           ["saved", "已保存任务"],
@@ -26,9 +26,6 @@ export function Navigation({ activePage, onNavigate }: NavigationProps) {
           {label}
         </button>
       ))}
-      <button type="button" onClick={() => onNavigate("settings")}>
-        设置
-      </button>
     </nav>
   );
 }

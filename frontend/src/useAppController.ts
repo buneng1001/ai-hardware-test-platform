@@ -25,18 +25,28 @@ import {
   uploadImport,
   validateImport,
 } from "./collectionTasksApi";
-import { CollectionTaskForm } from "./CollectionTaskForm";
-import { DashboardPanel } from "./DashboardPanel";
-import { isTerminalRun, RunDetail } from "./RunDetail";
-import { ImportTaskPanel } from "./ImportTaskPanel";
-import { Navigation } from "./Navigation";
-import { SavedTasksPanel } from "./SavedTasksPanel";
-import { SettingsPanel } from "./SettingsPanel";
-import { TaskListPanel } from "./TaskListPanel";
 import type { PageKey, SavedTaskFilters } from "./appTypes";
+import { isTerminalRun } from "./RunDetail";
 
 type Health = { status: "ok"; database: "ok" };
 type PageState = Health | "loading" | "unavailable";
+
+const navigablePages: PageKey[] = [
+  "dashboard",
+  "new-task",
+  "import",
+  "saved",
+  "run-detail",
+  "settings",
+];
+
+function pageFromHash(): PageKey {
+  if (typeof window !== "undefined") {
+    const hashPage = window.location.hash.slice(1) as PageKey;
+    if (navigablePages.includes(hashPage)) return hashPage;
+  }
+  return "dashboard";
+}
 
 export function useAppController() {
   const [state, setState] = useState<PageState>("loading");
@@ -46,7 +56,7 @@ export function useAppController() {
   const [executingTaskId, setExecutingTaskId] = useState<number | null>(null);
   const [selectedRun, setSelectedRun] = useState<RunRecord | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
-  const [activePage, setActivePage] = useState<PageKey>("all");
+  const [activePage, setActivePage] = useState<PageKey>(pageFromHash);
   const [diagnosisMode, setDiagnosisMode] = useState<DiagnosisMode>("mock");
   const [diagnosisProvider, setDiagnosisProvider] =
     useState<DiagnosisProvider>("siliconflow");
@@ -109,6 +119,15 @@ export function useAppController() {
     }, 50);
     return () => window.clearTimeout(timeout);
   }, [selectedRun]);
+  useEffect(() => {
+    const handleHistoryChange = () => setActivePage(pageFromHash());
+    window.addEventListener("popstate", handleHistoryChange);
+    window.addEventListener("hashchange", handleHistoryChange);
+    return () => {
+      window.removeEventListener("popstate", handleHistoryChange);
+      window.removeEventListener("hashchange", handleHistoryChange);
+    };
+  }, []);
   const submitTask = async (command: CollectionTaskCommand) => {
     setSaving(true);
     setFormError(null);
@@ -127,6 +146,7 @@ export function useAppController() {
   const executeTask = async (taskId: number) => {
     setExecutingTaskId(taskId);
     setActivePage("run-detail");
+    window.history.pushState({}, "", "#run-detail");
     setRunError(null);
     try {
       setSelectedRun(await executeCollectionTask(taskId));
@@ -166,6 +186,7 @@ export function useAppController() {
   };
   const openDashboardRun = async (runId: number) => {
     setActivePage("run-detail");
+    window.history.pushState({}, "", "#run-detail");
     try {
       setSelectedRun(await getRun(runId));
     } catch {
@@ -274,21 +295,26 @@ export function useAppController() {
       setImportBusy(null);
     }
   };
-  const checkAiConnection = async () => {
+  const checkAiConnection = async (
+    apiKey = temporaryApiKey,
+    source = apiKey ? "临时 API Key" : "本地配置（临时 Key 为空时回退）",
+  ) => {
     setConnectionMessage(null);
     setTestingConnection(true);
     try {
       const result = await testAiConnection(
         diagnosisModel,
-        temporaryApiKey,
+        apiKey,
         diagnosisProvider,
       );
       setConnectionMessage(
         result.ok
-          ? result.provider === "siliconflow"
-            ? result.message
-            : `${result.provider}/${result.model}：${result.message}`
-          : `连接失败：${result.message}`,
+          ? `当前可用｜来源：${source}｜${
+              result.provider
+            }/${result.model}：${result.message}`
+          : `当前不可用｜来源：${source}｜${result.provider}/${result.model}：${
+              result.message
+            }`,
       );
     } catch {
       setConnectionMessage("连接测试请求失败，请检查后端状态");
@@ -303,11 +329,18 @@ export function useAppController() {
       setConnectionMessage("后端设置状态读取失败，请检查服务状态");
     }
   };
-  const visible = (page: PageKey) =>
-    activePage === "all" || activePage === page;
+  const testLocalAiConnection = async () => {
+    await loadBackendSettings();
+    await checkAiConnection("", "本地配置");
+  };
+  const clearAiSessionState = () => {
+    setTemporaryApiKey("");
+    setConnectionMessage(null);
+  };
+  const visible = (page: PageKey) => activePage === page;
   const navigate = (page: PageKey) => {
     setActivePage(page);
-    if (page === "saved") void refreshSavedTasks();
+    window.history.pushState({}, "", `#${page}`);
   };
 
   return {
@@ -350,6 +383,8 @@ export function useAppController() {
     showConversionNotice,
     addImportedTask,
     checkAiConnection,
+    testLocalAiConnection,
+    clearAiSessionState,
     loadBackendSettings,
     visible,
     navigate,

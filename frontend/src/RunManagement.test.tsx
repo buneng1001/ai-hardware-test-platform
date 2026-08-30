@@ -83,6 +83,7 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
       .mockResolvedValueOnce(new Response(JSON.stringify(completedRun))),
   );
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
   fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
   expect(await screen.findByText("已完成")).toBeInTheDocument();
   expect(screen.getByText("进度：5/5（100%）")).toBeInTheDocument();
@@ -153,6 +154,7 @@ test("测试工程师能取消运行并从原配置创建新的运行记录", as
   });
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
   fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
   fireEvent.click(await screen.findByRole("button", { name: "取消运行" }));
   expect(await screen.findByText("已取消")).toBeInTheDocument();
@@ -214,6 +216,7 @@ test("运行详情展示掉帧失败指标、异常窗口和故障真值命中",
   );
 
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
   fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
 
   expect(
@@ -285,6 +288,7 @@ test("运行详情展示 IMU 异常指标、位置和故障真值命中", async 
   );
 
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
   fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
 
   expect(
@@ -388,6 +392,7 @@ test("运行详情可查看并提交锚点复核且独立展示内容同步", as
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
   fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
   expect(
     await screen.findByText("画面内容同步（独立评价）"),

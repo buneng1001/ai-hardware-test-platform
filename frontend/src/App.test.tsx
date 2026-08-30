@@ -1,10 +1,17 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { App } from "./App";
 
 afterEach(() => {
   cleanup();
+  window.history.replaceState({}, "", "#dashboard");
   vi.unstubAllGlobals();
 });
 
@@ -134,10 +141,12 @@ test("测试工程师能创建快速正常采集任务并重新查看", async ()
     );
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "面试快速正常采集" },
   });
   fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+  fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
   expect(
     await screen.findByRole("heading", { name: "面试快速正常采集" }),
   ).toBeInTheDocument();
@@ -177,10 +186,12 @@ test("设置页切换服务商并在连接请求中防止重复提交", async ()
       target: { value: "deepseek" },
     },
   );
-  fireEvent.change(screen.getByRole("combobox", { name: "模型" }), {
-    target: { value: "deepseek-chat" },
+  await waitFor(() => {
+    expect(screen.getByRole("combobox", { name: "模型" })).toHaveValue(
+      "deepseek-v4-flash",
+    );
   });
-  const button = screen.getByRole("button", { name: "测试 deepseek 连接" });
+  const button = screen.getByRole("button", { name: "测试 AI 连接" });
   fireEvent.click(button);
 
   expect(button).toBeDisabled();
@@ -188,7 +199,7 @@ test("设置页切换服务商并在连接请求中防止重复提交", async ()
     "/api/settings/ai/test",
     expect.objectContaining({
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model: "deepseek-v4-flash",
         api_key: "",
         provider: "deepseek",
       }),
@@ -199,13 +210,15 @@ test("设置页切换服务商并在连接请求中防止重复提交", async ()
       JSON.stringify({
         ok: true,
         provider: "deepseek",
-        model: "deepseek-chat",
+        model: "deepseek-v4-flash",
         error_kind: null,
         message: "deepseek 连接可用",
       }),
     ),
   );
-  await screen.findByText("deepseek/deepseek-chat：deepseek 连接可用");
+  await screen.findByText(
+    "当前可用｜来源：本地配置（临时 Key 为空时回退）｜deepseek/deepseek-v4-flash：deepseek 连接可用",
+  );
   expect(button).not.toBeDisabled();
 });
 
@@ -233,6 +246,7 @@ test("页面刷新后能从公开 API 重新显示已保存采集任务", async 
       ),
   );
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
   expect(
     await screen.findByRole("heading", { name: "已持久化任务" }),
   ).toBeInTheDocument();
@@ -248,6 +262,7 @@ test("空白任务名称在前端被拒绝且不会调用保存 API", async () =
     .mockResolvedValueOnce(new Response(JSON.stringify([])));
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
   await screen.findByText("还没有采集任务。");
   fireEvent.change(screen.getByLabelText("任务名称"), {
     target: { value: "   " },
@@ -272,7 +287,7 @@ test("页面提供明确导航、设置顶栏入口和根据导入生成入口",
     await screen.findByRole("navigation", { name: "主导航" }),
   ).toBeInTheDocument();
   for (const label of [
-    "仪表盘",
+    "仪表盘与AI配置",
     "新建任务",
     "根据导入生成",
     "已保存任务",
@@ -280,11 +295,46 @@ test("页面提供明确导航、设置顶栏入口和根据导入生成入口",
   ]) {
     expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
   }
-  expect(screen.getByRole("button", { name: "设置" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "智能硬件测试执行与诊断平台" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "根据导入生成" }),
+  ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "根据导入生成" }));
   expect(
     screen.getByRole("heading", { name: "根据导入生成" }),
   ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("heading", { name: "配置正常采集" }),
+  ).not.toBeInTheDocument();
+  expect(window.location.hash).toBe("#import");
+});
+
+test("可通过 URL hash 直接打开设置页并返回仪表盘", async () => {
+  window.history.replaceState({}, "", "#settings");
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([]))),
+  );
+  render(<App />);
+  expect(
+    await screen.findByRole("heading", { name: "AI 诊断连接" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "根据导入生成" }),
+  ).not.toBeInTheDocument();
+  window.history.pushState({}, "", "#dashboard");
+  window.dispatchEvent(new PopStateEvent("popstate"));
+  await waitFor(() => {
+    expect(screen.getByText("本地运行基线")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "AI 诊断连接" })).toBeVisible();
+  });
 });
 
 test("导入页面按上传、校验状态控制四个操作入口", async () => {
@@ -402,6 +452,7 @@ test("已保存任务展示筛选、分页以及删除和归档边界", async ()
     );
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
   fireEvent.click(
     await screen.findByRole("button", { name: "刷新已保存任务" }),
   );
@@ -443,17 +494,27 @@ test("设置页用会话内临时 Key 测试硅基流动且不持久化", async 
     );
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
-  await screen.findByText("还没有采集任务。");
+  await screen.findByRole("heading", { name: "AI 诊断连接" });
 
-  fireEvent.change(screen.getByLabelText("模型"), {
+  fireEvent.change(screen.getByRole("combobox", { name: "诊断服务商" }), {
+    target: { value: "siliconflow" },
+  });
+  fireEvent.change(screen.getByRole("combobox", { name: "模型" }), {
+    target: { value: "__custom__" },
+  });
+  fireEvent.change(screen.getByLabelText("自定义模型名称"), {
     target: { value: "demo-model" },
   });
   fireEvent.change(screen.getByLabelText("临时 API Key"), {
     target: { value: "session-secret" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "测试硅基流动连接" }));
+  fireEvent.click(screen.getByRole("button", { name: "测试 AI 连接" }));
 
-  expect(await screen.findByText("硅基流动连接可用")).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      "当前可用｜来源：临时 API Key｜siliconflow/demo-model：硅基流动连接可用",
+    ),
+  ).toBeInTheDocument();
   expect(fetchMock).toHaveBeenLastCalledWith(
     "/api/settings/ai/test",
     expect.objectContaining({
@@ -534,6 +595,7 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
   );
 
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
   fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
 
   expect(

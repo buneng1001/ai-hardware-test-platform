@@ -81,7 +81,8 @@ export function App() {
     showConversionNotice,
     addImportedTask,
     checkAiConnection,
-    loadBackendSettings,
+    testLocalAiConnection,
+    clearAiSessionState,
     visible,
     navigate,
     setImportFile,
@@ -96,23 +97,60 @@ export function App() {
     setTemporaryApiKey,
     setSavedTaskFilters,
   } = useAppController();
+  const settingsVisible =
+    activePage === "dashboard" || activePage === "settings";
   return (
     <main className="status-page">
       <Navigation activePage={activePage} onNavigate={navigate} />
-      <p className="eyebrow">本地运行基线</p>
-      <h1>智能硬件测试执行与诊断平台</h1>
-      {state === "loading" && <p role="status">正在检查服务状态…</p>}
-      {state === "unavailable" && <p role="alert">服务暂不可用</p>}
-      {typeof state === "object" && (
-        <section className="status-card" aria-label="平台状态">
-          <p>服务运行正常</p>
-          <p>SQLite 可用</p>
-        </section>
-      )}
-      <div hidden={!visible("dashboard")}>
-        <DashboardPanel onOpenRun={(id) => void openDashboardRun(id)} />
+      <div className="hero-layout">
+        <div className="hero-copy">
+          <p className="eyebrow">本地运行基线</p>
+          <h1>
+            <span>智能硬件</span>
+            <span>测试执行与诊断平台</span>
+          </h1>
+          {state === "loading" && <p role="status">正在检查服务状态…</p>}
+          {state === "unavailable" && <p role="alert">服务暂不可用</p>}
+          {typeof state === "object" && (
+            <section className="status-card" aria-label="平台状态">
+              <p>服务运行正常</p>
+              <p>SQLite 可用</p>
+            </section>
+          )}
+        </div>
       </div>
-      <div hidden={!visible("import")}>
+      <div
+        className="primary-panels"
+        hidden={!visible("dashboard") && !settingsVisible}
+      >
+        <div hidden={!visible("dashboard")}>
+          <DashboardPanel onOpenRun={(id) => void openDashboardRun(id)} />
+        </div>
+        <div className="primary-settings" hidden={!settingsVisible}>
+          <SettingsPanel
+            mode={diagnosisMode}
+            provider={diagnosisProvider}
+            model={diagnosisModel}
+            apiKey={temporaryApiKey}
+            message={connectionMessage}
+            testing={testingConnection}
+            backend={backendSettings}
+            onModeChange={(mode, provider) => {
+              clearAiSessionState();
+              setDiagnosisMode(mode);
+              if (provider) setDiagnosisProvider(provider);
+            }}
+            onModelChange={setDiagnosisModel}
+            onApiKeyChange={setTemporaryApiKey}
+            onTest={() => void checkAiConnection()}
+            onLocalTest={() => void testLocalAiConnection()}
+          />
+        </div>
+      </div>
+      <div
+        className="page-shell page-shell--compact"
+        hidden={!visible("import")}
+      >
         <ImportTaskPanel
           file={importFile}
           record={importRecord}
@@ -135,28 +173,9 @@ export function App() {
           onCreate={() => void addImportedTask()}
         />
       </div>
-      <div hidden={!visible("settings")}>
-        <SettingsPanel
-          mode={diagnosisMode}
-          provider={diagnosisProvider}
-          model={diagnosisModel}
-          apiKey={temporaryApiKey}
-          message={connectionMessage}
-          testing={testingConnection}
-          backend={backendSettings}
-          onModeChange={(mode, provider) => {
-            setDiagnosisMode(mode);
-            if (provider) setDiagnosisProvider(provider);
-          }}
-          onModelChange={setDiagnosisModel}
-          onApiKeyChange={setTemporaryApiKey}
-          onTest={() => void checkAiConnection()}
-          onLoad={() => void loadBackendSettings()}
-        />
-      </div>
       <section
         hidden={!visible("new-task")}
-        className="task-panel"
+        className="task-panel page-shell--compact"
         aria-labelledby="new-task-title"
       >
         <p className="eyebrow">新建任务</p>

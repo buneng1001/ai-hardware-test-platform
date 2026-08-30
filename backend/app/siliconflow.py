@@ -74,6 +74,14 @@ def _classify_status(status: int) -> tuple[ModelErrorKind, bool]:
     return ModelErrorKind.INVALID_REQUEST, False
 
 
+def _status_message(status: int) -> str:
+    if status in (401, 403):
+        return f"模型服务拒绝访问（HTTP {status}），请检查 API Key、账户权限和模型访问权限"
+    if status == 400:
+        return "模型服务拒绝请求（HTTP 400），请检查模型 ID 和请求参数"
+    return f"模型服务返回 HTTP {status}"
+
+
 def _extract_json(content: str | dict[str, object]) -> dict[str, object]:
     if isinstance(content, dict):
         value = content
@@ -121,28 +129,30 @@ class ProviderAdapter:
     ) -> dict[str, object]:
         if not api_key:
             raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, f"未配置 {self.provider} API Key", False)
+        body = {
+            "model": model,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {
+                    "role": "system",
+                    "content": f"只返回符合诊断 Schema 的 JSON。Prompt 版本：{prompt_version}",
+                },
+                {"role": "user", "content": evidence_json},
+            ],
+        }
+        if self.provider != "kimi":
+            body["temperature"] = 0
         request_data = {
             "api_key": api_key,
             "endpoint": self._endpoint,
-            "body": {
-                "model": model,
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": f"只返回符合诊断 Schema 的 JSON。Prompt 版本：{prompt_version}",
-                    },
-                    {"role": "user", "content": evidence_json},
-                ],
-            },
+            "body": body,
         }
         for attempt in range(3):
             try:
                 response_status, response_text = self._transport(request_data)
                 if response_status < 200 or response_status >= 300:
                     kind, retryable = _classify_status(response_status)
-                    raise SiliconFlowError(kind, f"模型服务返回 HTTP {response_status}", retryable)
+                    raise SiliconFlowError(kind, _status_message(response_status), retryable)
                 payload = json.loads(response_text)
                 content = payload["choices"][0]["message"]["content"]
                 if not isinstance(content, str | dict):
@@ -155,6 +165,43 @@ class ProviderAdapter:
             except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
                 raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型响应结构无效", False) from error
         raise AssertionError("模型重试循环未返回")
+
+    def check_connection(self, *, api_key: str, model: str) -> None:
+        """只检查服务连通性，不把普通回复误判为诊断结果。"""
+        if not api_key:
+            raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, f"未配置 {self.provider} API Key", False)
+        body = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "只需确认连接可用，返回任意简短内容即可。"},
+                {"role": "user", "content": "连接测试"},
+            ],
+        }
+        if self.provider != "kimi":
+            body["temperature"] = 0
+        request_data = {
+            "api_key": api_key,
+            "endpoint": self._endpoint,
+            "body": body,
+        }
+        for attempt in range(3):
+            try:
+                response_status, response_text = self._transport(request_data)
+                if response_status < 200 or response_status >= 300:
+                    kind, retryable = _classify_status(response_status)
+                    raise SiliconFlowError(kind, _status_message(response_status), retryable)
+                payload = json.loads(response_text)
+                content = payload["choices"][0]["message"]["content"]
+                if not isinstance(content, str | dict):
+                    raise TypeError("content 不是允许的响应内容")
+                return
+            except SiliconFlowError as error:
+                if not error.retryable or attempt == 2:
+                    raise
+                self._sleep(0.05 * (attempt + 1))
+            except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
+                raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型响应结构无效", False) from error
+        raise AssertionError("连接检查重试循环未返回")
 
 
 class SiliconFlowAdapter(ProviderAdapter):

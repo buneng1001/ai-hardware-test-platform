@@ -8,6 +8,10 @@ body {
   margin: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .status-page {
   box-sizing: border-box;
   min-height: 100vh;
@@ -25,6 +29,36 @@ body {
 .topbar button[aria-current="page"] {
   outline: 2px solid #e8edf2;
   outline-offset: 2px;
+}
+
+.hero-layout {
+  margin-bottom: 0;
+}
+
+.primary-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 32px;
+  width: min(100%, 80vw);
+  margin-top: 40px;
+  align-items: start;
+}
+
+.status-page > .primary-panels {
+  width: min(100%, 80vw);
+}
+
+.primary-panels > div > .task-panel {
+  width: 100%;
+  margin-top: 0;
+}
+
+.primary-panels > div {
+  min-width: 0;
+}
+
+.hero-copy h1 span {
+  display: block;
 }
 
 .eyebrow {
@@ -58,12 +92,27 @@ h1 {
 .task-panel,
 .task-list,
 .run-detail {
-  max-width: 760px;
+  box-sizing: border-box;
+  width: min(100%, 70vw);
+  max-width: none;
   margin-top: 40px;
   padding: 28px;
   border: 1px solid #254550;
   border-radius: 12px;
   background: rgb(10 29 36 / 65%);
+}
+
+.status-page > div:not(.hero-layout) {
+  width: min(100%, 70vw);
+}
+
+.status-page > div:not(.hero-layout) > .task-panel,
+.status-page > div:not(.hero-layout) > .task-list {
+  width: 100%;
+}
+
+.page-shell--compact {
+  width: min(100%, 760px) !important;
 }
 
 form,
@@ -72,8 +121,26 @@ form,
   gap: 12px;
 }
 
+.task-panel > label {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.task-panel > button {
+  margin-top: 16px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
 input,
 select,
+textarea,
 button {
   box-sizing: border-box;
   min-height: 44px;
@@ -82,11 +149,17 @@ button {
 }
 
 input,
-select {
+select,
+textarea {
   padding: 8px 12px;
   border: 1px solid #49717a;
   color: inherit;
   background: #102832;
+}
+
+textarea {
+  min-height: 96px;
+  resize: vertical;
 }
 
 button {
@@ -100,6 +173,22 @@ button {
 button:disabled {
   cursor: wait;
   opacity: 0.6;
+}
+
+.connection-result {
+  border-radius: 8px;
+  font-weight: 700;
+  padding: 10px 14px;
+}
+
+.connection-result--success {
+  background: rgb(92 214 196 / 14%);
+  color: #75f0db;
+}
+
+.connection-result--failure {
+  background: rgb(255 103 103 / 14%);
+  color: #ff9b9b;
 }
 
 .task-contract {
@@ -120,6 +209,7 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+  margin-top: 16px;
 }
 
 .configuration-grid label {
@@ -142,6 +232,39 @@ button:disabled {
   margin-top: 8px;
 }
 
+.task-list > button {
+  margin-top: 16px;
+}
+
+.task-panel ul {
+  display: grid;
+  gap: 12px;
+  padding-left: 24px;
+}
+
+.task-panel li {
+  line-height: 1.5;
+}
+
+.task-panel li button {
+  margin: 0;
+}
+
+.task-panel button + button,
+.run-detail button + button {
+  margin-left: 12px;
+}
+
+.run-detail a {
+  display: inline-block;
+  margin-right: 12px;
+  margin-bottom: 8px;
+}
+
+.run-detail > button {
+  margin-top: 16px;
+}
+
 .run-status {
   width: fit-content;
   padding: 6px 10px;
@@ -152,4 +275,20 @@ button:disabled {
 
 .run-detail li {
   margin: 8px 0;
+}
+
+@media (max-width: 960px) {
+  .primary-panels {
+    grid-template-columns: 1fr;
+    width: 100%;
+    gap: 24px;
+  }
+
+  .task-panel,
+  .task-list,
+  .run-detail,
+  .status-page > div:not(.hero-layout),
+  .page-shell--compact {
+    width: 100%;
+  }
 }
