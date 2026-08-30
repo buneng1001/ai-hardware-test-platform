@@ -47,10 +47,10 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
         "video": {
             "channels": 1,
             "resolution": "640x360",
-            "fps": 15,
+                "fps": 30,
             "container": "mp4",
             "codec": "h264",
-            "bitrate_kbps": 2500,
+                "bitrate_kbps": 3000,
             "bitrate_mode": "cbr",
         },
         "imu": {"format": "csv", "sample_rate_hz": 100},
@@ -210,7 +210,7 @@ def test_oversized_custom_generation_is_rejected_before_a_run_is_created(tmp_pat
     ("scenario", "expected_status", "expected_dropped_frames", "expected_truth_comparison"),
     [
         ("normal", "passed", 0, "not_applicable"),
-        ("video_drop", "failed", 6, "matched"),
+        ("video_drop", "failed", 12, "matched"),
     ],
 )
 def test_engineer_sees_expected_video_drop_result_for_each_scenario(
@@ -238,12 +238,12 @@ def test_engineer_sees_expected_video_drop_result_for_each_scenario(
     assert drop_check["metrics"]["dropped_frames"] == expected_dropped_frames
     assert drop_check["truth_comparison"] == expected_truth_comparison
     if scenario == "video_drop":
-        assert drop_check["message"] == "第 1 路视频在 0.800～1.200 秒检测到 6 帧缺失"
+        assert drop_check["message"] == "第 1 路视频在 0.800～1.200 秒检测到 12 帧缺失"
         assert drop_check["metrics"] == {
             "channel": 1,
-            "expected_frames": 30,
-            "actual_frames": 24,
-            "dropped_frames": 6,
+                "expected_frames": 60,
+                "actual_frames": 48,
+                "dropped_frames": 12,
         }
         assert drop_check["anomaly_windows"] == [{"channel": 1, "start_s": 0.8, "end_s": 1.2}]
     assert {check["name"] for check in run["checks"] if check["category"] == "video"} == {

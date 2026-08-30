@@ -81,7 +81,7 @@ export type ReferenceChannel =
 export type VideoConfiguration = {
   channels: number;
   resolution: "640x360" | "1280x720" | "1920x1080";
-  fps: 15 | 24 | 25 | 30 | 60;
+  fps: 15 | 24 | 25 | 30 | 60 | 120;
   container: "mp4" | "mkv";
   codec?: "h264";
   bitrate_kbps?: number;

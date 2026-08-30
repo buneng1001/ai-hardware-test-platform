@@ -79,10 +79,10 @@ class EvaluationConfiguration(BaseModel):
 class VideoConfiguration(BaseModel):
     channels: int = Field(ge=1, le=4)
     resolution: Literal["640x360", "1280x720", "1920x1080"]
-    fps: Literal[15, 24, 25, 30, 60]
+    fps: Literal[15, 24, 25, 30, 60, 120]
     container: Literal["mp4", "mkv"]
     codec: Literal["h264"] = "h264"
-    bitrate_kbps: int = Field(default=2500, ge=256, le=50_000)
+    bitrate_kbps: int = Field(default=2500, ge=100, le=50_000, multiple_of=100)
     bitrate_mode: Literal["cbr", "vbr"] = "cbr"
 
 

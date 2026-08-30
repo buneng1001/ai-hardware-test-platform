@@ -26,7 +26,7 @@ def test_quick_run_exposes_repeatable_six_axis_time_contract_and_bitrate(tmp_pat
         second = _wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
 
     assert first["configuration_snapshot"]["imu"]["sample_rate_hz"] == 100
-    assert first["configuration_snapshot"]["video"]["bitrate_kbps"] == 2500
+    assert first["configuration_snapshot"]["video"]["bitrate_kbps"] == 3000
     assert first["configuration_snapshot"]["video"]["bitrate_mode"] == "cbr"
     first_imu = next(item for item in first["artifacts"] if item["kind"] == "imu")
     second_imu = next(item for item in second["artifacts"] if item["kind"] == "imu")

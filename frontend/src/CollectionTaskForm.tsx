@@ -19,6 +19,27 @@ type Props = {
 
 const MAX_VIDEO_PIXEL_FRAMES = 600_000_000;
 const MAX_ACTUAL_DURATION_SECONDS = 5;
+const SCENARIO_LABELS: Record<Scenario, string> = {
+  normal: "正常采集",
+  video_drop: "视频掉帧",
+  imu_anomaly: "IMU 异常",
+  storage_exhaustion: "存储不足",
+  temperature_combination: "温升组合故障",
+  fixed_offset: "固定偏移",
+  linear_drift: "线性漂移",
+};
+const MODE_LABELS: Record<DataMode, string> = {
+  quick: "快速",
+  standard: "标准",
+  custom: "自定义",
+};
+const EVALUATION_HELP: Record<EvaluationMode, string> = {
+  requirements_acceptance:
+    "按正式规格判断是否合格；这是唯一代表产品验收结论的模式。",
+  engineering_target:
+    "按当前工程目标观察是否达标，用于研发调优，不代表正式验收承诺。",
+  baseline_analysis: "只记录和分析当前版本的指标，不输出合格/不合格结论。",
+};
 
 export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   const [name, setName] = useState("");
@@ -28,10 +49,10 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   const [channels, setChannels] = useState(1);
   const [resolution, setResolution] =
     useState<VideoConfiguration["resolution"]>("640x360");
-  const [fps, setFps] = useState<VideoConfiguration["fps"]>(15);
+  const [fps, setFps] = useState<VideoConfiguration["fps"]>(30);
   const [container, setContainer] =
     useState<VideoConfiguration["container"]>("mp4");
-  const [bitrateKbps, setBitrateKbps] = useState(2500);
+  const [bitrateKbps, setBitrateKbps] = useState(3500);
   const [bitrateMode, setBitrateMode] = useState<"cbr" | "vbr">("cbr");
   const [imuFormat, setImuFormat] = useState<ImuConfiguration["format"]>("csv");
   const [sampleRate, setSampleRate] =
@@ -44,6 +65,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   );
   const [maxFailedChecks, setMaxFailedChecks] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const suggestedName = `${MODE_LABELS[mode]}-${SCENARIO_LABELS[scenario]}`;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -84,6 +106,9 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
       if (
         duration < 2 ||
         duration > 300 ||
+        bitrateKbps < 100 ||
+        bitrateKbps > 50000 ||
+        bitrateKbps % 100 !== 0 ||
         randomSeed < 0 ||
         randomSeed > 2147483647
       ) {
@@ -124,9 +149,16 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
       <input
         id="task-name"
         maxLength={80}
+        placeholder={`例如：${suggestedName}`}
         value={name}
         onChange={(event) => setName(event.target.value)}
       />
+      <p>
+        可使用系统建议名称，也可以直接改成便于检索的名称。
+        <button type="button" onClick={() => setName(suggestedName)}>
+          使用建议名称
+        </button>
+      </p>
       <label htmlFor="data-mode">数据模式</label>
       <select
         id="data-mode"
@@ -149,8 +181,9 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="engineering_target">工程目标</option>
         <option value="baseline_analysis">摸底分析</option>
       </select>
+      <p>{EVALUATION_HELP[evaluationMode]}</p>
       <p>
-        阈值来源：
+        当前判定依据：
         {
           {
             requirements_acceptance: "正式规格",
@@ -158,6 +191,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
             baseline_analysis: "版本基线",
           }[evaluationMode]
         }
+        。这里是判定语义标记；正式规格、工程目标和版本基线需要由项目配置或测试输入提供，系统不会自动编造。
       </p>
       {evaluationMode !== "baseline_analysis" && (
         <NumberField
@@ -227,8 +261,9 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
           <NumberField
             label="视频码率（kbps）"
             id="bitrate-kbps"
-            min={256}
+            min={100}
             max={50000}
+            step={100}
             value={bitrateKbps}
             onChange={setBitrateKbps}
           />
@@ -243,7 +278,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
             label="帧率"
             id="fps"
             value={String(fps)}
-            values={["15", "24", "25", "30", "60"]}
+            values={["24", "25", "30", "60", "120"]}
             onChange={(value) =>
               setFps(Number(value) as VideoConfiguration["fps"])
             }
@@ -287,9 +322,12 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
       ) : (
         <p>
           {mode === "quick"
-            ? "2 秒 · 1 路 · 640×360 · 15 FPS · IMU 100Hz · 2500kbps CBR"
-            : "5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 100Hz · 2500kbps CBR"}
+            ? "快速是固定预设：2 秒 · 1 路 · 640×360 · 30 FPS · IMU 100Hz · 3000kbps CBR"
+            : "标准是固定预设：5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 200Hz · 6000kbps CBR"}
         </p>
+      )}
+      {mode !== "custom" && (
+        <p>快速和标准的路数及详细参数固定，若需调整请切换到自定义模式。</p>
       )}
       <p>视频编码固定 H.264；故障场景使用配置中的固定随机种子。</p>
       {error && <p role="alert">{error}</p>}
@@ -305,6 +343,7 @@ function NumberField(props: {
   id: string;
   min: number;
   max: number;
+  step?: number;
   value: number;
   onChange: (value: number) => void;
 }) {
@@ -316,6 +355,7 @@ function NumberField(props: {
         type="number"
         min={props.min}
         max={props.max}
+        step={props.step}
         value={props.value}
         onChange={(event) => props.onChange(Number(event.target.value))}
       />

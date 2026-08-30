@@ -57,10 +57,13 @@ def test_quick_and_standard_modes_resolve_to_safe_repeatable_presets(client):
     assert (standard["duration_seconds"], standard["video"]["channels"], standard["imu"]["sample_rate_hz"]) == (
         5,
         4,
-        100,
+        200,
     )
-    assert quick["video"]["bitrate_kbps"] == 2500
+    assert quick["video"]["fps"] == 30
+    assert quick["video"]["bitrate_kbps"] == 3000
     assert quick["video"]["bitrate_mode"] == "cbr"
+    assert standard["video"]["bitrate_kbps"] == 6000
+    assert standard["imu"]["sample_rate_hz"] == 200
 
 
 @pytest.mark.parametrize(
@@ -69,9 +72,9 @@ def test_quick_and_standard_modes_resolve_to_safe_repeatable_presets(client):
         ("duration_seconds", [2, 300]),
         ("video.channels", [1, 4]),
         ("video.resolution", ["640x360", "1280x720", "1920x1080"]),
-        ("video.fps", [15, 24, 25, 30, 60]),
+        ("video.fps", [24, 25, 30, 60, 120]),
         ("video.container", ["mp4", "mkv"]),
-        ("video.bitrate_kbps", [256, 2500, 50000]),
+        ("video.bitrate_kbps", [100, 3500, 50000]),
         ("video.bitrate_mode", ["cbr", "vbr"]),
         ("imu.format", ["csv", "jsonl"]),
         ("imu.sample_rate_hz", [50, 100, 200, 500]),

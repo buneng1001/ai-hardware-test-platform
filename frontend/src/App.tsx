@@ -160,9 +160,9 @@ export function App() {
         aria-labelledby="new-task-title"
       >
         <p className="eyebrow">新建任务</p>
-        <h2 id="new-task-title">配置正常采集</h2>
+        <h2 id="new-task-title">新建采集任务</h2>
         <p>
-          选择快速、标准或自定义模式，安全生成 1～4 路视频及配套传感器数据。
+          先选择数据模式：快速和标准使用固定安全预设；只有自定义模式可以调整视频路数及详细参数。
         </p>
         <CollectionTaskForm
           disabled={tasks === null}

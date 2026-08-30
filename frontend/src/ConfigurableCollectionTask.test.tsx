@@ -15,6 +15,23 @@ function successfulPageLoad() {
     .mockResolvedValueOnce(new Response(JSON.stringify([])));
 }
 
+test("页面提供可编辑的任务名称建议并解释判定模式", async () => {
+  const fetchMock = successfulPageLoad();
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+
+  const nameInput = await screen.findByLabelText("任务名称");
+  expect(nameInput).toHaveAttribute("placeholder", "例如：快速-正常采集");
+  fireEvent.click(screen.getByRole("button", { name: "使用建议名称" }));
+  expect(nameInput).toHaveValue("快速-正常采集");
+  expect(screen.getByText(/唯一代表产品验收结论/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("判定模式"), {
+    target: { value: "baseline_analysis" },
+  });
+  expect(screen.getByText(/不输出合格\/不合格结论/)).toBeInTheDocument();
+});
+
 test("测试工程师能从页面提交完整的自定义多通道配置", async () => {
   const fetchMock = successfulPageLoad().mockResolvedValueOnce(
     new Response(
@@ -29,7 +46,7 @@ test("测试工程师能从页面提交完整的自定义多通道配置", async
         video: {
           channels: 2,
           resolution: "640x360",
-          fps: 15,
+          fps: 30,
           container: "mkv",
           codec: "h264",
         },
@@ -51,7 +68,7 @@ test("测试工程师能从页面提交完整的自定义多通道配置", async
   });
   expect(screen.getByLabelText("视频码率（kbps）")).toHaveAttribute(
     "min",
-    "256",
+    "100",
   );
   expect(screen.getByLabelText("视频码率（kbps）")).toHaveAttribute(
     "max",
@@ -91,9 +108,9 @@ test("测试工程师能从页面提交完整的自定义多通道配置", async
         video: {
           channels: 2,
           resolution: "640x360",
-          fps: 15,
+          fps: 30,
           container: "mkv",
-          bitrate_kbps: 2500,
+          bitrate_kbps: 3500,
           bitrate_mode: "cbr",
         },
         imu: { format: "jsonl", sample_rate_hz: 100 },
@@ -145,7 +162,7 @@ test("页面公开规格规定的选项和数值边界并拒绝越界时长", as
   expect(screen.getByLabelText("分辨率")).toHaveTextContent(
     "640x3601280x7201920x1080",
   );
-  expect(screen.getByLabelText("帧率")).toHaveTextContent("1524253060");
+  expect(screen.getByLabelText("帧率")).toHaveTextContent("24253060120");
   expect(screen.getByLabelText("IMU 采样率")).toHaveTextContent("50100200500");
 
   fireEvent.change(screen.getByLabelText("任务名称"), {

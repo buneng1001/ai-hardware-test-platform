@@ -21,14 +21,26 @@ router = APIRouter(prefix="/api/collection-tasks", tags=["collection tasks"])
 PRESET_CONFIGURATIONS = {
     "quick": {
         "duration_seconds": 2,
-        "video": {"channels": 1, "resolution": "640x360", "fps": 15, "container": "mp4"},
+        "video": {
+            "channels": 1,
+            "resolution": "640x360",
+            "fps": 30,
+            "container": "mp4",
+            "bitrate_kbps": 3000,
+        },
         "imu": {"format": "csv", "sample_rate_hz": 100},
         "random_seed": 20260822,
     },
     "standard": {
         "duration_seconds": 5,
-        "video": {"channels": 4, "resolution": "1280x720", "fps": 30, "container": "mp4"},
-        "imu": {"format": "csv", "sample_rate_hz": 100},
+        "video": {
+            "channels": 4,
+            "resolution": "1280x720",
+            "fps": 30,
+            "container": "mp4",
+            "bitrate_kbps": 6000,
+        },
+        "imu": {"format": "csv", "sample_rate_hz": 200},
         "random_seed": 20260822,
     },
 }
