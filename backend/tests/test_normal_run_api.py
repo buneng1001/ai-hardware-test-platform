@@ -45,7 +45,7 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
         "scenario": "normal",
         "duration_seconds": 2,
         "video": {
-            "channels": 1,
+                "channels": 2,
             "resolution": "640x360",
                 "fps": 30,
             "container": "mp4",
@@ -56,16 +56,7 @@ def test_engineer_can_run_normal_task_to_completion_without_overwriting_history(
         "imu": {"format": "csv", "sample_rate_hz": 100},
         "random_seed": 20260822,
         "reference_channel": "camera_1",
-        "evaluation": {
-            "mode": "requirements_acceptance",
-            "threshold_source": "formal_specification",
-            "thresholds": {"max_failed_checks": 0.0},
-            "priority": [
-                "formal_specification",
-                "engineering_target",
-                "version_baseline",
-            ],
-        },
+            "evaluation": None,
     }
     assert {artifact["kind"] for artifact in first_run["artifacts"]} == {
         "video",
@@ -124,16 +115,7 @@ def test_engineer_can_generate_repeatable_custom_multichannel_artifacts(tmp_path
     expected_snapshot = {key: value for key, value in configuration.items() if key != "name"}
     expected_snapshot["video"] = configuration["video"] | {"codec": "h264", "bitrate_kbps": 2500, "bitrate_mode": "cbr"}
     expected_snapshot["reference_channel"] = "camera_1"
-    expected_snapshot["evaluation"] = {
-        "mode": "requirements_acceptance",
-        "threshold_source": "formal_specification",
-        "thresholds": {"max_failed_checks": 0.0},
-        "priority": [
-            "formal_specification",
-            "engineering_target",
-            "version_baseline",
-        ],
-    }
+    expected_snapshot["evaluation"] = None
     assert first_run["configuration_snapshot"] == expected_snapshot
     assert [artifact["path"].split("/")[-1] for artifact in first_run["artifacts"]] == [
         "camera_1.mkv",

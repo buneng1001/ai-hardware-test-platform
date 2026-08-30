@@ -99,7 +99,7 @@ class RunConfigurationSnapshot(BaseModel):
     imu: ImuConfiguration
     random_seed: int = Field(ge=0, le=2_147_483_647)
     reference_channel: ReferenceChannel = "camera_1"
-    evaluation: EvaluationConfiguration = Field(default_factory=EvaluationConfiguration)
+    evaluation: EvaluationConfiguration | None = None
 
     @model_validator(mode="after")
     def protect_local_file_size(self) -> "RunConfigurationSnapshot":

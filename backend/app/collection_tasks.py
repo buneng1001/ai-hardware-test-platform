@@ -22,7 +22,7 @@ PRESET_CONFIGURATIONS = {
     "quick": {
         "duration_seconds": 2,
         "video": {
-            "channels": 1,
+            "channels": 2,
             "resolution": "640x360",
             "fps": 30,
             "container": "mp4",
@@ -55,7 +55,7 @@ class CollectionTaskCreate(BaseModel):
     imu: ImuConfiguration | None = None
     random_seed: int | None = None
     reference_channel: ReferenceChannel = "camera_1"
-    evaluation: EvaluationConfiguration = Field(default_factory=EvaluationConfiguration)
+    evaluation: EvaluationConfiguration | None = None
 
     @field_validator("name")
     @classmethod
@@ -110,7 +110,7 @@ class CollectionTask(BaseModel):
     imu: ImuConfiguration
     random_seed: int
     reference_channel: ReferenceChannel
-    evaluation: EvaluationConfiguration
+    evaluation: EvaluationConfiguration | None = None
     status: Literal["draft"]
     source: Literal["synthetic_generated", "imported_actual_data"] = "synthetic_generated"
     archived: bool = False
@@ -147,6 +147,14 @@ class SavedTaskPage(BaseModel):
 def create_collection_task(command: CollectionTaskCreate) -> CollectionTask:
     created_at = datetime.now(UTC)
     with open_database() as connection:
+        # 先锁定写事务，避免两个并发请求同时通过重名检查。
+        connection.execute("BEGIN IMMEDIATE")
+        duplicate = connection.execute(
+            "SELECT 1 FROM collection_tasks WHERE name COLLATE NOCASE = ? COLLATE NOCASE LIMIT 1",
+            (command.name,),
+        ).fetchone()
+        if duplicate is not None:
+            raise HTTPException(status_code=409, detail="任务名称已存在，请换一个名称")
         cursor = connection.execute(
             """
             INSERT INTO collection_tasks (name, mode, scenario, status, created_at, configuration)

@@ -43,6 +43,21 @@ def test_saved_collection_task_remains_visible_in_task_list(client):
     assert list_response.json() == [created_task]
 
 
+def test_task_name_is_unique_ignoring_case_and_surrounding_spaces(client):
+    first = client.post(
+        "/api/collection-tasks",
+        json={"name": "现场回归", "mode": "quick", "scenario": "normal"},
+    )
+    duplicate = client.post(
+        "/api/collection-tasks",
+        json={"name": "  现场回归  ", "mode": "quick", "scenario": "normal"},
+    )
+
+    assert first.status_code == 201
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"] == "任务名称已存在，请换一个名称"
+
+
 def test_quick_and_standard_modes_resolve_to_safe_repeatable_presets(client):
     quick = client.post(
         "/api/collection-tasks",
@@ -53,7 +68,7 @@ def test_quick_and_standard_modes_resolve_to_safe_repeatable_presets(client):
         json={"name": "标准预设", "mode": "standard", "scenario": "normal"},
     ).json()
 
-    assert (quick["duration_seconds"], quick["video"]["channels"], quick["imu"]["sample_rate_hz"]) == (2, 1, 100)
+    assert (quick["duration_seconds"], quick["video"]["channels"], quick["imu"]["sample_rate_hz"]) == (2, 2, 100)
     assert (standard["duration_seconds"], standard["video"]["channels"], standard["imu"]["sample_rate_hz"]) == (
         5,
         4,

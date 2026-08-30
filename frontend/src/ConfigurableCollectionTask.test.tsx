@@ -19,7 +19,7 @@ function openNewTaskPage() {
   fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
 }
 
-test("页面提供可编辑的任务名称建议并解释判定模式", async () => {
+test("页面提供可编辑的任务名称建议", async () => {
   const fetchMock = successfulPageLoad();
   vi.stubGlobal("fetch", fetchMock);
 
@@ -30,11 +30,50 @@ test("页面提供可编辑的任务名称建议并解释判定模式", async ()
   expect(nameInput).toHaveAttribute("placeholder", "例如：快速-正常采集");
   fireEvent.click(screen.getByRole("button", { name: "使用建议名称" }));
   expect(nameInput).toHaveValue("快速-正常采集");
-  expect(screen.getByText(/唯一代表产品验收结论/)).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText("判定模式"), {
-    target: { value: "baseline_analysis" },
-  });
-  expect(screen.getByText(/不输出合格\/不合格结论/)).toBeInTheDocument();
+});
+
+test("新建任务不展示判定模式且不提交正式规格依据", async () => {
+  const fetchMock = successfulPageLoad().mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        id: 20,
+        name: "无验收依据任务",
+        mode: "quick",
+        scenario: "normal",
+        reference_channel: "camera_1",
+        evaluation: null,
+        status: "draft",
+        duration_seconds: 2,
+        video: {
+          channels: 2,
+          resolution: "640x360",
+          fps: 30,
+          container: "mp4",
+          codec: "h264",
+        },
+        imu: { format: "csv", sample_rate_hz: 100 },
+        random_seed: 20260822,
+        created_at: "2026-08-30T12:00:00Z",
+      }),
+      { status: 201 },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  const nameInput = await screen.findByLabelText("任务名称");
+  fireEvent.change(nameInput, { target: { value: "无验收依据任务" } });
+  expect(screen.queryByLabelText("判定模式")).not.toBeInTheDocument();
+  expect(screen.queryByText(/正式规格/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "保存采集任务" }));
+
+  expect(await screen.findByText("快速 · 正常采集 · 草稿")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    "/api/collection-tasks",
+    expect.objectContaining({
+      body: expect.not.stringContaining("evaluation"),
+    }),
+  );
 });
 
 test("测试工程师能从页面提交完整的自定义多通道配置", async () => {
@@ -342,7 +381,7 @@ test("测试工程师能从页面创建存储不足场景", async () => {
   );
 });
 
-test("测试工程师能选择工程目标模式并提交阈值来源", async () => {
+test.skip("旧版：测试工程师能选择工程目标模式并提交阈值来源", async () => {
   const fetchMock = successfulPageLoad().mockResolvedValueOnce(
     new Response(
       JSON.stringify({
@@ -396,7 +435,7 @@ test("测试工程师能选择工程目标模式并提交阈值来源", async ()
   );
 });
 
-test("测试工程师能选择摸底分析并不提交合格性阈值", async () => {
+test.skip("旧版：测试工程师能选择摸底分析并不提交合格性阈值", async () => {
   const fetchMock = successfulPageLoad().mockResolvedValueOnce(
     new Response(
       JSON.stringify({
@@ -453,7 +492,7 @@ test("测试工程师能选择摸底分析并不提交合格性阈值", async ()
   );
 });
 
-test("测试工程师能显式提交需求验收模式", async () => {
+test.skip("旧版：测试工程师能显式提交需求验收模式", async () => {
   const fetchMock = successfulPageLoad().mockResolvedValueOnce(
     new Response(
       JSON.stringify({

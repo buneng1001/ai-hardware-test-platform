@@ -5,8 +5,8 @@ def evaluate_run(
     checks: list[BasicCheck],
     alignment: TimeAlignmentResult | None,
     snapshot: RunConfigurationSnapshot,
-) -> EvaluationResult:
-    """按快照中的静态阈值判定；摸底模式只返回分布，不输出合格性结论。"""
+) -> EvaluationResult | None:
+    """仅在任务明确提供判定规则时计算结论，否则只保留确定性检查结果。"""
     failed_checks = sum(check.status == "failed" for check in checks)
     executed_checks = sum(check.status != "not_run" for check in checks)
     metrics: dict[str, float | int] = {
@@ -25,6 +25,8 @@ def evaluate_run(
         )
 
     configuration = snapshot.evaluation
+    if configuration is None:
+        return None
     priority_rank = configuration.priority.index(configuration.threshold_source)
     if configuration.mode == "baseline_analysis":
         return EvaluationResult(

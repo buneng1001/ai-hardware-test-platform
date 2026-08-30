@@ -16,7 +16,7 @@ export type CollectionTask = {
   imu: ImuConfiguration;
   random_seed: number;
   reference_channel: ReferenceChannel;
-  evaluation: EvaluationConfiguration;
+  evaluation: EvaluationConfiguration | null;
   status: "draft";
   source?: "synthetic_generated" | "imported_actual_data";
   archived?: boolean;
@@ -139,7 +139,7 @@ export type RunRecord = {
     imu: ImuConfiguration;
     random_seed: number;
     reference_channel: ReferenceChannel;
-    evaluation: EvaluationConfiguration;
+    evaluation?: EvaluationConfiguration;
   };
   events: Array<{ stage: RunStatus; occurred_at: string }>;
   artifacts: Array<{
@@ -320,7 +320,8 @@ export async function createCollectionTask(
     body: JSON.stringify(command),
   });
   if (!response.ok) {
-    throw new Error("采集任务保存失败，请检查输入后重试");
+    const body = (await response.json()) as { detail?: string };
+    throw new Error(body.detail ?? "采集任务保存失败，请检查输入后重试");
   }
   return (await response.json()) as CollectionTask;
 }

@@ -3,8 +3,6 @@ import { useState } from "react";
 import {
   type CollectionTaskCommand,
   type DataMode,
-  type EvaluationMode,
-  type ThresholdSource,
   type ImuConfiguration,
   type ReferenceChannel,
   type Scenario,
@@ -33,12 +31,16 @@ const MODE_LABELS: Record<DataMode, string> = {
   standard: "标准",
   custom: "自定义",
 };
-const EVALUATION_HELP: Record<EvaluationMode, string> = {
-  requirements_acceptance:
-    "按正式规格判断是否合格；这是唯一代表产品验收结论的模式。",
-  engineering_target:
-    "按当前工程目标观察是否达标，用于研发调优，不代表正式验收承诺。",
-  baseline_analysis: "只记录和分析当前版本的指标，不输出合格/不合格结论。",
+const SCENARIO_HELP: Record<Scenario, string> = {
+  normal: "验证视频、六轴 IMU、设备状态和日志均正常，检查系统是否产生误报。",
+  video_drop: "在指定视频通道注入掉帧，验证能否发现缺失帧并定位异常时间窗。",
+  imu_anomaly: "在 IMU 数据中注入缺失、重复或时间戳异常，验证传感器检查能力。",
+  storage_exhaustion:
+    "模拟存储空间持续下降或不足，验证资源监控和存储告警是否生效。",
+  temperature_combination:
+    "组合模拟温升与相关资源变化，验证长时间趋势和组合故障检查。",
+  fixed_offset: "让不同通道存在固定时间偏移，验证共同事件检测和时间对齐结果。",
+  linear_drift: "让通道时钟随时间产生线性漂移，验证漂移拟合、校正和残差检查。",
 };
 
 export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
@@ -60,10 +62,6 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   const [randomSeed, setRandomSeed] = useState(20260822);
   const [referenceChannel, setReferenceChannel] =
     useState<ReferenceChannel>("camera_1");
-  const [evaluationMode, setEvaluationMode] = useState<EvaluationMode>(
-    "requirements_acceptance",
-  );
-  const [maxFailedChecks, setMaxFailedChecks] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const suggestedName = `${MODE_LABELS[mode]}-${SCENARIO_LABELS[scenario]}`;
 
@@ -81,27 +79,6 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
       scenario,
       reference_channel: referenceChannel,
     };
-    if (evaluationMode !== "requirements_acceptance" || maxFailedChecks !== 0) {
-      command.evaluation = {
-        mode: evaluationMode,
-        threshold_source: (
-          {
-            requirements_acceptance: "formal_specification",
-            engineering_target: "engineering_target",
-            baseline_analysis: "version_baseline",
-          } as Record<EvaluationMode, ThresholdSource>
-        )[evaluationMode],
-        thresholds:
-          evaluationMode === "baseline_analysis"
-            ? {}
-            : { max_failed_checks: maxFailedChecks },
-        priority: [
-          "formal_specification",
-          "engineering_target",
-          "version_baseline",
-        ],
-      };
-    }
     if (mode === "custom") {
       if (
         duration < 2 ||
@@ -169,40 +146,6 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="standard">标准</option>
         <option value="custom">自定义</option>
       </select>
-      <label htmlFor="evaluation-mode">判定模式</label>
-      <select
-        id="evaluation-mode"
-        value={evaluationMode}
-        onChange={(event) =>
-          setEvaluationMode(event.target.value as EvaluationMode)
-        }
-      >
-        <option value="requirements_acceptance">需求验收</option>
-        <option value="engineering_target">工程目标</option>
-        <option value="baseline_analysis">摸底分析</option>
-      </select>
-      <p>{EVALUATION_HELP[evaluationMode]}</p>
-      <p>
-        当前判定依据：
-        {
-          {
-            requirements_acceptance: "正式规格",
-            engineering_target: "工程目标",
-            baseline_analysis: "版本基线",
-          }[evaluationMode]
-        }
-        。这里是判定语义标记；正式规格、工程目标和版本基线需要由项目配置或测试输入提供，系统不会自动编造。
-      </p>
-      {evaluationMode !== "baseline_analysis" && (
-        <NumberField
-          label="允许失败检查数"
-          id="max-failed-checks"
-          min={0}
-          max={100}
-          value={maxFailedChecks}
-          onChange={setMaxFailedChecks}
-        />
-      )}
       <label htmlFor="scenario">场景</label>
       <select
         id="scenario"
@@ -217,6 +160,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="fixed_offset">固定偏移</option>
         <option value="linear_drift">线性漂移</option>
       </select>
+      <p>{SCENARIO_HELP[scenario]}</p>
       <label htmlFor="reference-channel">参考时钟</label>
       <select
         id="reference-channel"
@@ -322,8 +266,8 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
       ) : (
         <p>
           {mode === "quick"
-            ? "快速是固定预设：2 秒 · 1 路 · 640×360 · 30 FPS · IMU 100Hz · 3000kbps CBR"
-            : "标准是固定预设：5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 200Hz · 6000kbps CBR"}
+            ? "快速是固定预设：视频格式 MP4，编码格式 H.264，2 秒 · 2 路 · 640×360 · 30 FPS · IMU 100Hz · 3000kbps CBR · 随机种子 20260822"
+            : "标准是固定预设：视频格式 MP4，编码格式 H.264，时长 5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 200Hz · 6000kbps CBR · 随机种子 20260822"}
         </p>
       )}
       {mode !== "custom" && (
