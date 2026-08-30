@@ -41,12 +41,17 @@ export type SavedTaskPage = {
 };
 
 export type ImportValidation = {
-  status: "passed" | "failed";
+  status: "passed" | "failed" | "nonstandard_convertible";
   security: { status: "passed" | "failed"; errors: string[] };
   compatibility: { status: "passed" | "failed"; errors: string[] };
   errors: string[];
   warnings: string[];
   manifest: Record<string, unknown> | null;
+  files?: Array<{
+    path: string;
+    size_bytes: number;
+    sha256: string;
+  }>;
 };
 
 export type ImportRecord = {
@@ -140,7 +145,8 @@ export type RunRecord = {
   artifacts: Array<{
     kind: string;
     path: string;
-    source: "actual_generated" | "virtual_time_simulated";
+    source:
+      "actual_generated" | "virtual_time_simulated" | "imported_actual_data";
     size_bytes: number;
     sha256: string;
     codec: "h264" | null;
@@ -171,7 +177,7 @@ export type RunRecord = {
   checks: Array<{
     name: string;
     category: "video" | "imu" | "resource" | "log" | "storage";
-    status: "passed" | "failed";
+    status: "passed" | "failed" | "not_run";
     message: string;
     metrics: Record<string, number | string>;
     anomaly_windows: Array<Record<string, number>>;

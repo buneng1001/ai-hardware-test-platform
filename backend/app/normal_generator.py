@@ -40,8 +40,10 @@ def generate_normal_artifacts(
     _generate_device_log(run_dir / "device.log", snapshot, fault_truth)
 
     artifacts = [
-        *[_artifact("video", video_path, run_dir, start_raw_device_timestamp_ns=RAW_DEVICE_START_NS)
-          for video_path in video_paths],
+        *[
+            _artifact("video", video_path, run_dir, start_raw_device_timestamp_ns=RAW_DEVICE_START_NS)
+            for video_path in video_paths
+        ],
         _artifact("imu", imu_path, run_dir),
         _artifact("device_status", run_dir / "device_status.csv", run_dir, timeline_source),
         _artifact("device_log", run_dir / "device.log", run_dir),

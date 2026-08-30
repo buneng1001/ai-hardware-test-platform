@@ -189,7 +189,9 @@ export function RunDetail({
               ·{" "}
               {artifact.source === "actual_generated"
                 ? "实际生成"
-                : "虚拟时间模拟"}
+                : artifact.source === "imported_actual_data"
+                  ? "实际导入"
+                  : "虚拟时间模拟"}
             </span>
             <small> · SHA-256：{artifact.sha256.slice(0, 12)}…</small>
           </li>

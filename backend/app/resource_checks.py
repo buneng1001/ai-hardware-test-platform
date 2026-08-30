@@ -110,9 +110,7 @@ def _temperature_window(rows: list[dict[str, str]]) -> tuple[float, float] | Non
                         else previous["timestamp_s"]
                     ),
                     float(
-                        current["relative_timestamp_s"]
-                        if "relative_timestamp_s" in current
-                        else current["timestamp_s"]
+                        current["relative_timestamp_s"] if "relative_timestamp_s" in current else current["timestamp_s"]
                     ),
                 )
             )

@@ -1,6 +1,7 @@
 """结构化诊断业务：Mock 与硅基流动均只消费限量证据，不进入测试关键路径。"""
 
 import json
+import logging
 import os
 from datetime import UTC, datetime
 
@@ -26,6 +27,7 @@ router = APIRouter(prefix="/api/runs/{run_id}/diagnoses", tags=["diagnoses"])
 
 MAX_EVIDENCE_BYTES = 32 * 1024
 MAX_EVIDENCE_TOKENS = 4_000
+logger = logging.getLogger(__name__)
 
 
 def get_provider_adapter(provider: str):
@@ -313,7 +315,19 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
         output = validate_evidence_refs(
             StructuredDiagnosis.model_validate(_unwrap_structured_output(raw_output)), package
         )
-    except (SiliconFlowError, ValidationError, HTTPException) as error:
+    except ValidationError:
+        logger.exception("AI 诊断输出结构校验失败")
+        return _save_diagnosis(
+            run_id,
+            package,
+            model=model,
+            provider=provider,
+            prompt_version="diagnosis-v1",
+            is_mock=False,
+            output=None,
+            error="invalid_response: 模型输出不符合诊断结构",
+        )
+    except (SiliconFlowError, HTTPException) as error:
         message = error.detail if isinstance(error, HTTPException) else str(error)
         if isinstance(error, SiliconFlowError):
             message = f"{error.kind}: {message}"

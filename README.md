@@ -2,7 +2,10 @@
 
 这是一个洁净重写的本地面试作品：用合成视频、IMU、设备状态和日志复现六类采集场景，由确定性检查器给出事实，再用 Mock 或硅基流动提供独立的结构化诊断。
 
-当前版本：`v0.1.0-rc.1`（候选发布版），版本号记录在根目录 `VERSION`。
+当前版本：`v0.1.0-rc.2`（候选发布版），版本号记录在根目录 `VERSION`。
+
+测试工程师使用流程见[测试工程师使用手册](docs/test-engineer-guide.md)，涵盖任务创建、实际测试 ZIP 导入、运行、人工结果、
+诊断和证据导出。
 
 ## 环境准备
 
@@ -19,7 +22,19 @@ pnpm install --frozen-lockfile
 
 ## 一键 Mock 验收
 
-命令不调用真实模型，会通过公开 HTTP API 实际生成文件、执行检查、生成诊断、导出 HTML 和 ZIP，证据写入被 Git 忽略的 `tmp/ticket20-acceptance`：
+RC2 ticket 08 的端到端验收不调用真实模型，会通过公开 FastAPI API 验证合成与导入链路、六轴 IMU、时间映射、
+报告、证据 ZIP 和 Mock 诊断。证据写入被 Git 忽略的 `tmp/rc2-acceptance`：
+
+```powershell
+backend/.venv/Scripts/python.exe scripts/run_rc2_acceptance.py
+backend/.venv/Scripts/python.exe scripts/check_artifact_safety.py tmp/rc2-acceptance
+```
+
+验收摘要位于 `tmp/rc2-acceptance/acceptance-summary.json`，Allure 兼容结果位于同目录的 `allure-results`。
+脚本只生成公开格式的本地样例，不读取或保存用户实际测试数据和敏感凭据。
+
+RC1 的历史回归验收仍可按以下命令运行；它不调用真实模型，会通过公开 HTTP API 生成文件、执行检查、生成诊断、导出 HTML 和 ZIP，
+证据写入被 Git 忽略的 `tmp/ticket20-acceptance`：
 
 ```powershell
 $env:AI_DIAGNOSIS_MODE = "mock"

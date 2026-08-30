@@ -226,9 +226,7 @@ def test_raw_video_has_an_independent_download_and_evidence_export_metadata(tmp_
 
     assert video_response.status_code == 200
     assert video_response.content == (tmp_path / video["path"]).read_bytes()
-    assert video_response.headers["content-disposition"] == (
-        f'attachment; filename="run-{run["id"]}-camera_1.mp4"'
-    )
+    assert video_response.headers["content-disposition"] == (f'attachment; filename="run-{run["id"]}-camera_1.mp4"')
     assert evidence_response.status_code == 200
     with zipfile.ZipFile(io.BytesIO(evidence_response.content)) as archive:
         manifest = json.loads(archive.read("evidence-manifest.json"))
