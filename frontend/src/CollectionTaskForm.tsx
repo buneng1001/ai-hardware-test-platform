@@ -209,9 +209,12 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="camera_4">相机 4</option>
         <option value="imu">IMU</option>
       </select>
-      <p>
-        参考时钟是时间对齐的基准通道，不会改写原始时间戳。合成的固定偏移和线性漂移场景会用它计算对齐结果；普通采集只记录它，不额外注入故障。导入真实数据时，它用于逻辑对齐和判断，不参与数据生成。
-      </p>
+      <details>
+        <summary>参考时钟详情</summary>
+        <p>
+          参考时钟是时间对齐的基准通道，不会改写原始时间戳。合成的固定偏移和线性漂移场景会用它计算对齐结果；普通采集只记录它，不额外注入故障。导入真实数据时，它用于逻辑对齐和判断，不参与数据生成。
+        </p>
+      </details>
       {mode === "custom" ? (
         <div className="configuration-grid">
           <NumberField
@@ -307,6 +310,7 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
             : `标准是固定预设：视频格式 MP4，编码格式 H.264，时长 5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 200Hz · 6000kbps CBR · 随机种子 ${formatSeed(randomSeed)}`}
         </p>
       )}
+      <h4>可选操作</h4>
       <p>
         随机种子：{formatSeed(randomSeed)}（默认固定种子；刷新后格式为
         HHMMSSmmm）。它决定故障位置和噪声序列；相同种子、配置和版本可复现相同数据。点击刷新可为快速、标准或自定义任务生成新的时间种子。
