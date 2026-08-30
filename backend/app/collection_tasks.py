@@ -88,7 +88,8 @@ class CollectionTaskCreate(BaseModel):
             self.duration_seconds = preset["duration_seconds"]
             self.video = VideoConfiguration(**preset["video"])
             self.imu = ImuConfiguration(**preset["imu"])
-            self.random_seed = preset["random_seed"]
+            if self.random_seed is None:
+                self.random_seed = preset["random_seed"]
         elif None in (self.duration_seconds, self.video, self.imu, self.random_seed):
             raise ValueError("自定义模式必须提供完整数据参数")
 

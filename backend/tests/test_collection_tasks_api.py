@@ -81,6 +81,21 @@ def test_quick_and_standard_modes_resolve_to_safe_repeatable_presets(client):
     assert standard["imu"]["sample_rate_hz"] == 200
 
 
+def test_standard_mode_preserves_a_user_refreshed_random_seed(client):
+    response = client.post(
+        "/api/collection-tasks",
+        json={
+            "name": "刷新种子标准任务",
+            "mode": "standard",
+            "scenario": "normal",
+            "random_seed": 123456789,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["random_seed"] == 123456789
+
+
 @pytest.mark.parametrize(
     ("field", "values"),
     [

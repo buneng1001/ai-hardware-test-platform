@@ -175,6 +175,7 @@ test("运行详情展示掉帧失败指标、异常窗口和故障真值命中",
     configuration_snapshot: {
       ...queuedRun.configuration_snapshot,
       scenario: "video_drop",
+      video: { ...queuedRun.configuration_snapshot.video, channels: 2 },
     },
     events: [
       "queued",
@@ -222,6 +223,8 @@ test("运行详情展示掉帧失败指标、异常窗口和故障真值命中",
   expect(
     await screen.findByText("第 1 路视频在 0.800～1.200 秒检测到 6 帧缺失"),
   ).toBeInTheDocument();
+  expect(screen.getByText("随机种子：20260822")).toBeInTheDocument();
+  expect(screen.getByText(/掉帧注入目标：camera_1/)).toBeInTheDocument();
   expect(
     screen.getByText("失败指标：预期 30 帧，实际 24 帧，缺失 6 帧"),
   ).toBeInTheDocument();
@@ -314,6 +317,7 @@ test("运行详情可查看并提交锚点复核且独立展示内容同步", as
       ...queuedRun.configuration_snapshot,
       scenario: "linear_drift",
       reference_channel: "camera_1",
+      video: { ...queuedRun.configuration_snapshot.video, channels: 4 },
     },
     events: [
       "queued",
@@ -396,6 +400,9 @@ test("运行详情可查看并提交锚点复核且独立展示内容同步", as
   fireEvent.click(await screen.findByRole("button", { name: "执行任务" }));
   expect(
     await screen.findByText("画面内容同步（独立评价）"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/线性漂移注入目标：camera_2、camera_3、camera_4、IMU/),
   ).toBeInTheDocument();
   expect(screen.getByText(/按事件序号一一对应/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "应用锚点复核" }));

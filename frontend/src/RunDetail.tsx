@@ -44,6 +44,40 @@ export function isTerminalRun(status: RunStatus): boolean {
   return terminalRunStatuses.has(status);
 }
 
+function faultInjectionDescription(run: RunRecord): string | null {
+  const snapshot = run.configuration_snapshot;
+  const { channels } = snapshot.video;
+  if (snapshot.scenario === "video_drop") {
+    const channel = (snapshot.random_seed % channels) + 1;
+    return `掉帧注入目标：camera_${channel}（由随机种子 ${snapshot.random_seed} 按视频路数计算）。`;
+  }
+  if (snapshot.scenario === "fixed_offset") {
+    const targets = [
+      ...Array.from(
+        { length: Math.max(0, channels - 1) },
+        (_, index) => `camera_${index + 2}`,
+      ),
+      "IMU",
+    ];
+    return `固定偏移注入目标：${targets.join("、")}；相对基准 camera_1 产生固定时间偏移。`;
+  }
+  if (snapshot.scenario === "linear_drift") {
+    const targets = [
+      ...Array.from(
+        { length: Math.max(0, channels - 1) },
+        (_, index) => `camera_${index + 2}`,
+      ),
+      "IMU",
+    ];
+    return `线性漂移注入目标：${targets.join("、")}；相对基准 camera_1 的时钟偏移随时间增长。`;
+  }
+  return null;
+}
+
+function formatSeed(seed: number): string {
+  return seed === 20260822 ? String(seed) : String(seed).padStart(9, "0");
+}
+
 type RunDetailProps = {
   run: RunRecord;
   onCancel: () => void;
@@ -153,6 +187,10 @@ export function RunDetail({
       <p>
         进度：{run.events.length}/5（{run.events.length * 20}%）
       </p>
+      <p>随机种子：{formatSeed(run.configuration_snapshot.random_seed)}</p>
+      {faultInjectionDescription(run) && (
+        <p>{faultInjectionDescription(run)}</p>
+      )}
       <h3>阶段</h3>
       <p>{run.events.map((event) => stageLabels[event.stage]).join(" → ")}</p>
       <h3>产物</h3>

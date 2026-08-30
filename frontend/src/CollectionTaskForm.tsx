@@ -31,17 +31,31 @@ const MODE_LABELS: Record<DataMode, string> = {
   standard: "标准",
   custom: "自定义",
 };
-const SCENARIO_HELP: Record<Scenario, string> = {
+const SCENARIO_HELP: Partial<Record<Scenario, string>> = {
   normal: "验证视频、六轴 IMU、设备状态和日志均正常，检查系统是否产生误报。",
-  video_drop: "在指定视频通道注入掉帧，验证能否发现缺失帧并定位异常时间窗。",
   imu_anomaly: "在 IMU 数据中注入缺失、重复或时间戳异常，验证传感器检查能力。",
   storage_exhaustion:
     "模拟存储空间持续下降或不足，验证资源监控和存储告警是否生效。",
   temperature_combination:
     "组合模拟温升与相关资源变化，验证长时间趋势和组合故障检查。",
-  fixed_offset: "让不同通道存在固定时间偏移，验证共同事件检测和时间对齐结果。",
-  linear_drift: "让通道时钟随时间产生线性漂移，验证漂移拟合、校正和残差检查。",
 };
+
+function createTimeSeed(): number {
+  const now = new Date();
+  const parts = [
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds(),
+    now.getMilliseconds(),
+  ];
+  return Number(
+    `${String(parts[0]).padStart(2, "0")}${String(parts[1]).padStart(2, "0")}${String(parts[2]).padStart(2, "0")}${String(parts[3]).padStart(3, "0")}`,
+  );
+}
+
+function formatSeed(seed: number): string {
+  return seed === 20260822 ? String(seed) : String(seed).padStart(9, "0");
+}
 
 export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   const [name, setName] = useState("");
@@ -60,10 +74,19 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
   const [sampleRate, setSampleRate] =
     useState<ImuConfiguration["sample_rate_hz"]>(50);
   const [randomSeed, setRandomSeed] = useState(20260822);
+  const [seedCustomized, setSeedCustomized] = useState(false);
   const [referenceChannel, setReferenceChannel] =
     useState<ReferenceChannel>("camera_1");
   const [error, setError] = useState<string | null>(null);
   const suggestedName = `${MODE_LABELS[mode]}-${SCENARIO_LABELS[scenario]}`;
+  const effectiveChannels =
+    mode === "quick" ? 2 : mode === "standard" ? 4 : channels;
+  const droppedChannel = (randomSeed % effectiveChannels) + 1;
+  const delayedChannels = Array.from(
+    { length: Math.max(0, effectiveChannels - 1) },
+    (_, index) => `camera_${index + 2}`,
+  ).join("、");
+  const delayedTargets = delayedChannels ? `${delayedChannels} 和 IMU` : "IMU";
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -111,6 +134,8 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         bitrate_mode: bitrateMode,
       };
       command.imu = { format: imuFormat, sample_rate_hz: sampleRate };
+      command.random_seed = randomSeed;
+    } else if (seedCustomized) {
       command.random_seed = randomSeed;
     }
 
@@ -160,7 +185,16 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="fixed_offset">固定偏移</option>
         <option value="linear_drift">线性漂移</option>
       </select>
-      <p>{SCENARIO_HELP[scenario]}</p>
+      <p>
+        {scenario === "video_drop"
+          ? `对 camera_${droppedChannel} 注入掉帧（由随机种子 ${formatSeed(randomSeed)} 选择），运行详情会显示异常时间窗。`
+          : scenario === "fixed_offset"
+            ? `让 ${delayedTargets} 相对 camera_1 产生固定时间偏移，运行详情会列出目标通道。`
+            : scenario === "linear_drift"
+              ? `让 ${delayedTargets} 相对 camera_1 产生线性时钟漂移，运行详情会列出目标通道。`
+              : (SCENARIO_HELP[scenario] ??
+                "请按当前场景执行对应的确定性检查。")}
+      </p>
       <label htmlFor="reference-channel">参考时钟</label>
       <select
         id="reference-channel"
@@ -175,6 +209,9 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
         <option value="camera_4">相机 4</option>
         <option value="imu">IMU</option>
       </select>
+      <p>
+        参考时钟是时间对齐的基准通道，不会改写原始时间戳。合成的固定偏移和线性漂移场景会用它计算对齐结果；普通采集只记录它，不额外注入故障。导入真实数据时，它用于逻辑对齐和判断，不参与数据生成。
+      </p>
       {mode === "custom" ? (
         <div className="configuration-grid">
           <NumberField
@@ -266,14 +303,26 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
       ) : (
         <p>
           {mode === "quick"
-            ? "快速是固定预设：视频格式 MP4，编码格式 H.264，2 秒 · 2 路 · 640×360 · 30 FPS · IMU 100Hz · 3000kbps CBR · 随机种子 20260822"
-            : "标准是固定预设：视频格式 MP4，编码格式 H.264，时长 5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 200Hz · 6000kbps CBR · 随机种子 20260822"}
+            ? `快速是固定预设：视频格式 MP4，编码格式 H.264，2 秒 · 2 路 · 640×360 · 30 FPS · IMU 100Hz · 3000kbps CBR · 随机种子 ${formatSeed(randomSeed)}`
+            : `标准是固定预设：视频格式 MP4，编码格式 H.264，时长 5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 200Hz · 6000kbps CBR · 随机种子 ${formatSeed(randomSeed)}`}
         </p>
       )}
       {mode !== "custom" && (
         <p>快速和标准的路数及详细参数固定，若需调整请切换到自定义模式。</p>
       )}
-      <p>视频编码固定 H.264；故障场景使用配置中的固定随机种子。</p>
+      <p>
+        随机种子：{formatSeed(randomSeed)}（默认固定种子；刷新后格式为
+        HHMMSSmmm）。它决定故障位置和噪声序列；相同种子、配置和版本可复现相同数据。点击刷新可为快速、标准或自定义任务生成新的时间种子。
+        <button
+          type="button"
+          onClick={() => {
+            setRandomSeed(createTimeSeed());
+            setSeedCustomized(true);
+          }}
+        >
+          刷新随机种子
+        </button>
+      </p>
       {error && <p role="alert">{error}</p>}
       <button type="submit" disabled={saving || disabled}>
         {saving ? "正在保存…" : "保存采集任务"}
