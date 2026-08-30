@@ -304,13 +304,13 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
           />
         </div>
       ) : (
-        <p>
+        <p className="preset-summary">
           {mode === "quick"
             ? `快速是固定预设：视频格式 MP4，编码格式 H.264，2 秒 · 2 路 · 640×360 · 30 FPS · IMU 100Hz · 3000kbps CBR · 随机种子 ${formatSeed(randomSeed)}`
             : `标准是固定预设：视频格式 MP4，编码格式 H.264，时长 5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 200Hz · 6000kbps CBR · 随机种子 ${formatSeed(randomSeed)}`}
         </p>
       )}
-      <h4>可选操作</h4>
+      <h4 className="optional-actions-title">可选操作</h4>
       <p>
         随机种子：{formatSeed(randomSeed)}（默认固定种子；刷新后格式为
         HHMMSSmmm）。它决定故障位置和噪声序列；相同种子、配置和版本可复现相同数据。点击刷新可为快速、标准或自定义任务生成新的时间种子。

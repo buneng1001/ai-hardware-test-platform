@@ -217,6 +217,22 @@ button:disabled {
   gap: 6px;
 }
 
+.optional-actions-title {
+  margin: 0;
+  color: #60d6c4;
+}
+
+.optional-actions-title + p {
+  margin: 0;
+}
+
+.preset-summary {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #102832;
+}
+
 .task-card {
   margin-top: 16px;
   padding: 16px 20px;
