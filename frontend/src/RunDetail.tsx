@@ -157,10 +157,26 @@ export function RunDetail({
       <p>{run.events.map((event) => stageLabels[event.stage]).join(" → ")}</p>
       <h3>产物</h3>
       <ul>
-        {run.artifacts.map((artifact) => (
+        {run.artifacts.map((artifact, artifactIndex) => (
           <li key={artifact.path}>
             <span>
-              {artifact.kind === "frame_imu_alignment" ? (
+              {artifact.kind === "video" ? (
+                <a
+                  aria-label={`下载原始视频 camera_${
+                    run.artifacts
+                      .slice(0, artifactIndex + 1)
+                      .filter((item) => item.kind === "video").length
+                  }`}
+                  href={`/api/runs/${run.id}/videos/camera_${
+                    run.artifacts
+                      .slice(0, artifactIndex + 1)
+                      .filter((item) => item.kind === "video").length
+                  }`}
+                  download
+                >
+                  {artifact.path.split("/").at(-1)}
+                </a>
+              ) : artifact.kind === "frame_imu_alignment" ? (
                 <a
                   href={`/api/runs/${run.id}/frame-imu-alignment.csv`}
                   download
@@ -211,7 +227,14 @@ export function RunDetail({
           <a href={`/api/runs/${run.id}/evidence.zip`} download>
             下载 ZIP 证据包
           </a>
+          <a
+            href={`/api/runs/${run.id}/evidence.zip?include_sample=true`}
+            download
+          >
+            下载含视频小样的 ZIP 证据包
+          </a>
         </p>
+        <p>证据包按下载时当前状态生成；人工结果或诊断变化后请重新导出。</p>
         {run.status === "completed" && (
           <section aria-labelledby="diagnosis-title">
             <h4 id="diagnosis-title">

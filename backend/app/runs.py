@@ -7,7 +7,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from app.database import get_data_dir, open_database
@@ -448,6 +448,35 @@ def get_frame_imu_alignment(run_id: int) -> Response:
         content=path.read_bytes(),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="run-{run_id}-frame-imu-alignment.csv"'},
+    )
+
+
+@router.get("/api/runs/{run_id}/videos/{channel}")
+def download_raw_video(run_id: int, channel: str) -> FileResponse:
+    """按视频通道单独下载完整原始视频，不把它放进默认证据包。"""
+    record = _get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="运行记录不存在")
+    video_artifacts = [item for item in record.artifacts if item.kind == "video"]
+    channel_index = next(
+        (index for index in range(1, len(video_artifacts) + 1) if f"camera_{index}" == channel),
+        None,
+    )
+    if channel_index is None:
+        raise HTTPException(status_code=404, detail="视频通道不存在")
+    artifact = video_artifacts[channel_index - 1]
+    data_dir = get_data_dir().resolve()
+    path = (data_dir / artifact.path).resolve()
+    try:
+        path.relative_to(data_dir)
+    except ValueError as error:
+        raise HTTPException(status_code=500, detail="原始视频路径不安全") from error
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="原始视频不存在")
+    return FileResponse(
+        path,
+        media_type="video/mp4" if path.suffix.lower() == ".mp4" else "video/x-matroska",
+        filename=f"run-{run_id}-{channel}{path.suffix.lower()}",
     )
 
 

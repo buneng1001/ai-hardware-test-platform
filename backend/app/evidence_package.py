@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -58,7 +59,8 @@ def _csv_bytes(headers: list[str], rows: list[list[object]]) -> bytes:
     writer.writerow(headers)
     for row in rows:
         writer.writerow([_sanitize_text(str(value)) for value in row])
-    return output.getvalue().encode("utf-8")
+    # UTF-8 BOM 让 Windows Excel 自动识别中文编码。
+    return output.getvalue().encode("utf-8-sig")
 
 
 def _safe_artifact_path(artifact: Artifact, data_dir: Path) -> Path:
@@ -92,18 +94,16 @@ def _assert_binary_safe(content: bytes, name: str) -> None:
 def _add_manual_results(files: dict[str, bytes], results: list[ManualCheckResult]) -> None:
     rows = [
         [
-            result.id,
             result.name,
             result.status,
             result.actual_result or "",
             result.notes or "",
             result.executed_at.isoformat() if result.executed_at else "",
-            result.attachment["filename"] if result.attachment else "",
         ]
         for result in results
     ]
     files["manual-check-results.csv"] = _csv_bytes(
-        ["id", "name", "status", "actual_result", "notes", "executed_at", "attachment"], rows
+        ["name", "status", "actual_result", "notes", "executed_at"], rows
     )
 
 
@@ -197,6 +197,34 @@ def _add_samples(files: dict[str, bytes], run: RunRecord, data_dir: Path, includ
         total += len(sample)
 
 
+def _add_thumbnails(files: dict[str, bytes], run: RunRecord, data_dir: Path) -> None:
+    """为每路视频生成单帧 PNG 缩略图，供脱离应用的证据复查使用。"""
+    for artifact in run.artifacts:
+        if artifact.kind != "video":
+            continue
+        path = _safe_artifact_path(artifact, data_dir)
+        command = [
+            imageio_ffmpeg.get_ffmpeg_exe(),
+            "-v",
+            "error",
+            "-i",
+            str(path),
+            "-frames:v",
+            "1",
+            "-f",
+            "image2pipe",
+            "-vcodec",
+            "png",
+            "pipe:1",
+        ]
+        try:
+            thumbnail = subprocess.run(command, check=True, capture_output=True).stdout
+        except (OSError, subprocess.SubprocessError) as error:
+            raise HTTPException(status_code=500, detail="视频缩略图提取失败") from error
+        _assert_binary_safe(thumbnail, path.name)
+        files[f"thumbnails/{path.stem}.png"] = thumbnail
+
+
 def _manifest(files: dict[str, bytes], run: RunRecord, include_sample: bool) -> dict[str, object]:
     entries = [
         {
@@ -209,8 +237,11 @@ def _manifest(files: dict[str, bytes], run: RunRecord, include_sample: bool) -> 
     return {
         "format": "verifiable-evidence-v1",
         "run_id": run.id,
+        "status": run.status,
+        "exported_at": datetime.now(UTC).isoformat(),
+        "export_note": "按下载时当前状态生成；人工结果或诊断变化后请重新导出。",
         "included_video_sample": include_sample,
-        "excluded_kinds": [] if include_sample else ["video"],
+        "excluded_kinds": ["video_original"] if include_sample else ["video"],
         "files": sorted([*files, "evidence-manifest.json", "SHA256SUMS.txt"]),
         "hashed_files": entries,
     }
@@ -227,6 +258,7 @@ def _build_zip(run: RunRecord, include_sample: bool) -> bytes:
     _add_manual_results(files, run.manual_check_results)
     _add_artifacts(files, run, get_data_dir())
     _add_manual_attachments(files, run)
+    _add_thumbnails(files, run, get_data_dir())
     _add_samples(files, run, get_data_dir(), include_sample)
 
     manifest = _manifest(files, run, include_sample)

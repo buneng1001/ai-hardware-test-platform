@@ -544,6 +544,6 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
   expect(
     screen.getByText("排队 → 生成数据 → 执行检查 → 汇总结果 → 已完成"),
   ).toBeInTheDocument();
-  expect(screen.getByText("camera_1.mp4 · 实际生成")).toBeInTheDocument();
+  expect(screen.getByText("camera_1.mp4")).toBeInTheDocument();
   expect(screen.getByText("视频编码为 H.264")).toBeInTheDocument();
 });

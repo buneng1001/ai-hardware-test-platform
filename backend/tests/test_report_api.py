@@ -145,7 +145,10 @@ def test_evidence_zip_allows_only_explicit_small_video_sample(tmp_path, monkeypa
 
     assert response.status_code == 200
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert any(name.startswith("thumbnails/") for name in archive.namelist())
         assert any(name.startswith("samples/") for name in archive.namelist())
+        manifest = json.loads(archive.read("evidence-manifest.json"))
+        assert manifest["excluded_kinds"] == ["video_original"]
         assert not any(name.startswith("runs/") for name in archive.namelist())
 
 
@@ -206,6 +209,62 @@ def test_evidence_zip_redacts_sensitive_manual_text(tmp_path, monkeypatch):
     assert b"secret-token" not in package_text
     assert b"sk-test-secret" not in package_text
     assert b"[REDACTED]" in package_text
+
+
+def test_raw_video_has_an_independent_download_and_evidence_export_metadata(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={"name": "原始视频下载", "mode": "quick", "scenario": "normal"},
+        ).json()
+        run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+        video = next(item for item in run["artifacts"] if item["kind"] == "video")
+        video_response = client.get(f"/api/runs/{run['id']}/videos/camera_1")
+        evidence_response = client.get(f"/api/runs/{run['id']}/evidence.zip")
+
+    assert video_response.status_code == 200
+    assert video_response.content == (tmp_path / video["path"]).read_bytes()
+    assert video_response.headers["content-disposition"] == (
+        f'attachment; filename="run-{run["id"]}-camera_1.mp4"'
+    )
+    assert evidence_response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(evidence_response.content)) as archive:
+        manifest = json.loads(archive.read("evidence-manifest.json"))
+        assert manifest["exported_at"]
+        assert manifest["status"] == "completed"
+        assert "按下载时当前状态生成" in manifest["export_note"]
+
+
+def test_evidence_csv_is_excel_compatible_and_manual_results_can_be_reimported(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/collection-tasks",
+            json={"name": "人工结果回导", "mode": "quick", "scenario": "normal"},
+        ).json()
+        run = wait_for_completion(client, client.post(f"/api/collection-tasks/{task['id']}/runs").json()["id"])
+        client.post(
+            f"/api/runs/{run['id']}/manual-check-results",
+            json={"name": "外观检查", "status": "blocked", "actual_result": "无法观察"},
+        )
+        response = client.get(f"/api/runs/{run['id']}/evidence.zip")
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            manual_csv = archive.read("manual-check-results.csv")
+            checks_csv = archive.read("checks.csv")
+            imported = client.post(
+                f"/api/runs/{run['id']}/manual-check-results/import?filename=manual-results.csv",
+                content=manual_csv,
+                headers={"Content-Type": "text/csv"},
+            )
+
+    assert manual_csv.startswith(b"\xef\xbb\xbf")
+    assert checks_csv.startswith(b"\xef\xbb\xbf")
+    assert imported.status_code == 201
+    assert imported.json()[0]["name"] == "外观检查"
 
 
 def test_evidence_zip_rejects_sensitive_binary_attachment(tmp_path, monkeypatch):

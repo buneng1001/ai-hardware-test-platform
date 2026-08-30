@@ -89,7 +89,8 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
   expect(
     screen.getByText("排队 → 生成数据 → 执行检查 → 汇总结果 → 已完成"),
   ).toBeInTheDocument();
-  expect(screen.getByText("camera_1.mp4 · 实际生成")).toBeInTheDocument();
+  expect(screen.getByText("camera_1.mp4")).toBeInTheDocument();
+  expect(screen.getByText(/实际生成/)).toBeInTheDocument();
   expect(screen.getByText("视频编码为 H.264")).toBeInTheDocument();
   expect(
     screen.getByRole("link", { name: "打开独立 HTML 报告" }),
@@ -98,6 +99,17 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
     "href",
     "/api/runs/9/evidence.zip",
   );
+  expect(
+    screen.getByRole("link", { name: "下载含视频小样的 ZIP 证据包" }),
+  ).toHaveAttribute("href", "/api/runs/9/evidence.zip?include_sample=true");
+  expect(
+    screen.getByRole("link", { name: "下载原始视频 camera_1" }),
+  ).toHaveAttribute("href", "/api/runs/9/videos/camera_1");
+  expect(
+    screen.getByText(
+      "证据包按下载时当前状态生成；人工结果或诊断变化后请重新导出。",
+    ),
+  ).toBeInTheDocument();
 });
 
 test("测试工程师能取消运行并从原配置创建新的运行记录", async () => {
