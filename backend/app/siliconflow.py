@@ -129,21 +129,23 @@ class ProviderAdapter:
     ) -> dict[str, object]:
         if not api_key:
             raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, f"未配置 {self.provider} API Key", False)
+        body = {
+            "model": model,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {
+                    "role": "system",
+                    "content": f"只返回符合诊断 Schema 的 JSON。Prompt 版本：{prompt_version}",
+                },
+                {"role": "user", "content": evidence_json},
+            ],
+        }
+        if self.provider != "kimi":
+            body["temperature"] = 0
         request_data = {
             "api_key": api_key,
             "endpoint": self._endpoint,
-            "body": {
-                "model": model,
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": f"只返回符合诊断 Schema 的 JSON。Prompt 版本：{prompt_version}",
-                    },
-                    {"role": "user", "content": evidence_json},
-                ],
-            },
+            "body": body,
         }
         for attempt in range(3):
             try:
@@ -168,17 +170,19 @@ class ProviderAdapter:
         """只检查服务连通性，不把普通回复误判为诊断结果。"""
         if not api_key:
             raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, f"未配置 {self.provider} API Key", False)
+        body = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "只需确认连接可用，返回任意简短内容即可。"},
+                {"role": "user", "content": "连接测试"},
+            ],
+        }
+        if self.provider != "kimi":
+            body["temperature"] = 0
         request_data = {
             "api_key": api_key,
             "endpoint": self._endpoint,
-            "body": {
-                "model": model,
-                "temperature": 0,
-                "messages": [
-                    {"role": "system", "content": "只需确认连接可用，返回任意简短内容即可。"},
-                    {"role": "user", "content": "连接测试"},
-                ],
-            },
+            "body": body,
         }
         for attempt in range(3):
             try:

@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app import diagnosis as diagnosis_module
 from app.main import app
 from app.siliconflow import (
+    KimiAdapter,
     ModelErrorKind,
     SiliconFlowAdapter,
     SiliconFlowError,
@@ -43,6 +44,17 @@ def test_connection_check_accepts_normal_model_reply_without_diagnosis_schema():
     SiliconFlowAdapter(transport=transport).check_connection(
         api_key="temporary-secret",
         model="demo-model",
+    )
+
+
+def test_kimi_connection_check_omits_unsupported_temperature_parameter():
+    def transport(request):
+        assert "temperature" not in request["body"]
+        return 200, json.dumps({"choices": [{"message": {"content": "连接成功"}}]})
+
+    KimiAdapter(transport=transport).check_connection(
+        api_key="temporary-secret",
+        model="kimi-k2.6",
     )
 
 
