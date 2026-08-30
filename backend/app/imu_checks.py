@@ -100,7 +100,7 @@ def _check(name: str, passed: bool, passed_message: str, metrics: dict[str, int 
 
 def _anomaly_check(name: str, label: str, anomalies: list, truth: dict) -> BasicCheck:
     positions = [item if isinstance(item, dict) else {"sample_index": item} for item in anomalies]
-    expected = [fault for fault in truth["faults"] if fault.get("expected_check") == name]
+    expected = [fault for fault in truth.get("faults", []) if fault.get("expected_check") == name]
     expected_positions = [fault["sample_index"] for fault in expected]
     detected_positions = [position["sample_index"] for position in positions]
     comparison = (

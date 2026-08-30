@@ -1,10 +1,21 @@
 import io
 import json
+import time
 import zipfile
 
 from fastapi.testclient import TestClient
 
 from app.main import app
+
+
+def _wait_for_terminal(client: TestClient, run_id: int) -> dict:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        run = client.get(f"/api/runs/{run_id}").json()
+        if run["status"] in {"completed", "failed", "cancelled", "interrupted"}:
+            return run
+        time.sleep(0.01)
+    raise AssertionError("导入型运行未在 10 秒内结束")
 
 
 def _zip_bytes(*, include_optional: bool = False, include_fault_truth: bool = False) -> bytes:
@@ -122,3 +133,83 @@ def test_import_rejects_path_traversal_without_leaving_formal_data(tmp_path, mon
         assert any("路径穿越" in error for error in validation.json()["detail"]["errors"])
         assert not list((tmp_path / "imports").glob("[0-9a-f]" * 64))
         assert not list(tmp_path.rglob("escape.txt"))
+
+
+def test_imported_task_requires_manual_run_configuration_and_uses_imported_evidence(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+    with TestClient(app) as client:
+        uploaded = _upload(client, _zip_bytes(include_optional=True))
+        import_record = uploaded.json()
+        assert client.post(f"/api/imports/{import_record['id']}/validate").json()["status"] == "passed"
+        task = client.post(
+            f"/api/imports/{import_record['id']}/create-task",
+            json={"name": "导入运行链路", "label": "现场数据"},
+        ).json()
+
+        before_run = client.get(f"/api/collection-tasks/{task['id']}").json()
+        assert before_run["source"] == "imported_actual_data"
+        assert client.get("/api/runs/1").status_code == 404
+        assert client.post(f"/api/collection-tasks/{task['id']}/runs").status_code == 422
+
+        queued = client.post(
+            f"/api/collection-tasks/{task['id']}/runs",
+            json={
+                "reference_channel": "camera_1",
+                "evaluation": {
+                    "mode": "baseline_analysis",
+                    "threshold_source": "version_baseline",
+                    "thresholds": {},
+                },
+            },
+        )
+        assert queued.status_code == 201, queued.text
+        run = _wait_for_terminal(client, queued.json()["id"])
+        report = client.get(f"/api/runs/{run['id']}/report").json()
+
+    assert run["status"] == "completed"
+    assert run["configuration_snapshot"]["reference_channel"] == "camera_1"
+    assert run["configuration_snapshot"]["evaluation"]["mode"] == "baseline_analysis"
+    assert {artifact["source"] for artifact in run["artifacts"]} == {"imported_actual_data"}
+    assert not any(artifact["kind"] == "fault_truth" for artifact in run["artifacts"])
+    assert run["evaluation_result"]["conclusion"] == "not_applicable"
+    assert report["fault_truth"] is None
+    assert {check["name"] for check in run["checks"]} >= {
+        "video_channel_count",
+        "video_bitrate",
+        "imu_sample_rate",
+    }
+    assert all(check["truth_comparison"] == "not_applicable" for check in run["checks"])
+
+
+def test_imported_task_marks_missing_optional_evidence_not_run_and_preserves_source(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+    with TestClient(app) as client:
+        uploaded = _upload(client, _zip_bytes())
+        import_record = uploaded.json()
+        assert client.post(f"/api/imports/{import_record['id']}/validate").json()["status"] == "passed"
+        task = client.post(
+            f"/api/imports/{import_record['id']}/create-task",
+            json={"name": "缺少可选证据", "label": "现场数据"},
+        ).json()
+        queued = client.post(
+            f"/api/collection-tasks/{task['id']}/runs",
+            json={
+                "reference_channel": "camera_1",
+                "evaluation": {
+                    "mode": "requirements_acceptance",
+                    "threshold_source": "formal_specification",
+                    "thresholds": {"max_failed_checks": 0},
+                },
+            },
+        )
+        run = _wait_for_terminal(client, queued.json()["id"])
+        original_imu = next(artifact for artifact in run["artifacts"] if artifact["kind"] == "imu")
+        original_hash = original_imu["sha256"]
+
+    assert run["status"] == "completed"
+    checks = {check["name"]: check for check in run["checks"]}
+    assert checks["storage_premature_stop"]["status"] == "not_run"
+    assert checks["storage_exhaustion"]["status"] == "not_run"
+    assert checks["storage_log_correlation"]["status"] == "not_run"
+    assert original_imu["sha256"] == original_hash
+    assert all(check["truth_comparison"] == "not_applicable" for check in run["checks"])

@@ -137,7 +137,7 @@ class StageEvent(BaseModel):
 class Artifact(BaseModel):
     kind: Literal["video", "imu", "device_status", "device_log", "fault_truth", "frame_imu_alignment"]
     path: str
-    source: Literal["actual_generated", "virtual_time_simulated"]
+    source: Literal["actual_generated", "virtual_time_simulated", "imported_actual_data"]
     size_bytes: int
     sha256: str
     codec: Literal["h264"] | None = None
@@ -147,7 +147,7 @@ class Artifact(BaseModel):
 class BasicCheck(BaseModel):
     name: str
     category: Literal["video", "imu", "resource", "log", "storage"] = "video"
-    status: Literal["passed", "failed"]
+    status: Literal["passed", "failed", "not_run"]
     message: str
     metrics: dict[str, int | float | str] = Field(default_factory=dict)
     anomaly_windows: list[dict[str, int | float]] = Field(default_factory=list)

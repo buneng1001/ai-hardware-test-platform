@@ -16,7 +16,7 @@ def run_video_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunCon
     generated_duration = min(snapshot.duration_seconds, MAX_ACTUAL_DURATION_SECONDS)
     expected_frames = snapshot.video.fps * generated_duration
     dropped_by_channel = [expected_frames - probe["frame_count"] for probe in probes]
-    fault = next((item for item in truth["faults"] if item["type"] == "video_frame_drop"), None)
+    fault = next((item for item in truth.get("faults", []) if item["type"] == "video_frame_drop"), None)
     detected_channel = next((index + 1 for index, dropped in enumerate(dropped_by_channel) if dropped > 0), None)
     detected_drops = dropped_by_channel[detected_channel - 1] if detected_channel else 0
     detected_window = (
@@ -93,12 +93,22 @@ def _result(name: str, passed: bool, passed_message: str, metrics: dict[str, int
 
 
 def _probe_video(path: Path, expected_fps: int) -> dict[str, int | float | str | bool | None]:
-    reader = imageio_ffmpeg.read_frames(path)
     try:
-        metadata = next(reader)
-    finally:
-        reader.close()
-    frame_count, duration = imageio_ffmpeg.count_frames_and_secs(path)
+        reader = imageio_ffmpeg.read_frames(path)
+        try:
+            metadata = next(reader)
+        finally:
+            reader.close()
+        frame_count, duration = imageio_ffmpeg.count_frames_and_secs(path)
+    except (OSError, RuntimeError, StopIteration, subprocess.SubprocessError):
+        return {
+            "codec": None,
+            "fps": 0.0,
+            "duration": 0.0,
+            "frame_count": 0,
+            "decode_error": True,
+            "drop_windows": [],
+        }
     decoded = subprocess.run(
         [imageio_ffmpeg.get_ffmpeg_exe(), "-v", "error", "-i", str(path), "-f", "null", "-"],
         check=False,

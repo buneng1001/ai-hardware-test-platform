@@ -71,7 +71,7 @@ def _report_document(run: RunRecord) -> ReportDocument:
         generation_metadata=data["generation_metadata"],
         artifacts=run.artifacts,
         automated_checks=run.checks,
-        fault_truth=_read_fault_truth(run),
+        fault_truth=_read_fault_truth(run) or None,
         alignment_result=run.alignment_result,
         evaluation_result=run.evaluation_result,
         manual_check_results=run.manual_check_results,

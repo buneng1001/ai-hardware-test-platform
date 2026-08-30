@@ -3,9 +3,12 @@ import sqlite3
 import subprocess
 from collections.abc import Callable
 from datetime import UTC, datetime
+from hashlib import sha256
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from app.database import get_data_dir, open_database
 from app.evaluation import evaluate_run
@@ -13,14 +16,84 @@ from app.imu_checks import run_imu_checks
 from app.manual_check_results import list_manual_results
 from app.normal_generator import generate_normal_artifacts
 from app.resource_checks import run_resource_checks
-from app.run_models import AlignmentReviewCommand, RunConfigurationSnapshot, RunRecord, StageEvent
+from app.run_models import (
+    AlignmentReviewCommand,
+    BasicCheck,
+    EvaluationConfiguration,
+    RunConfigurationSnapshot,
+    RunRecord,
+    StageEvent,
+)
 from app.storage_checks import run_storage_checks
-from app.time_alignment import align_fixed_offset, align_linear_drift, build_frame_imu_alignment
+from app.time_alignment import align_fixed_offset, align_imported_data, align_linear_drift, build_frame_imu_alignment
 from app.video_checks import run_video_checks
 
 router = APIRouter(tags=["runs"])
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
+
+
+class ImportedRunCommand(BaseModel):
+    """导入型运行启动前的人工配置；导入数据本身不接受合成场景。"""
+
+    reference_channel: str = "camera_1"
+    evaluation: EvaluationConfiguration | None = None
+
+
+def _is_imported_task(task_id: int) -> bool:
+    with open_database() as connection:
+        row = connection.execute("SELECT source FROM collection_tasks WHERE id = ?", (task_id,)).fetchone()
+    return bool(row and row["source"] == "imported_actual_data")
+
+
+def _imported_artifacts(task_id: int):
+    """从已入库的不可变目录建立运行产物清单，不复制或修改原始文件。"""
+    with open_database() as connection:
+        row = connection.execute(
+            "SELECT formal_path, validation_result FROM import_records WHERE created_task_id = ?", (task_id,)
+        ).fetchone()
+    if row is None or not row["formal_path"]:
+        raise RuntimeError("导入原始数据记录不存在")
+    root = Path(row["formal_path"]) / "extracted"
+    validation = json.loads(row["validation_result"])
+    manifest = validation.get("manifest") or {}
+    artifacts = []
+    for video in manifest.get("videos", []):
+        path = root / video["path"]
+        artifacts.append(
+            _imported_artifact("video", path, video.get("codec"), video.get("start_raw_device_timestamp_ns"))
+        )
+    imu = manifest.get("imu") or {}
+    artifacts.append(_imported_artifact("imu", root / imu["path"]))
+    optional_paths = {
+        "device_status": ("device-status.json", "device_status.json"),
+        "device_log": ("device.log", "device-log.json"),
+    }
+    for kind, names in optional_paths.items():
+        path = next((root / name for name in names if (root / name).is_file()), None)
+        if path is not None:
+            artifacts.append(_imported_artifact(kind, path))
+    return artifacts
+
+
+def _not_run_check(name: str, category: str, message: str) -> BasicCheck:
+    """明确区分缺少可选证据与自动检查通过。"""
+    return BasicCheck(name=name, category=category, status="not_run", message=message)
+
+
+def _imported_artifact(kind: str, path: Path, codec: str | None = None, start_timestamp: int | None = None):
+    from app.run_models import Artifact
+
+    content = path.read_bytes()
+    return Artifact(
+        kind=kind,
+        path=path.relative_to(get_data_dir()).as_posix(),
+        source="imported_actual_data",
+        size_bytes=len(content),
+        sha256=sha256(content).hexdigest(),
+        codec=codec,
+        start_raw_device_timestamp_ns=start_timestamp,
+    )
 
 
 def _now() -> datetime:
@@ -190,9 +263,13 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
         record.events.append(_event("generating_data"))
         if not _save_active_run(record):
             return
-        record.artifacts, record.generation_metadata = generate_normal_artifacts(
-            get_data_dir() / "runs" / str(record.id), record.configuration_snapshot
-        )
+        if _is_imported_task(record.collection_task_id):
+            record.artifacts = _imported_artifacts(record.collection_task_id)
+            record.generation_metadata = None
+        else:
+            record.artifacts, record.generation_metadata = generate_normal_artifacts(
+                get_data_dir() / "runs" / str(record.id), record.configuration_snapshot
+            )
         if _stop_requested(record, application_stopping):
             return
 
@@ -200,16 +277,27 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
         record.events.append(_event("running_checks"))
         if not _save_active_run(record):
             return
-        record.checks = [
-            *run_video_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
-            *run_imu_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
-            *run_storage_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
-            *(
-                run_resource_checks(record.artifacts, get_data_dir(), record.configuration_snapshot)
-                if record.configuration_snapshot.scenario == "temperature_combination"
-                else []
-            ),
-        ]
+        if _is_imported_task(record.collection_task_id):
+            record.checks = [
+                *run_video_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
+                *run_imu_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
+            ]
+            if not any(artifact.kind == "device_status" for artifact in record.artifacts):
+                record.checks.append(_not_run_check("storage_exhaustion", "storage", "缺少设备状态证据，未执行"))
+                record.checks.append(_not_run_check("storage_premature_stop", "storage", "缺少设备状态证据，未执行"))
+            if not any(artifact.kind == "device_log" for artifact in record.artifacts):
+                record.checks.append(_not_run_check("storage_log_correlation", "storage", "缺少设备日志证据，未执行"))
+        else:
+            record.checks = [
+                *run_video_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
+                *run_imu_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
+                *run_storage_checks(record.artifacts, get_data_dir(), record.configuration_snapshot),
+                *(
+                    run_resource_checks(record.artifacts, get_data_dir(), record.configuration_snapshot)
+                    if record.configuration_snapshot.scenario == "temperature_combination"
+                    else []
+                ),
+            ]
         if record.configuration_snapshot.scenario == "temperature_combination":
             video_channel = record.configuration_snapshot.random_seed % record.configuration_snapshot.video.channels + 1
             evidence_by_check = {
@@ -222,15 +310,21 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
             }
             for check in record.checks:
                 check.evidence_refs = evidence_by_check.get(check.name, check.evidence_refs)
-        record.alignment_result = align_fixed_offset(
-            record.artifacts, get_data_dir(), record.configuration_snapshot
-        ) or align_linear_drift(record.artifacts, get_data_dir(), record.configuration_snapshot)
+        if _is_imported_task(record.collection_task_id):
+            record.alignment_result = align_imported_data(
+                record.artifacts, get_data_dir(), record.configuration_snapshot
+            )
+        else:
+            record.alignment_result = align_fixed_offset(
+                record.artifacts, get_data_dir(), record.configuration_snapshot
+            ) or align_linear_drift(record.artifacts, get_data_dir(), record.configuration_snapshot)
         if record.alignment_result is not None:
             mapping_artifact, mapping_summary = build_frame_imu_alignment(
                 record.artifacts,
                 get_data_dir(),
                 record.configuration_snapshot,
                 record.alignment_result,
+                get_data_dir() / "runs" / str(record.id) if _is_imported_task(record.collection_task_id) else None,
             )
             record.artifacts.append(mapping_artifact)
             record.alignment_result = record.alignment_result.model_copy(
@@ -278,12 +372,24 @@ def recover_unfinished_runs() -> None:
 
 
 @router.post("/api/collection-tasks/{task_id}/runs", response_model=RunRecord, status_code=status.HTTP_201_CREATED)
-def execute_collection_task(task_id: int, request: Request) -> RunRecord:
+def execute_collection_task(
+    task_id: int, request: Request, command: ImportedRunCommand | None = None
+) -> RunRecord:
     with open_database() as connection:
         task = connection.execute("SELECT configuration FROM collection_tasks WHERE id = ?", (task_id,)).fetchone()
     if task is None:
         raise HTTPException(status_code=404, detail="采集任务不存在")
     snapshot = RunConfigurationSnapshot.model_validate_json(task["configuration"])
+    if _is_imported_task(task_id):
+        if command is None or command.evaluation is None:
+            raise HTTPException(status_code=422, detail="导入型运行必须手工配置参考时钟和判定模式")
+        snapshot = snapshot.model_copy(
+            update={
+                "reference_channel": command.reference_channel,
+                "evaluation": command.evaluation,
+            }
+        )
+        snapshot = RunConfigurationSnapshot.model_validate(snapshot.model_dump())
     record = _create_run(task_id, snapshot)
     request.app.state.run_executor.submit(record.id)
     return record

@@ -8,12 +8,17 @@ def evaluate_run(
 ) -> EvaluationResult:
     """按快照中的静态阈值判定；摸底模式只返回分布，不输出合格性结论。"""
     failed_checks = sum(check.status == "failed" for check in checks)
+    executed_checks = sum(check.status != "not_run" for check in checks)
     metrics: dict[str, float | int] = {
-        "check_count": len(checks),
+        "check_count": executed_checks,
         "failed_check_count": failed_checks,
     }
-    distribution = {"passed": len(checks) - failed_checks, "failed": failed_checks}
-    trend = [int(check.status == "failed") for check in checks]
+    distribution = {
+        "passed": sum(check.status == "passed" for check in checks),
+        "failed": failed_checks,
+        "not_run": sum(check.status == "not_run" for check in checks),
+    }
+    trend = [int(check.status == "failed") for check in checks if check.status != "not_run"]
     if alignment is not None and alignment.post_alignment:
         metrics["max_alignment_residual_ms"] = max(
             metric["max_residual_ms"] for metric in alignment.post_alignment.values()

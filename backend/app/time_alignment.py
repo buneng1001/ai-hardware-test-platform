@@ -180,6 +180,7 @@ def build_frame_imu_alignment(
     data_dir: Path,
     snapshot: RunConfigurationSnapshot,
     alignment: TimeAlignmentResult,
+    output_dir: Path | None = None,
 ) -> tuple[Artifact, FrameImuAlignmentSummary]:
     """按视频帧寻找对齐后最近邻 IMU 样本，并把结果写入独立 CSV。"""
     video_artifacts = [artifact for artifact in artifacts if artifact.kind == "video"]
@@ -241,13 +242,14 @@ def build_frame_imu_alignment(
                 ]
             )
 
-    run_dir = (data_dir / video_artifacts[0].path).parent
+    run_dir = output_dir or (data_dir / video_artifacts[0].path).parent
+    run_dir.mkdir(parents=True, exist_ok=True)
     mapping_path = run_dir / "frame-imu-alignment.csv"
     with mapping_path.open("w", encoding="utf-8-sig", newline="") as file:
         writer = csv.writer(file, lineterminator="\n")
         writer.writerow(FRAME_IMU_ALIGNMENT_COLUMNS)
         writer.writerows(rows)
-    artifact = _derived_artifact(mapping_path, data_dir)
+    artifact = _derived_artifact(mapping_path, data_dir, video_artifacts[0].source)
     summary = FrameImuAlignmentSummary(
         artifact_path=artifact.path,
         frame_count=len(rows),
@@ -258,6 +260,37 @@ def build_frame_imu_alignment(
         columns=FRAME_IMU_ALIGNMENT_COLUMNS,
     )
     return artifact, summary
+
+
+def align_imported_data(
+    artifacts: list[Artifact], data_dir: Path, snapshot: RunConfigurationSnapshot
+) -> TimeAlignmentResult | None:
+    """为导入数据创建不修改原始时间的基础对齐结果。"""
+    video_artifacts = [artifact for artifact in artifacts if artifact.kind == "video"]
+    imu_artifact = next((artifact for artifact in artifacts if artifact.kind == "imu"), None)
+    if not video_artifacts or imu_artifact is None:
+        return None
+    channels = {f"camera_{index}": {} for index in range(1, len(video_artifacts) + 1)}
+    channels["imu"] = {}
+    metrics = {channel: {"offset_s": 0.0, "jitter_ms": 0.0} for channel in channels}
+    residuals = {channel: {"max_residual_ms": 0.0, "mean_residual_ms": 0.0, "p95_residual_ms": 0.0}
+                 for channel in channels}
+    return TimeAlignmentResult(
+        reference_channel=snapshot.reference_channel,
+        method="fixed_offset_anchor",
+        parameters={channel: 0.0 for channel in channels},
+        pre_alignment=metrics,
+        post_alignment=residuals,
+        anchors={},
+        anchor_details=[],
+        content_sync=ContentSyncResult(
+            status="degraded",
+            video_event_count=0,
+            imu_event_count=0,
+            matched_event_count=0,
+            message="导入数据未提供可用于内容事件对应的合成真值锚点",
+        ),
+    )
 
 
 def _read_imu_rows(path: Path, imu_format: str) -> list[dict[str, str]]:
@@ -281,12 +314,12 @@ def _video_raw_timestamp(artifact: Artifact, relative_time_s: float) -> int:
     return start_ns + round(relative_time_s * 1_000_000_000)
 
 
-def _derived_artifact(path: Path, data_dir: Path) -> Artifact:
+def _derived_artifact(path: Path, data_dir: Path, source: str = "actual_generated") -> Artifact:
     content = path.read_bytes()
     return Artifact(
         kind="frame_imu_alignment",
         path=path.relative_to(data_dir).as_posix(),
-        source="actual_generated",
+        source=source,
         size_bytes=len(content),
         sha256=hashlib.sha256(content).hexdigest(),
     )
