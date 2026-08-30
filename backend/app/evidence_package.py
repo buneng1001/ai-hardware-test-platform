@@ -102,9 +102,7 @@ def _add_manual_results(files: dict[str, bytes], results: list[ManualCheckResult
         ]
         for result in results
     ]
-    files["manual-check-results.csv"] = _csv_bytes(
-        ["name", "status", "actual_result", "notes", "executed_at"], rows
-    )
+    files["manual-check-results.csv"] = _csv_bytes(["name", "status", "actual_result", "notes", "executed_at"], rows)
 
 
 def _add_checks(files: dict[str, bytes], run: RunRecord) -> None:

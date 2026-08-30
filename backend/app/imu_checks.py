@@ -15,8 +15,7 @@ def run_imu_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfi
     expected_interval = 1 / snapshot.imu.sample_rate_hz
     indices = [int(row["sample_index"]) for row in rows]
     timestamps = [
-        float(row["relative_timestamp_s"] if "relative_timestamp_s" in row else row["timestamp_s"])
-        for row in rows
+        float(row["relative_timestamp_s"] if "relative_timestamp_s" in row else row["timestamp_s"]) for row in rows
     ]
     intervals = [current - previous for previous, current in zip(timestamps, timestamps[1:], strict=False)]
 
