@@ -1,5 +1,6 @@
 """运行队列的执行、取消检查和启动恢复。"""
 
+import json
 import subprocess
 from collections.abc import Callable
 
@@ -133,9 +134,9 @@ def recover_unfinished_runs() -> None:
             "'queued','generating_data','running_checks','summarizing_results')"
         ).fetchall()
         for row in rows:
-            events = __import__("json").loads(row["events"])
+            events = json.loads(row["events"])
             events.append(event("interrupted").model_dump(mode="json"))
             connection.execute(
                 "UPDATE runs SET status='interrupted', events=?, completed_at=?, error=? WHERE id=?",
-                (__import__("json").dumps(events), recovered_at.isoformat(), "应用重启时检测到未完成运行", row["id"]),
+                (json.dumps(events), recovered_at.isoformat(), "应用重启时检测到未完成运行", row["id"]),
             )

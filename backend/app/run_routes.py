@@ -1,6 +1,7 @@
 """运行相关 HTTP 接口；路由契约保持与原模块一致。"""
 
 import json
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request, status
 from fastapi.responses import FileResponse, Response
@@ -9,7 +10,8 @@ from pydantic import BaseModel
 from app.database import get_data_dir, open_database
 from app.run_models import AlignmentReviewCommand, EvaluationConfiguration, RunConfigurationSnapshot, RunRecord
 from app.run_router import router
-from app.run_storage import create_run, event, get_run, save_active_run
+from app.run_storage import create_run, event, save_active_run
+from app.run_storage import get_run as storage_get_run
 from app.time_alignment import align_fixed_offset, align_linear_drift, build_frame_imu_alignment
 
 
@@ -47,13 +49,13 @@ def execute_collection_task(task_id: int, request: Request, command: ImportedRun
 
 @router.post("/api/runs/{run_id}/cancel", response_model=RunRecord)
 def cancel_run(run_id: int) -> RunRecord:
-    record = get_run(run_id)
+    record = storage_get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
     if record.status in {"completed", "failed", "cancelled", "interrupted"}:
         raise HTTPException(status_code=409, detail="运行记录已结束，不能取消")
     record.status = "cancelled"
-    record.completed_at = __import__("datetime").datetime.now(__import__("datetime").UTC)
+    record.completed_at = datetime.now(UTC)
     record.events.append(event("cancelled"))
     if not save_active_run(record):
         raise HTTPException(status_code=409, detail="运行记录状态已变化，请刷新后重试")
@@ -62,7 +64,7 @@ def cancel_run(run_id: int) -> RunRecord:
 
 @router.post("/api/runs/{run_id}/rerun", response_model=RunRecord, status_code=status.HTTP_201_CREATED)
 def rerun(run_id: int, request: Request) -> RunRecord:
-    original = get_run(run_id)
+    original = storage_get_run(run_id)
     if original is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
     record = create_run(original.collection_task_id, original.configuration_snapshot)
@@ -72,7 +74,7 @@ def rerun(run_id: int, request: Request) -> RunRecord:
 
 @router.get("/api/runs/{run_id}", response_model=RunRecord)
 def get_run_route(run_id: int) -> RunRecord:
-    record = get_run(run_id)
+    record = storage_get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
     return record
@@ -80,7 +82,7 @@ def get_run_route(run_id: int) -> RunRecord:
 
 @router.get("/api/runs/{run_id}/frame-imu-alignment.csv")
 def get_frame_imu_alignment(run_id: int) -> Response:
-    record = get_run(run_id)
+    record = storage_get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
     artifact = next((item for item in record.artifacts if item.kind == "frame_imu_alignment"), None)
@@ -102,7 +104,7 @@ def get_frame_imu_alignment(run_id: int) -> Response:
 
 @router.get("/api/runs/{run_id}/videos/{channel}")
 def download_raw_video(run_id: int, channel: str) -> FileResponse:
-    record = get_run(run_id)
+    record = storage_get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
     videos = [item for item in record.artifacts if item.kind == "video"]
@@ -126,7 +128,7 @@ def download_raw_video(run_id: int, channel: str) -> FileResponse:
 
 @router.post("/api/runs/{run_id}/alignment-review", response_model=RunRecord)
 def review_alignment(run_id: int, command: AlignmentReviewCommand) -> RunRecord:
-    record = get_run(run_id)
+    record = storage_get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail="运行记录不存在")
     if record.alignment_result is None:

@@ -1,10 +1,23 @@
 import time
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.runs import get_run
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
+
+
+def test_runs_module_keeps_get_run_route_compatibility(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    with TestClient(app):
+        with pytest.raises(HTTPException) as error:
+            get_run(999999)
+
+    assert error.value.status_code == 404
 
 
 def wait_for_status(client: TestClient, run_id: int, statuses: set[str], timeout: float = 10) -> dict:
