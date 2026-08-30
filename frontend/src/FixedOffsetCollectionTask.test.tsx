@@ -45,6 +45,7 @@ test("测试工程师能创建固定偏移场景并切换参考时钟", async ()
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "固定偏移 camera_3 参考" },
   });

@@ -15,6 +15,10 @@ function successfulPageLoad() {
     .mockResolvedValueOnce(new Response(JSON.stringify([])));
 }
 
+function openNewTaskPage() {
+  fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
+}
+
 test("测试工程师能从页面提交完整的自定义多通道配置", async () => {
   const fetchMock = successfulPageLoad().mockResolvedValueOnce(
     new Response(
@@ -43,6 +47,7 @@ test("测试工程师能从页面提交完整的自定义多通道配置", async
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  openNewTaskPage();
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "双路 JSONL" },
   });
@@ -108,6 +113,7 @@ test("页面在调用 API 前拒绝预计文件规模过大的配置", async () 
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  openNewTaskPage();
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "超大配置" },
   });
@@ -134,6 +140,7 @@ test("页面公开规格规定的选项和数值边界并拒绝越界时长", as
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  openNewTaskPage();
   fireEvent.change(await screen.findByLabelText("数据模式"), {
     target: { value: "custom" },
   });
@@ -188,6 +195,7 @@ test("测试工程师能从页面创建单路视频掉帧场景", async () => {
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  openNewTaskPage();
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "固定种子掉帧" },
   });
@@ -241,6 +249,7 @@ test("测试工程师能从页面创建固定种子的 IMU 异常场景", async 
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  openNewTaskPage();
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "固定种子 IMU 异常" },
   });
@@ -291,6 +300,7 @@ test("测试工程师能从页面创建存储不足场景", async () => {
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  openNewTaskPage();
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "固定种子存储不足" },
   });
@@ -347,6 +357,7 @@ test("测试工程师能选择工程目标模式并提交阈值来源", async ()
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  openNewTaskPage();
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "工程目标判定" },
   });
@@ -405,6 +416,7 @@ test("测试工程师能选择摸底分析并不提交合格性阈值", async ()
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  openNewTaskPage();
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "版本基线摸底" },
   });
@@ -461,6 +473,7 @@ test("测试工程师能显式提交需求验收模式", async () => {
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);
+  openNewTaskPage();
   fireEvent.change(await screen.findByLabelText("任务名称"), {
     target: { value: "正式规格验收" },
   });

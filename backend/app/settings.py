@@ -35,7 +35,21 @@ class ConnectionTestResponse(BaseModel):
 
 
 PROVIDER_MODELS: dict[str, tuple[str, ...]] = {
-    "siliconflow": ("Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3"),
+    "siliconflow": (
+        "zai-org/GLM-5.2",
+        "zai-org/GLM-4.5V",
+        "Pro/moonshotai/Kimi-K2.6",
+        "MiniMaxAI/MiniMax-M2.5",
+        "deepseek-ai/DeepSeek-V3.2",
+        "Qwen/Qwen3.6-27B",
+        "Qwen/Qwen3.5-27B",
+        "Qwen/Qwen3-8B",
+        "Qwen/Qwen2.5-72B-Instruct",
+    ),
+    "deepseek": ("deepseek-v4-flash", "deepseek-v4-pro"),
+    "kimi": ("kimi-k2.6", "kimi-k2.5", "kimi-k2.7-code"),
+}
+LEGACY_MODEL_ALIASES = {
     "deepseek": ("deepseek-chat", "deepseek-reasoner"),
     "kimi": ("moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"),
 }
@@ -46,6 +60,11 @@ PROVIDER_ENDPOINT_ENV_KEYS = {
     "kimi": "KIMI_ENDPOINT",
 }
 PROVIDER_ADAPTERS = {"siliconflow": SiliconFlowAdapter, "deepseek": DeepSeekAdapter, "kimi": KimiAdapter}
+DEFAULT_MODELS = {
+    "siliconflow": "Qwen/Qwen2.5-72B-Instruct",
+    "deepseek": PROVIDER_MODELS["deepseek"][0],
+    "kimi": PROVIDER_MODELS["kimi"][0],
+}
 
 
 def configured_api_key(provider: str = "siliconflow") -> str:
@@ -74,7 +93,8 @@ def provider_catalog() -> list[dict[str, object]]:
 
 def validate_model(provider: str, model: str) -> None:
     """拒绝把一个服务商的推荐模型静默发送到另一家；custom/ 用于明确的自定义模型。"""
-    if model not in PROVIDER_MODELS[provider] and not model.startswith(("custom/", "demo-")):
+    supported_models = (*PROVIDER_MODELS[provider], *LEGACY_MODEL_ALIASES.get(provider, ()))
+    if model not in supported_models and not model.startswith(("custom/", "demo-")):
         raise HTTPException(status_code=422, detail=f"{provider} 不支持模型：{model}")
 
 
@@ -87,7 +107,7 @@ def current_settings() -> AiSettings:
         provider=provider,
         model=os.getenv(
             f"{provider.upper()}_MODEL",
-            "Qwen/Qwen2.5-72B-Instruct" if provider == "siliconflow" else PROVIDER_MODELS[provider][0],
+            DEFAULT_MODELS[provider],
         ),
         mode=mode,
         api_key_configured=bool(configured_api_key(provider)),
@@ -104,11 +124,17 @@ def get_ai_settings() -> AiSettings:
 def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse:
     validate_model(request.provider, request.model)
     try:
-        get_provider_adapter(request.provider).generate(
-            api_key=request.api_key or configured_api_key(request.provider),
-            model=request.model,
-            evidence_json="{}",
-        )
+        adapter = get_provider_adapter(request.provider)
+        # 兼容旧测试替身；真实适配器使用专用连接检查，避免要求完整诊断结构。
+        checker = getattr(adapter, "check_connection", None)
+        if checker is not None:
+            checker(api_key=request.api_key or configured_api_key(request.provider), model=request.model)
+        else:
+            adapter.generate(
+                api_key=request.api_key or configured_api_key(request.provider),
+                model=request.model,
+                evidence_json="{}",
+            )
     except SiliconFlowError as error:
         return ConnectionTestResponse(
             ok=False,
