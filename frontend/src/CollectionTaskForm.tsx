@@ -307,9 +307,6 @@ export function CollectionTaskForm({ disabled, saving, onSubmit }: Props) {
             : `标准是固定预设：视频格式 MP4，编码格式 H.264，时长 5 秒 · 4 路 · 1280×720 · 30 FPS · IMU 200Hz · 6000kbps CBR · 随机种子 ${formatSeed(randomSeed)}`}
         </p>
       )}
-      {mode !== "custom" && (
-        <p>快速和标准的路数及详细参数固定，若需调整请切换到自定义模式。</p>
-      )}
       <p>
         随机种子：{formatSeed(randomSeed)}（默认固定种子；刷新后格式为
         HHMMSSmmm）。它决定故障位置和噪声序列；相同种子、配置和版本可复现相同数据。点击刷新可为快速、标准或自定义任务生成新的时间种子。
