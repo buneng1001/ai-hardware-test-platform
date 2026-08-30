@@ -105,6 +105,7 @@ class RunStatistics(BaseModel):
 
 class RecentFailure(BaseModel):
     run_id: int
+    task_name: str
     scenario: str
     status: str
     error: str | None
@@ -168,6 +169,7 @@ def get_dashboard() -> DashboardResponse:
             recent_failures.append(
                 RecentFailure(
                     run_id=run.id,
+                    task_name=run.task_name,
                     scenario=run.configuration_snapshot.scenario,
                     status=run.status,
                     error=run.error,

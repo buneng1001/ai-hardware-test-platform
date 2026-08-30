@@ -11,6 +11,7 @@ from app.collection_tasks import router as collection_tasks_router
 from app.database import check_database
 from app.diagnosis import router as diagnosis_router
 from app.evidence_package import router as evidence_router
+from app.import_zip import cleanup_expired_staging
 from app.import_zip import router as import_zip_router
 from app.manual_check_results import router as manual_check_results_router
 from app.manual_result_import import router as manual_result_import_router
@@ -30,6 +31,7 @@ class HealthResponse(BaseModel):
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """启动时恢复可信状态，关闭时让执行器停在安全阶段边界。"""
     recover_unfinished_runs()
+    cleanup_expired_staging()
     application.state.run_executor = RunExecutor(process_run)
     try:
         yield

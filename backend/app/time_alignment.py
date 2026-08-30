@@ -189,6 +189,9 @@ def build_frame_imu_alignment(
         raise ValueError("缺少视频或 IMU 产物，无法生成逐帧映射")
 
     imu_rows = _read_imu_rows(data_dir / imu_artifact.path, snapshot.imu.format)
+    for sample_index, row in enumerate(imu_rows):
+        # 输入契约只要求输出样本序号可追溯；缺少原始序号时由行顺序稳定派生。
+        row.setdefault("sample_index", str(sample_index))
     tolerance_s = 1.0 / (2 * snapshot.imu.sample_rate_hz)
     rows: list[list[object]] = []
     matched_count = 0

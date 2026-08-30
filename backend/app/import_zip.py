@@ -3,7 +3,7 @@ import json
 import os
 import shutil
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
@@ -202,6 +202,32 @@ def remove_import_staging(import_id: int) -> None:
             raise HTTPException(status_code=409, detail="已入库的原始导入不可移除")
         connection.execute("DELETE FROM import_records WHERE id = ?", (import_id,))
     shutil.rmtree(row["staging_path"], ignore_errors=True)
+
+
+def cleanup_expired_staging() -> None:
+    """启动时清理超过 24 小时且尚未入库的临时导入目录。"""
+    cutoff = datetime.now(UTC) - timedelta(hours=24)
+    expired: list[str] = []
+    with open_database() as connection:
+        rows = connection.execute(
+            "SELECT id, staging_path, first_imported_at FROM import_records WHERE created_task_id IS NULL"
+        ).fetchall()
+        for row in rows:
+            try:
+                imported_at = datetime.fromisoformat(row["first_imported_at"])
+            except ValueError:
+                continue
+            if imported_at < cutoff:
+                expired.append(row["staging_path"])
+                connection.execute("DELETE FROM import_records WHERE id = ?", (row["id"],))
+    staging_root = (get_data_dir() / "imports" / "staging").resolve()
+    for raw_path in expired:
+        path = Path(raw_path).resolve()
+        try:
+            path.relative_to(staging_root)
+        except ValueError:
+            continue
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def _move_to_formal_path(stage: Path, formal_path: Path) -> None:

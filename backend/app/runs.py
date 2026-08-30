@@ -342,10 +342,10 @@ def process_run(run_id: int, application_stopping: Callable[[], bool]) -> None:
         record.completed_at = _now()
         record.events.append(_event("completed"))
         _save_active_run(record)
-    except (OSError, RuntimeError, subprocess.SubprocessError):
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError, subprocess.SubprocessError):
         record.status = "failed"
         record.completed_at = _now()
-        record.error = "正常场景文件生成失败"
+        record.error = "运行处理失败，请检查输入数据和配置"
         record.events.append(_event("failed"))
         _save_active_run(record)
 

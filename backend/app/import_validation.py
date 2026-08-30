@@ -6,6 +6,10 @@ import stat
 import zipfile
 from pathlib import Path, PurePosixPath
 
+from pydantic import ValidationError
+
+from app.run_models import VideoConfiguration
+
 MAX_ARCHIVE_BYTES = 2 * 1024**3
 MAX_EXTRACTED_BYTES = 10 * 1024**3
 MAX_FILE_COUNT = 100
@@ -118,7 +122,7 @@ def _sha256_file(path: Path) -> str:
 
 def _unsafe_member(info: zipfile.ZipInfo) -> str | None:
     path = PurePosixPath(info.filename)
-    if path.is_absolute() or ".." in path.parts:
+    if "\\" in info.filename or path.is_absolute() or ".." in path.parts:
         return f"检测到路径穿越：{info.filename}"
     if info.filename.endswith("/"):
         return None
@@ -140,6 +144,7 @@ def _validate_manifest(manifest: dict[str, object], extract_path: Path) -> list[
     videos = manifest.get("videos")
     if not isinstance(videos, list) or not 1 <= len(videos) <= 4:
         return ["manifest.videos 必须声明 1～4 路视频"]
+    channels: set[str] = set()
     for video in videos:
         if not isinstance(video, dict):
             errors.append("manifest.videos 条目格式无效")
@@ -158,6 +163,24 @@ def _validate_manifest(manifest: dict[str, object], extract_path: Path) -> list[
             errors.append(f"视频 manifest 缺少字段：{', '.join(missing)}")
         if video.get("codec") != "h264":
             errors.append(f"视频必须使用 H.264：{video.get('channel', 'unknown')}")
+        channel = video.get("channel")
+        if not isinstance(channel, str) or channel not in {f"camera_{index}" for index in range(1, 5)}:
+            errors.append(f"视频通道名必须为 camera_1～camera_4：{channel}")
+        elif channel in channels:
+            errors.append(f"视频通道不能重复：{channel}")
+        else:
+            channels.add(channel)
+        try:
+            VideoConfiguration(
+                channels=1,
+                resolution=video.get("resolution"),
+                fps=video.get("fps"),
+                container=video.get("container"),
+                codec=video.get("codec", "h264"),
+                bitrate_kbps=video.get("bitrate_kbps"),
+            )
+        except (TypeError, ValueError, ValidationError):
+            errors.append(f"视频参数不符合平台契约：{video.get('channel', 'unknown')}")
         path = _relative_path(video.get("path"))
         if path is None or path.suffix.lower() not in {".mp4", ".mkv"} or not (extract_path / path).is_file():
             errors.append(f"视频文件不存在或格式不支持：{video.get('path')}")
@@ -211,6 +234,8 @@ def _read_imu_rows(path: Path, file_format: str) -> list[dict[str, object]]:
 
 def _relative_path(value: object) -> Path | None:
     if not isinstance(value, str):
+        return None
+    if "\\" in value:
         return None
     path = PurePosixPath(value)
     if path.is_absolute() or ".." in path.parts:

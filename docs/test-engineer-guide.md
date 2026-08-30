@@ -220,6 +220,16 @@ IMU 数据必须包含 `raw_device_timestamp_ns`、`relative_timestamp_s`、`acc
 在运行详情录入人工检查结果时，检查项名称应描述人工要确认的事项，例如“外壳是否有裂纹”，不要填写文件名或自动检查器名称。
 人工状态包括通过、失败、阻塞和未执行，与自动化检测结果独立保存。CSV/Excel 应使用兼容模板；面向 Excel 的 CSV 使用 UTF-8 BOM。
 
+人工结果 CSV 模板列顺序固定为：
+
+```csv
+name,status,actual_result,notes,executed_at
+外壳是否有裂纹,not_run,,待现场检查,
+```
+
+其中 `status` 只能使用 `passed`、`failed`、`blocked` 或 `not_run`。该模板与证据 ZIP 中的
+`manual-check-results.csv` 使用同一契约，可直接通过运行详情的人工结果导入入口回导。
+
 ## 9. AI 诊断和安全边界
 
 设置中可选择硅基流动、DeepSeek 或 Kimi。每个服务商的 Key、端点和模型目录相互隔离；不支持的模型不会静默回退。

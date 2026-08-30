@@ -9,6 +9,7 @@ export type Dashboard = {
   };
   recent_failures: Array<{
     run_id: number;
+    task_name: string;
     scenario: string;
     status: string;
     error: string | null;

@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.artifact_io import read_fault_truth
-from app.database import get_data_dir
+from app.database import get_data_dir, open_database
 from app.diagnosis import latest_diagnosis
 from app.run_models import (
     Artifact,
@@ -45,6 +45,7 @@ class ReportDocument(BaseModel):
     alignment_result: TimeAlignmentResult | None
     evaluation_result: EvaluationResult | None
     manual_check_results: list[ManualCheckResult]
+    import_validation_warnings: list[str]
     diagnosis: DiagnosisRun | DiagnosisNotGenerated
     created_at: str
     completed_at: str | None
@@ -62,6 +63,14 @@ def _report_document(run: RunRecord) -> ReportDocument:
     """把运行记录投影成报告文档，保持事实区块彼此独立。"""
     data = run.model_dump(mode="json")
     diagnosis = latest_diagnosis(run.id)
+    import_validation_warnings: list[str] = []
+    with open_database() as connection:
+        import_row = connection.execute(
+            "SELECT validation_result FROM import_records WHERE created_task_id = ?",
+            (run.collection_task_id,),
+        ).fetchone()
+    if import_row is not None:
+        import_validation_warnings = json.loads(import_row["validation_result"]).get("warnings", [])
     return ReportDocument(
         run_id=run.id,
         status=run.status,
@@ -75,6 +84,7 @@ def _report_document(run: RunRecord) -> ReportDocument:
         alignment_result=run.alignment_result,
         evaluation_result=run.evaluation_result,
         manual_check_results=run.manual_check_results,
+        import_validation_warnings=import_validation_warnings,
         diagnosis=diagnosis.model_dump(mode="json")
         if diagnosis
         else {"status": "not_generated", "message": "诊断尚未生成"},
@@ -144,6 +154,10 @@ def _render_html(report: ReportDocument) -> str:
         )
         or "<tr><td colspan='4'>暂无人工检查结果</td></tr>"
     )
+    import_warnings = (
+        "".join(f"<li>{html.escape(warning)}</li>" for warning in report.import_validation_warnings)
+        or "<li>无导入警告</li>"
+    )
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -154,8 +168,9 @@ pre{{white-space:pre-wrap;background:#f5f5f5;padding:1rem;overflow:auto}}.status
 </head><body><h1>运行 #{run_id} 分析报告</h1><p class="status">状态：{status}</p>
 <h2>配置快照</h2><pre>{_json_block(report_data["configuration_snapshot"])}</pre>
 <h2>运行阶段</h2><pre>{_json_block(report_data["stage_events"])}</pre>
-<h2>产物与来源</h2><pre>{_json_block(report_data["artifacts"])}</pre>
-<h2>故障真值</h2><pre>{_json_block(report.fault_truth or "未找到故障真值内容")}</pre>
+ <h2>产物与来源</h2><pre>{_json_block(report_data["artifacts"])}</pre>
+ <h2>导入校验警告</h2><ul>{import_warnings}</ul>
+ <h2>故障真值</h2><pre>{_json_block(report.fault_truth or "未找到故障真值内容")}</pre>
 <h2>自动化检测结果与故障真值对照</h2>
 <table><thead><tr><th>检查项</th><th>类别</th><th>状态</th><th>真值对照</th><th>说明</th><th>异常窗口</th></tr></thead>
 <tbody>{check_rows}</tbody></table>

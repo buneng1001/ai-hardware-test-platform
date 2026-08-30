@@ -53,8 +53,8 @@ export function DashboardPanel({ onOpenRun }: DashboardPanelProps) {
             {dashboard.recent_failures.map((failure) => (
               <li key={failure.run_id}>
                 <button type="button" onClick={() => onOpenRun(failure.run_id)}>
-                  运行 #{failure.run_id} · {failure.scenario} · 失败检查{" "}
-                  {failure.failed_check_count}
+                  {failure.task_name} · 运行 #{failure.run_id} ·{" "}
+                  {failure.scenario} · 失败检查 {failure.failed_check_count}
                 </button>
                 <span>
                   {failure.latest_diagnosis_status
