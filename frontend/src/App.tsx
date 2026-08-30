@@ -20,6 +20,11 @@ import {
   reviewAlignment,
   getAiSettings,
   testAiConnection,
+  uploadImport,
+  validateImport,
+  convertImport,
+  createImportedTask,
+  type ImportRecord,
 } from "./collectionTasksApi";
 import { CollectionTaskForm } from "./CollectionTaskForm";
 import { DashboardPanel } from "./DashboardPanel";
@@ -71,6 +76,16 @@ export function App() {
     execution_status?: "never_executed" | "has_runs";
     archived?: boolean;
   }>({});
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importRecord, setImportRecord] = useState<ImportRecord | null>(null);
+  const [importName, setImportName] = useState("");
+  const [importLabel, setImportLabel] = useState("");
+  const [importPermissionConfirmed, setImportPermissionConfirmed] =
+    useState(false);
+  const [importBusy, setImportBusy] = useState<
+    "upload" | "validate" | "convert" | "create" | null
+  >(null);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadPage = async () => {
@@ -246,6 +261,80 @@ export function App() {
     }
   };
 
+  const uploadActualData = async () => {
+    if (!importFile) return;
+    setImportBusy("upload");
+    setImportMessage(null);
+    try {
+      setImportRecord(
+        await uploadImport(importFile, importPermissionConfirmed),
+      );
+      setImportMessage("文件已上传，请点击“校验导入文件”继续");
+    } catch (error) {
+      setImportMessage(
+        error instanceof Error ? error.message : "实际测试文件上传失败",
+      );
+    } finally {
+      setImportBusy(null);
+    }
+  };
+
+  const validateActualData = async () => {
+    if (!importRecord) return;
+    setImportBusy("validate");
+    setImportMessage(null);
+    try {
+      setImportRecord(await validateImport(importRecord.id));
+      setImportMessage("导入校验通过，可以加入任务列表");
+    } catch (error) {
+      setImportMessage(
+        error instanceof Error ? error.message : "实际测试文件校验失败",
+      );
+    } finally {
+      setImportBusy(null);
+    }
+  };
+
+  const showConversionNotice = async () => {
+    if (!importRecord) return;
+    setImportBusy("convert");
+    try {
+      await convertImport(importRecord.id);
+    } catch (error) {
+      setImportMessage(
+        error instanceof Error ? error.message : "标准格式转换功能开发中",
+      );
+    } finally {
+      setImportBusy(null);
+    }
+  };
+
+  const addImportedTask = async () => {
+    if (!importRecord || !importName.trim()) return;
+    setImportBusy("create");
+    setImportMessage(null);
+    try {
+      const task = await createImportedTask(
+        importRecord.id,
+        importName.trim(),
+        importLabel.trim(),
+      );
+      setTasks((currentTasks) => [task, ...(currentTasks ?? [])]);
+      setImportRecord((current) =>
+        current
+          ? { ...current, status: "imported", created_task_id: task.id }
+          : current,
+      );
+      setImportMessage("导入型采集任务已加入列表，尚未执行");
+    } catch (error) {
+      setImportMessage(
+        error instanceof Error ? error.message : "导入任务创建失败",
+      );
+    } finally {
+      setImportBusy(null);
+    }
+  };
+
   const navigate = (page: PageKey) => {
     setActivePage(page);
     if (page === "saved") void refreshSavedTasks();
@@ -301,8 +390,103 @@ export function App() {
       >
         <p className="eyebrow">根据导入生成</p>
         <h2 id="import-task-title">根据导入生成</h2>
-        <p>实际测试 ZIP 导入将在独立流程中校验后加入任务列表。</p>
-        <p role="status">导入能力尚未在本 ticket 开放。</p>
+        <p>只接受一个 ZIP；平台会在隔离区完成安全、结构和兼容性校验。</p>
+        <label>
+          实际测试 ZIP
+          <input
+            type="file"
+            accept=".zip,application/zip"
+            onChange={(event) => {
+              setImportFile(event.target.files?.[0] ?? null);
+              setImportRecord(null);
+              setImportMessage(null);
+            }}
+          />
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={importPermissionConfirmed}
+            aria-label="确认具有处理和展示权限"
+            onChange={(event) =>
+              setImportPermissionConfirmed(event.target.checked)
+            }
+          />
+          我确认具有处理和展示这些数据的权限
+        </label>
+        <div className="button-row">
+          <button
+            type="button"
+            disabled={
+              !importFile || !importPermissionConfirmed || importBusy !== null
+            }
+            onClick={() => void uploadActualData()}
+          >
+            {importBusy === "upload" ? "上传中…" : "导入实际测试文件"}
+          </button>
+          <button
+            type="button"
+            disabled={!importRecord || importBusy !== null}
+            onClick={() => void validateActualData()}
+          >
+            {importBusy === "validate" ? "校验中…" : "校验导入文件"}
+          </button>
+          <button
+            type="button"
+            disabled={
+              importRecord?.status !== "nonstandard_convertible" ||
+              importBusy !== null
+            }
+            onClick={() => void showConversionNotice()}
+          >
+            转为标准格式
+          </button>
+        </div>
+        {importRecord && (
+          <section aria-label="导入校验结果">
+            <p>
+              校验状态：
+              {importRecord.status === "passed"
+                ? "通过"
+                : importRecord.status === "failed"
+                  ? "不通过"
+                  : importRecord.status}
+            </p>
+            {importRecord.validation.warnings.map((warning) => (
+              <p key={warning}>警告：{warning}</p>
+            ))}
+            {importRecord.validation.errors.map((error) => (
+              <p key={error}>错误：{error}</p>
+            ))}
+          </section>
+        )}
+        <label>
+          导入任务名称
+          <input
+            aria-label="导入任务名称"
+            value={importName}
+            onChange={(event) => setImportName(event.target.value)}
+          />
+        </label>
+        <label>
+          测试标签
+          <input
+            value={importLabel}
+            onChange={(event) => setImportLabel(event.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={
+            importRecord?.status !== "passed" ||
+            !importName.trim() ||
+            importBusy !== null
+          }
+          onClick={() => void addImportedTask()}
+        >
+          {importBusy === "create" ? "加入中…" : "加入任务列表"}
+        </button>
+        {importMessage && <p role="status">{importMessage}</p>}
       </section>
 
       <section

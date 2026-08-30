@@ -90,6 +90,7 @@ class CollectionTaskCreate(BaseModel):
 class CollectionTask(BaseModel):
     id: int
     name: str
+    label: str = ""
     mode: Literal["quick", "standard", "custom"]
     scenario: Scenario
     duration_seconds: int

@@ -287,6 +287,83 @@ test("页面提供明确导航、设置顶栏入口和根据导入生成入口",
   ).toBeInTheDocument();
 });
 
+test("导入页面按上传、校验状态控制四个操作入口", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "ok", database: "ok" })),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([])))
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 1,
+          sha256: "a".repeat(64),
+          source_filename: "actual.zip",
+          first_imported_at: "2026-08-30T00:00:00Z",
+          validator_version: "rc2-import-v1",
+          status: "uploaded",
+          permission_confirmed: true,
+          validation: {
+            status: "passed",
+            security: { status: "passed", errors: [] },
+            compatibility: { status: "passed", errors: [] },
+            errors: [],
+            warnings: ["缺少可选设备状态或设备日志"],
+            manifest: null,
+          },
+          created_task_id: null,
+        }),
+      ),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 1,
+          sha256: "a".repeat(64),
+          source_filename: "actual.zip",
+          first_imported_at: "2026-08-30T00:00:00Z",
+          validator_version: "rc2-import-v1",
+          status: "passed",
+          permission_confirmed: true,
+          validation: {
+            status: "passed",
+            security: { status: "passed", errors: [] },
+            compatibility: { status: "passed", errors: [] },
+            errors: [],
+            warnings: [],
+            manifest: null,
+          },
+          created_task_id: null,
+        }),
+      ),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "根据导入生成" }));
+  const file = new File(["zip"], "actual.zip", { type: "application/zip" });
+  fireEvent.change(screen.getByLabelText("实际测试 ZIP"), {
+    target: { files: [file] },
+  });
+  expect(
+    screen.getByRole("button", { name: "导入实际测试文件" }),
+  ).toBeDisabled();
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "确认具有处理和展示权限" }),
+  );
+  expect(
+    screen.getByRole("button", { name: "导入实际测试文件" }),
+  ).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "导入实际测试文件" }));
+  expect(await screen.findByText(/请点击“校验导入文件”/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "转为标准格式" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "校验导入文件" }));
+  expect(
+    await screen.findByText("导入校验通过，可以加入任务列表"),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "加入任务列表" })).toBeDisabled();
+});
+
 test("已保存任务展示筛选、分页以及删除和归档边界", async () => {
   const tasks = [
     {

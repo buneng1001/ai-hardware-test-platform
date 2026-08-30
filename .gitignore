@@ -21,6 +21,7 @@ frontend/dist/
 !.env.example
 data/*
 !data/.gitkeep
+data/imports/
 coverage/
 allure-results/
 .test-runs/

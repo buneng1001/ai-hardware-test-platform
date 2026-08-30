@@ -40,6 +40,28 @@ export type SavedTaskPage = {
   total: number;
 };
 
+export type ImportValidation = {
+  status: "passed" | "failed";
+  security: { status: "passed" | "failed"; errors: string[] };
+  compatibility: { status: "passed" | "failed"; errors: string[] };
+  errors: string[];
+  warnings: string[];
+  manifest: Record<string, unknown> | null;
+};
+
+export type ImportRecord = {
+  id: number;
+  sha256: string;
+  source_filename: string;
+  first_imported_at: string;
+  validator_version: string;
+  status:
+    "uploaded" | "passed" | "failed" | "nonstandard_convertible" | "imported";
+  permission_confirmed: boolean;
+  validation: ImportValidation;
+  created_task_id: number | null;
+};
+
 export type DataMode = "quick" | "standard" | "custom";
 export type Scenario =
   | "normal"
@@ -293,6 +315,62 @@ export async function createCollectionTask(
   });
   if (!response.ok) {
     throw new Error("采集任务保存失败，请检查输入后重试");
+  }
+  return (await response.json()) as CollectionTask;
+}
+
+export async function uploadImport(
+  file: File,
+  permissionConfirmed: boolean,
+): Promise<ImportRecord> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("permission_confirmed", String(permissionConfirmed));
+  const response = await fetch("/api/imports", { method: "POST", body: form });
+  if (!response.ok) {
+    const body = (await response.json()) as { detail?: string };
+    throw new Error(body.detail ?? "实际测试文件上传失败");
+  }
+  return (await response.json()) as ImportRecord;
+}
+
+export async function validateImport(importId: number): Promise<ImportRecord> {
+  const response = await fetch(`/api/imports/${importId}/validate`, {
+    method: "POST",
+  });
+  const body = (await response.json()) as
+    ImportRecord | { detail?: { errors?: string[] } };
+  if (!response.ok) {
+    const errors =
+      "detail" in body ? body.detail?.errors?.join("；") : undefined;
+    throw new Error(errors ?? "实际测试文件校验失败");
+  }
+  return body as ImportRecord;
+}
+
+export async function convertImport(importId: number): Promise<void> {
+  const response = await fetch(`/api/imports/${importId}/convert`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const body = (await response.json()) as { detail?: string };
+    throw new Error(body.detail ?? "标准格式转换功能开发中");
+  }
+}
+
+export async function createImportedTask(
+  importId: number,
+  name: string,
+  label: string,
+): Promise<CollectionTask> {
+  const response = await fetch(`/api/imports/${importId}/create-task`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, label }),
+  });
+  if (!response.ok) {
+    const body = (await response.json()) as { detail?: string };
+    throw new Error(body.detail ?? "导入任务创建失败");
   }
   return (await response.json()) as CollectionTask;
 }
