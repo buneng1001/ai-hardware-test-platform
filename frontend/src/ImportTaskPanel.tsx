@@ -85,15 +85,19 @@ export function ImportTaskPanel(props: ImportTaskPanelProps) {
         </button>
       </div>
       {props.record && (
-        <section aria-label="导入校验结果">
-          <p>
-            校验状态：
-            {props.record.status === "passed"
-              ? "通过"
-              : props.record.status === "failed"
-                ? "不通过"
-                : props.record.status}
-          </p>
+        <section aria-label="导入状态与校验结果">
+          {props.record.status === "uploaded" ? (
+            <p>文件已上传，尚未校验</p>
+          ) : (
+            <p>
+              校验状态：
+              {props.record.status === "passed"
+                ? "通过"
+                : props.record.status === "failed"
+                  ? "不通过"
+                  : props.record.status}
+            </p>
+          )}
           {warnings.map((warning) => (
             <p key={warning}>警告：{warning}</p>
           ))}

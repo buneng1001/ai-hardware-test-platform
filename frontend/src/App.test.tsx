@@ -429,6 +429,7 @@ test("导入页面按上传、校验状态控制四个操作入口", async () =>
   ).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "导入实际测试文件" }));
   expect(await screen.findByText(/请点击“校验导入文件”/)).toBeInTheDocument();
+  expect(screen.getByText("文件已上传，尚未校验")).toBeInTheDocument();
   expect(screen.getByText("测试标签")).toBeInTheDocument();
   expect(
     screen.getByText(/用于标记这批实际数据的来源或用途/),
