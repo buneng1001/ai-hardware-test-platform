@@ -1,4 +1,5 @@
 import type { ImportRecord } from "./collectionTasksApi";
+import { downloadManifestTemplate } from "./manifestTemplate";
 
 type ImportTaskPanelProps = {
   file: File | null;
@@ -28,6 +29,13 @@ export function ImportTaskPanel(props: ImportTaskPanelProps) {
       <p className="eyebrow">根据导入生成</p>
       <h2 id="import-task-title">根据导入生成</h2>
       <p>只接受一个 ZIP；平台会在隔离区完成安全、结构和兼容性校验。</p>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={downloadManifestTemplate}
+      >
+        下载 manifest.json 模板
+      </button>
       <label>
         实际测试 ZIP
         <input

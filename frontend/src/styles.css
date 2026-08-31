@@ -197,6 +197,12 @@ button:disabled {
   opacity: 0.6;
 }
 
+.secondary-button {
+  color: #e8edf2;
+  border: 1px solid #49717a;
+  background: transparent;
+}
+
 .connection-result {
   border-radius: 8px;
   font-weight: 700;

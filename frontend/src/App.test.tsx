@@ -8,6 +8,7 @@ import {
 import { afterEach, expect, test, vi } from "vitest";
 
 import { App } from "./App";
+import { MANIFEST_TEMPLATE } from "./manifestTemplate";
 
 afterEach(() => {
   cleanup();
@@ -309,6 +310,33 @@ test("页面提供明确导航、设置顶栏入口和根据导入生成入口",
     screen.queryByRole("heading", { name: "配置正常采集" }),
   ).not.toBeInTheDocument();
   expect(window.location.hash).toBe("#import");
+});
+
+test("根据导入页面提供可直接填写的 manifest.json 模板下载入口", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([]))),
+  );
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "根据导入生成" }));
+  expect(
+    screen.getByRole("button", { name: "下载 manifest.json 模板" }),
+  ).toBeInTheDocument();
+  const manifest = JSON.parse(MANIFEST_TEMPLATE) as {
+    videos: Array<Record<string, unknown>>;
+    imu: Record<string, unknown>;
+  };
+  expect(manifest.videos[0]).toMatchObject({
+    channel: "camera_1",
+    path: "videos/camera_1.mp4",
+    codec: "h264",
+  });
+  expect(manifest.imu).toMatchObject({ path: "imu.csv", format: "csv" });
 });
 
 test("可通过 URL hash 直接打开设置页并返回仪表盘", async () => {
