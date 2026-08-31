@@ -4,6 +4,19 @@
 
 当前版本：`v0.1.0`（正式版），版本号记录在根目录 `VERSION`。
 
+## v0.1.0 实际范围
+
+v0.1.0 已完成的是“合成/导入数据测试执行与诊断”基础闭环：任务配置、运行队列、视频/IMU/资源/日志数据、确定性检查、
+时间对齐、人工结果、Mock/硅基流动诊断、基础 HTML/ZIP 报告、Allure 和 GitHub Actions CI 骨架。
+
+以下能力不属于 v0.1.0 已交付范围：
+
+- AI 在测试前进行风险分析和用例推荐。
+- ADB/HTTP/Shell 控制真实或模拟设备、音频采集和 Jenkins 流水线。
+- 真实模型线上效果验证。真实设备、蓝牙和 MCAP 也明确属于首版非目标。
+
+后续路线见 [分阶段开发计划](DEVELOPMENT_PLAN.md)、[版本路线图](docs/version-roadmap.md) 和 [平台设计结论](docs/platform-design-conclusions.md)。
+
 测试工程师使用流程见[测试工程师使用手册](docs/test-engineer-guide.md)，涵盖任务创建、实际测试 ZIP 导入、运行、人工结果、
 诊断和证据导出。
 
