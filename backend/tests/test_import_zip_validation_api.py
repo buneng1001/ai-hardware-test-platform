@@ -142,7 +142,7 @@ def test_import_accepts_common_imu_column_names(tmp_path, monkeypatch):
         ],
         "imu": {"path": "imu.csv", "format": "csv", "sample_rate_hz": 100},
     }
-    imu_rows = "timestamp,ax,ay,az,gx,gy,gz\n0,0,0,9.8,0,0,0\n0.01,0,0,9.8,0,0,0\n"
+    imu_rows = "timestamp_ms,ax,ay,az,gx,gy,gz\n0,0,0,9.8,0,0,0\n10,0,0,9.8,0,0,0\n"
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w") as archive:
         archive.writestr("manifest.json", json.dumps(manifest))
