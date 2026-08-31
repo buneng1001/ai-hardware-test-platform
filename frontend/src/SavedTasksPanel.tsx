@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type {
   CollectionTask,
   SavedTask,
@@ -35,6 +36,45 @@ type SavedTasksPanelProps = {
 };
 
 export function SavedTasksPanel(props: SavedTasksPanelProps) {
+  const [hiddenRunIds, setHiddenRunIds] = useState<number[]>(() => {
+    try {
+      const stored = localStorage.getItem("hidden-saved-task-run-ids");
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) &&
+        parsed.every((id) => typeof id === "number")
+        ? parsed
+        : [];
+    } catch (error) {
+      console.error("已隐藏运行记录读取失败", error);
+      return [];
+    }
+  });
+  const [contextMenu, setContextMenu] = useState<{
+    runId: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  useEffect(() => {
+    const closeContextMenu = () => setContextMenu(null);
+    window.addEventListener("click", closeContextMenu);
+    window.addEventListener("scroll", closeContextMenu, true);
+    return () => {
+      window.removeEventListener("click", closeContextMenu);
+      window.removeEventListener("scroll", closeContextMenu, true);
+    };
+  }, []);
+  const hideRun = (runId: number) => {
+    setHiddenRunIds((current) => {
+      const next = current.includes(runId) ? current : [...current, runId];
+      localStorage.setItem("hidden-saved-task-run-ids", JSON.stringify(next));
+      return next;
+    });
+    setContextMenu(null);
+  };
+  const restoreRuns = () => {
+    localStorage.removeItem("hidden-saved-task-run-ids");
+    setHiddenRunIds([]);
+  };
   const taskById = new Map(
     props.taskDetails?.map((task) => [task.id, task]) ?? [],
   );
@@ -190,21 +230,44 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
                 <p>
                   创建时间：{new Date(task.created_at).toLocaleString("zh-CN")}
                 </p>
-                {(task.runs ?? []).length > 0 && (
+                {(task.runs ?? []).filter(
+                  (run) => !hiddenRunIds.includes(run.id),
+                ).length > 0 && (
                   <div className="task-runs">
                     <strong>运行记录</strong>
-                    {(task.runs ?? []).map((run) => (
-                      <button
-                        className="run-link"
-                        type="button"
-                        key={run.id}
-                        onClick={() => props.onOpenRun(run.id)}
-                      >
-                        运行 #{run.id} · 第 {run.execution_number} 次 ·{" "}
-                        {run.status}
-                      </button>
-                    ))}
+                    {(task.runs ?? [])
+                      .filter((run) => !hiddenRunIds.includes(run.id))
+                      .map((run) => (
+                        <button
+                          className="run-link"
+                          type="button"
+                          key={run.id}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            setContextMenu({
+                              runId: run.id,
+                              x: event.clientX,
+                              y: event.clientY,
+                            });
+                          }}
+                          onClick={() => props.onOpenRun(run.id)}
+                        >
+                          运行 #{run.id} · 第 {run.execution_number} 次 ·{" "}
+                          {run.status}
+                        </button>
+                      ))}
                   </div>
+                )}
+                {hiddenRunIds.some((runId) =>
+                  (task.runs ?? []).some((run) => run.id === runId),
+                ) && (
+                  <button
+                    className="restore-runs-button"
+                    type="button"
+                    onClick={restoreRuns}
+                  >
+                    显示已隐藏运行记录
+                  </button>
                 )}
                 <div className="task-actions">
                   {taskById.has(task.id) && !task.archived && (
@@ -264,6 +327,18 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
             </div>
           )}
         </>
+      )}
+      {contextMenu && (
+        <div
+          className="run-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          role="menu"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button type="button" onClick={() => hideRun(contextMenu.runId)}>
+            移除此运行记录
+          </button>
+        </div>
       )}
     </section>
   );

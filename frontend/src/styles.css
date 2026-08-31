@@ -410,6 +410,34 @@ button:disabled {
   white-space: nowrap;
 }
 
+.restore-runs-button {
+  min-height: 32px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  color: #bfe8e1;
+  border: 1px solid #39736e;
+  background: transparent;
+  font-size: 0.86rem;
+}
+
+.run-context-menu {
+  position: fixed;
+  z-index: 10;
+  padding: 6px;
+  border: 1px solid #39736e;
+  border-radius: 8px;
+  background: #102832;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+}
+
+.run-context-menu button {
+  min-height: 36px;
+  padding: 6px 12px;
+  color: #f2c2a2;
+  background: transparent;
+  white-space: nowrap;
+}
+
 .saved-task-refresh {
   margin-top: 16px;
 }
