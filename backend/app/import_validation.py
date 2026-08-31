@@ -70,7 +70,16 @@ def validate_archive(archive_path: Path, extract_path: Path) -> dict[str, object
             compatibility_errors.append("至少需要一路 MP4/MKV 视频")
     if compatibility_errors:
         errors.extend(compatibility_errors)
-    status_value = "passed" if not errors else "failed"
+    nonstandard_imu = bool(compatibility_errors) and all(
+        error.startswith("IMU 缺少六轴字段") for error in compatibility_errors
+    )
+    status_value = (
+        "nonstandard_convertible"
+        if nonstandard_imu
+        else "passed"
+        if not errors
+        else "failed"
+    )
     if status_value == "passed" and manifest and manifest.get("schema_version") != "1.0":
         status_value = "nonstandard_convertible"
     return _result(

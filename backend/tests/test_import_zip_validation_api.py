@@ -122,6 +122,42 @@ def test_import_rejects_fault_truth_and_duplicate_sha256_without_partial_task(tm
         assert any("fault_truth.json" in error for error in forged_result.json()["detail"]["errors"])
 
 
+def test_import_marks_nonstandard_imu_columns_as_convertible(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+    manifest = {
+        "schema_version": "1.0",
+        "time_source": "device_clock",
+        "videos": [
+            {
+                "channel": "camera_1",
+                "path": "camera_1.mp4",
+                "codec": "h264",
+                "container": "mp4",
+                "fps": 30,
+                "resolution": "640x360",
+                "bitrate_kbps": 2500,
+                "time_source": "container_pts",
+                "start_raw_device_timestamp_ns": 0,
+            }
+        ],
+        "imu": {"path": "imu.csv", "format": "csv", "sample_rate_hz": 100},
+    }
+    imu_rows = "timestamp,ax,ay,az,gx,gy,gz\n0,0,0,9.8,0,0,0\n0.01,0,0,9.8,0,0,0\n"
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr("manifest.json", json.dumps(manifest))
+        archive.writestr("camera_1.mp4", b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00isomiso2")
+        archive.writestr("imu.csv", imu_rows)
+
+    with TestClient(app) as client:
+        uploaded = _upload(client, output.getvalue())
+        result = client.post(f"/api/imports/{uploaded.json()['id']}/validate")
+
+    assert result.status_code == 200
+    assert result.json()["status"] == "nonstandard_convertible"
+    assert "IMU 缺少六轴字段" in result.json()["validation"]["errors"][0]
+
+
 def test_import_rejects_path_traversal_without_leaving_formal_data(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
     output = io.BytesIO()
