@@ -411,6 +411,40 @@ test("导入页面按上传、校验状态控制四个操作入口", async () =>
   expect(screen.getByRole("button", { name: "加入任务列表" })).toBeDisabled();
 });
 
+test("实际测试文件上传失败时展示可读的对象错误信息", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "ok", database: "ok" })),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([])))
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          detail: { message: "该 ZIP 已导入", existing_import_id: 7 },
+        }),
+        { status: 409 },
+      ),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "根据导入生成" }));
+  fireEvent.change(screen.getByLabelText("实际测试 ZIP"), {
+    target: {
+      files: [new File(["zip"], "actual.zip", { type: "application/zip" })],
+    },
+  });
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "确认具有处理和展示权限" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "导入实际测试文件" }));
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "该 ZIP 已导入（已有导入记录：7）",
+  );
+  expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
+});
+
 test("已保存任务展示筛选、分页以及删除和归档边界", async () => {
   const tasks = [
     {

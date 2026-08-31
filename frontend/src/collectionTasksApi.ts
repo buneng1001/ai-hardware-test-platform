@@ -113,6 +113,41 @@ export type EvaluationConfiguration = {
   priority: ThresholdSource[];
 };
 
+function formatImportErrorDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (typeof detail !== "object" || detail === null) return fallback;
+
+  const errorDetail = detail as {
+    message?: unknown;
+    existing_import_id?: unknown;
+  };
+  if (typeof errorDetail.message === "string") {
+    if (errorDetail.existing_import_id !== undefined) {
+      return `${errorDetail.message}（已有导入记录：${errorDetail.existing_import_id}）`;
+    }
+    return errorDetail.message;
+  }
+  try {
+    return JSON.stringify(detail);
+  } catch (error) {
+    console.error("导入错误信息格式化失败", error);
+    return fallback;
+  }
+}
+
+async function readImportError(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    return formatImportErrorDetail(body.detail, fallback);
+  } catch (error) {
+    console.error("导入错误响应解析失败", error);
+    return fallback;
+  }
+}
+
 export type RunStatus =
   | "queued"
   | "generating_data"
@@ -335,8 +370,7 @@ export async function uploadImport(
   form.append("permission_confirmed", String(permissionConfirmed));
   const response = await fetch("/api/imports", { method: "POST", body: form });
   if (!response.ok) {
-    const body = (await response.json()) as { detail?: string };
-    throw new Error(body.detail ?? "实际测试文件上传失败");
+    throw new Error(await readImportError(response, "实际测试文件上传失败"));
   }
   return (await response.json()) as ImportRecord;
 }
