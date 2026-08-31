@@ -335,6 +335,8 @@ test("根据导入页面提供可直接填写的 manifest.json 模板下载入�
     channel: "camera_1",
     path: "videos/camera_1.mp4",
     codec: "h264",
+    time_source: "container_pts",
+    start_raw_device_timestamp_ns: 0,
   });
   expect(manifest.imu).toMatchObject({ path: "imu.csv", format: "csv" });
 });
