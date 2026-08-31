@@ -160,6 +160,22 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
                     {taskById.get(task.id)!.reference_channel}
                   </p>
                 )}
+                <p className="task-status-line">
+                  <span
+                    className={`task-status-badge ${
+                      task.archived
+                        ? "task-status-badge--archived"
+                        : "task-status-badge--active"
+                    }`}
+                  >
+                    {task.archived ? "已归档" : "未归档"}
+                  </span>
+                  {task.archived && (
+                    <span className="task-archived-note">
+                      仅查看和导出，不能执行或删除
+                    </span>
+                  )}
+                </p>
                 <p>
                   来源：
                   {task.source === "synthetic_generated"
@@ -167,8 +183,7 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
                     : "导入实际数据"}{" "}
                   ·{" "}
                   {task.execution_status === "has_runs" ? "已有运行" : "未执行"}{" "}
-                  · {task.archived ? "已归档" : "未归档"} · 运行{" "}
-                  {task.run_count} 次
+                  · 运行 {task.run_count} 次
                 </p>
                 <p>
                   创建时间：{new Date(task.created_at).toLocaleString("zh-CN")}

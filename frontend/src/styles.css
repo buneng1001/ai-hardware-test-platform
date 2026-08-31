@@ -304,6 +304,36 @@ button:disabled {
   margin: 0;
 }
 
+.task-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.task-status-badge--active {
+  color: #071719;
+  background: #60d6c4;
+}
+
+.task-status-badge--archived {
+  color: #211609;
+  background: #e6b86a;
+}
+
+.task-archived-note {
+  color: #e6b86a;
+  font-size: 0.9rem;
+}
+
 .task-card button {
   margin-top: 8px;
 }
