@@ -465,7 +465,7 @@ test("实际测试文件上传失败时展示可读的对象错误信息", async
           source_filename: "actual.zip",
           first_imported_at: "2026-08-30T00:00:00Z",
           validator_version: "rc2-import-v1",
-          status: "uploaded",
+          status: "nonstandard_convertible",
           permission_confirmed: true,
           validation: {},
           created_task_id: null,
@@ -489,6 +489,12 @@ test("实际测试文件上传失败时展示可读的对象错误信息", async
     "文件已载入，请点击“校验导入文件”继续",
   );
   expect(screen.getByRole("button", { name: "校验导入文件" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "转为标准格式" }));
+  expect(
+    screen.getByRole("dialog", { name: "标准格式转换功能开发中" }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "知道了" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
 });
 

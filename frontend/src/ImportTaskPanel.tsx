@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { ImportRecord } from "./collectionTasksApi";
 import { downloadManifestTemplate } from "./manifestTemplate";
 
@@ -20,6 +22,7 @@ type ImportTaskPanelProps = {
 };
 
 export function ImportTaskPanel(props: ImportTaskPanelProps) {
+  const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
   const validation = props.record?.validation;
   const warnings = validation?.warnings ?? [];
   const errors = validation?.errors ?? [];
@@ -79,7 +82,10 @@ export function ImportTaskPanel(props: ImportTaskPanelProps) {
             props.record?.status !== "nonstandard_convertible" ||
             props.busy !== null
           }
-          onClick={props.onConvert}
+          onClick={() => {
+            setConversionDialogOpen(true);
+            props.onConvert();
+          }}
         >
           转为标准格式
         </button>
@@ -138,6 +144,28 @@ export function ImportTaskPanel(props: ImportTaskPanelProps) {
         {props.busy === "create" ? "加入中…" : "加入任务列表"}
       </button>
       {props.message && <p role="status">{props.message}</p>}
+      {conversionDialogOpen && (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            className="conversion-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="conversion-dialog-title"
+          >
+            <h3 id="conversion-dialog-title">标准格式转换功能开发中</h3>
+            <p>
+              当前版本暂不支持自动转换非标准 IMU
+              字段，请整理为模板格式后重新导入。
+            </p>
+            <button
+              type="button"
+              onClick={() => setConversionDialogOpen(false)}
+            >
+              知道了
+            </button>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
