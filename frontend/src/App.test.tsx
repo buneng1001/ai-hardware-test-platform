@@ -425,6 +425,21 @@ test("实际测试文件上传失败时展示可读的对象错误信息", async
         }),
         { status: 409 },
       ),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 7,
+          sha256: "a".repeat(64),
+          source_filename: "actual.zip",
+          first_imported_at: "2026-08-30T00:00:00Z",
+          validator_version: "rc2-import-v1",
+          status: "uploaded",
+          permission_confirmed: true,
+          validation: {},
+          created_task_id: null,
+        }),
+      ),
     );
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
@@ -440,8 +455,9 @@ test("实际测试文件上传失败时展示可读的对象错误信息", async
   fireEvent.click(screen.getByRole("button", { name: "导入实际测试文件" }));
 
   expect(await screen.findByRole("status")).toHaveTextContent(
-    "该 ZIP 已导入（已有导入记录：7）",
+    "文件已载入，请点击“校验导入文件”继续",
   );
+  expect(screen.getByRole("button", { name: "校验导入文件" })).toBeEnabled();
   expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
 });
 

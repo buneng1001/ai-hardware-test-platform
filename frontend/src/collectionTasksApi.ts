@@ -113,38 +113,44 @@ export type EvaluationConfiguration = {
   priority: ThresholdSource[];
 };
 
-function formatImportErrorDetail(detail: unknown, fallback: string): string {
-  if (typeof detail === "string") return detail;
-  if (typeof detail !== "object" || detail === null) return fallback;
+type ImportError = { message: string; existingImportId?: number };
+
+function readImportErrorDetail(detail: unknown, fallback: string): ImportError {
+  if (typeof detail === "string") return { message: detail };
+  if (typeof detail !== "object" || detail === null)
+    return { message: fallback };
 
   const errorDetail = detail as {
     message?: unknown;
     existing_import_id?: unknown;
   };
   if (typeof errorDetail.message === "string") {
-    if (errorDetail.existing_import_id !== undefined) {
-      return `${errorDetail.message}（已有导入记录：${errorDetail.existing_import_id}）`;
+    if (typeof errorDetail.existing_import_id === "number") {
+      return {
+        message: errorDetail.message,
+        existingImportId: errorDetail.existing_import_id,
+      };
     }
-    return errorDetail.message;
+    return { message: errorDetail.message };
   }
   try {
-    return JSON.stringify(detail);
+    return { message: JSON.stringify(detail) };
   } catch (error) {
     console.error("导入错误信息格式化失败", error);
-    return fallback;
+    return { message: fallback };
   }
 }
 
 async function readImportError(
   response: Response,
   fallback: string,
-): Promise<string> {
+): Promise<ImportError> {
   try {
     const body = (await response.json()) as { detail?: unknown };
-    return formatImportErrorDetail(body.detail, fallback);
+    return readImportErrorDetail(body.detail, fallback);
   } catch (error) {
     console.error("导入错误响应解析失败", error);
-    return fallback;
+    return { message: fallback };
   }
 }
 
@@ -370,8 +376,18 @@ export async function uploadImport(
   form.append("permission_confirmed", String(permissionConfirmed));
   const response = await fetch("/api/imports", { method: "POST", body: form });
   if (!response.ok) {
-    throw new Error(await readImportError(response, "实际测试文件上传失败"));
+    const error = await readImportError(response, "实际测试文件上传失败");
+    if (error.existingImportId !== undefined) {
+      return getImport(error.existingImportId);
+    }
+    throw new Error(error.message);
   }
+  return (await response.json()) as ImportRecord;
+}
+
+export async function getImport(importId: number): Promise<ImportRecord> {
+  const response = await fetch(`/api/imports/${importId}`);
+  if (!response.ok) throw new Error("已有导入记录读取失败");
   return (await response.json()) as ImportRecord;
 }
 

@@ -233,7 +233,7 @@ export function useAppController() {
       setImportRecord(
         await uploadImport(importFile, importPermissionConfirmed),
       );
-      setImportMessage("文件已上传，请点击“校验导入文件”继续");
+      setImportMessage("文件已载入，请点击“校验导入文件”继续");
     } catch (error) {
       setImportMessage(
         error instanceof Error ? error.message : "实际测试文件上传失败",

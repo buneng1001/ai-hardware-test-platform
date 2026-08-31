@@ -111,6 +111,9 @@ def test_import_rejects_fault_truth_and_duplicate_sha256_without_partial_task(tm
         duplicate = _upload(client, _zip_bytes(include_optional=True))
         assert duplicate.status_code == 409
         assert duplicate.json()["detail"]["existing_import_id"] == first_id
+        existing = client.get(f"/api/imports/{first_id}")
+        assert existing.status_code == 200
+        assert existing.json()["id"] == first_id
 
         forged = _upload(client, _zip_bytes(include_fault_truth=True))
         assert forged.status_code == 201
