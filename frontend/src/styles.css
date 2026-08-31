@@ -111,6 +111,10 @@ h1 {
   width: 100%;
 }
 
+.saved-task-page {
+  width: min(100%, 80vw) !important;
+}
+
 .page-shell--compact {
   width: min(100%, 760px) !important;
 }
@@ -304,6 +308,36 @@ button:disabled {
   margin-top: 8px;
 }
 
+.saved-task-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.saved-task-grid .task-card {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0;
+}
+
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.task-actions button,
+.task-card .task-actions button {
+  margin-top: 0;
+}
+
+.saved-task-refresh {
+  margin-top: 16px;
+}
+
 .task-list > button {
   margin-top: 16px;
 }
@@ -359,8 +393,13 @@ button:disabled {
   .task-panel,
   .task-list,
   .run-detail,
+  .saved-task-page,
   .status-page > div:not(.hero-layout),
   .page-shell--compact {
     width: 100%;
+  }
+
+  .saved-task-grid {
+    grid-template-columns: 1fr;
   }
 }

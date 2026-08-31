@@ -189,7 +189,7 @@ export function App() {
         />
         {formError && <p role="alert">{formError}</p>}
       </section>
-      <div hidden={!visible("saved")}>
+      <div className="saved-task-page" hidden={!visible("saved")}>
         <SavedTasksPanel
           taskDetails={tasks}
           executingTaskId={executingTaskId}

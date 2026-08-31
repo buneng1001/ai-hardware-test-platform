@@ -37,6 +37,10 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
   const taskById = new Map(
     props.taskDetails?.map((task) => [task.id, task]) ?? [],
   );
+  const hasConfiguration = (taskId: number) => {
+    const task = taskById.get(taskId);
+    return task?.video !== undefined && task.imu !== undefined;
+  };
   const displayItems: SavedTask[] = props.tasks
     ? props.tasks.items
     : (props.taskDetails?.map((task) => ({
@@ -118,7 +122,11 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
           </select>
         </label>
       </div>
-      <button type="button" onClick={() => props.onRefresh()}>
+      <button
+        className="secondary-button saved-task-refresh"
+        type="button"
+        onClick={() => props.onRefresh()}
+      >
         刷新已保存任务
       </button>
       {props.error && <p role="alert">{props.error}</p>}
@@ -133,65 +141,73 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
             </p>
           )}
           {displayItems.length === 0 && <p>还没有采集任务。</p>}
-          {displayItems.map((task) => (
-            <article className="task-card" key={task.id}>
-              <h3>{task.name}</h3>
-              {taskById.has(task.id) && (
-                <p>
-                  {modeLabels[taskById.get(task.id)!.mode]} ·{" "}
-                  {scenarioLabels[taskById.get(task.id)!.scenario]} · 草稿
-                </p>
-              )}
-              {taskById.has(task.id) && (
-                <p>
-                  配置：{modeLabels[taskById.get(task.id)!.mode]} ·{" "}
-                  {scenarioLabels[taskById.get(task.id)!.scenario]}
-                </p>
-              )}
-              <p>
-                来源：
-                {task.source === "synthetic_generated"
-                  ? "合成数据"
-                  : "导入实际数据"}{" "}
-                · {task.execution_status === "has_runs" ? "已有运行" : "未执行"}{" "}
-                · {task.archived ? "已归档" : "未归档"} · 运行 {task.run_count}{" "}
-                次
-              </p>
-              <p>
-                创建时间：{new Date(task.created_at).toLocaleString("zh-CN")}
-              </p>
-              <div className="task-actions">
-                {taskById.has(task.id) && !task.archived && (
-                  <button
-                    type="button"
-                    disabled={props.executingTaskId !== null}
-                    onClick={() => props.onExecute(task.id)}
-                  >
-                    {props.executingTaskId === task.id
-                      ? "正在执行…"
-                      : "执行任务"}
-                  </button>
+          <div className="saved-task-grid">
+            {displayItems.map((task) => (
+              <article className="task-card" key={task.id}>
+                <h3>{task.name}</h3>
+                {taskById.has(task.id) && (
+                  <p>
+                    {modeLabels[taskById.get(task.id)!.mode]} ·{" "}
+                    {scenarioLabels[taskById.get(task.id)!.scenario]} · 草稿
+                  </p>
                 )}
-                {task.execution_status === "has_runs" && !task.archived ? (
-                  <button
-                    type="button"
-                    onClick={() => props.onArchive(task.id)}
-                  >
-                    归档任务 {task.name}
-                  </button>
-                ) : (
-                  !task.archived && (
+                {hasConfiguration(task.id) && (
+                  <p>
+                    配置：{taskById.get(task.id)!.video.channels} 路视频 ·{" "}
+                    {taskById.get(task.id)!.video.resolution} ·{" "}
+                    {taskById.get(task.id)!.video.fps} FPS · IMU{" "}
+                    {taskById.get(task.id)!.imu.sample_rate_hz}Hz · 参考时钟{" "}
+                    {taskById.get(task.id)!.reference_channel}
+                  </p>
+                )}
+                <p>
+                  来源：
+                  {task.source === "synthetic_generated"
+                    ? "合成数据"
+                    : "导入实际数据"}{" "}
+                  ·{" "}
+                  {task.execution_status === "has_runs" ? "已有运行" : "未执行"}{" "}
+                  · {task.archived ? "已归档" : "未归档"} · 运行{" "}
+                  {task.run_count} 次
+                </p>
+                <p>
+                  创建时间：{new Date(task.created_at).toLocaleString("zh-CN")}
+                </p>
+                <div className="task-actions">
+                  {taskById.has(task.id) && !task.archived && (
                     <button
                       type="button"
-                      onClick={() => props.onDelete(task.id)}
+                      disabled={props.executingTaskId !== null}
+                      onClick={() => props.onExecute(task.id)}
                     >
-                      删除任务 {task.name}
+                      {props.executingTaskId === task.id
+                        ? "正在执行…"
+                        : "执行任务"}
                     </button>
-                  )
-                )}
-              </div>
-            </article>
-          ))}
+                  )}
+                  {task.execution_status === "has_runs" && !task.archived ? (
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => props.onArchive(task.id)}
+                    >
+                      归档任务 {task.name}
+                    </button>
+                  ) : (
+                    !task.archived && (
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => props.onDelete(task.id)}
+                      >
+                        删除任务 {task.name}
+                      </button>
+                    )
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
           {props.tasks && (
             <div className="pagination" aria-label="已保存任务分页">
               <button
