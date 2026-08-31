@@ -127,6 +127,28 @@ form,
   margin-top: 16px;
 }
 
+.permission-confirmation {
+  display: flex !important;
+  align-items: center;
+  gap: 10px !important;
+  cursor: pointer;
+}
+
+.permission-confirmation input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  margin: 0;
+  accent-color: #60d6c4;
+}
+
+.field-help {
+  color: #b5c8cc;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .task-panel > button {
   margin-top: 16px;
 }
@@ -173,6 +195,40 @@ button {
 button:disabled {
   cursor: wait;
   opacity: 0.6;
+}
+
+.secondary-button {
+  color: #e8edf2;
+  border: 1px solid #49717a;
+  background: transparent;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 68%);
+}
+
+.conversion-dialog {
+  box-sizing: border-box;
+  width: min(100%, 480px);
+  padding: 24px;
+  border: 1px solid #49717a;
+  border-radius: 12px;
+  background: #102832;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 35%);
+}
+
+.conversion-dialog h3 {
+  margin-top: 0;
+}
+
+.conversion-dialog button {
+  margin-top: 8px;
 }
 
 .connection-result {

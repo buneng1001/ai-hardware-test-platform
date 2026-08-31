@@ -8,6 +8,7 @@ import {
 import { afterEach, expect, test, vi } from "vitest";
 
 import { App } from "./App";
+import { MANIFEST_TEMPLATE } from "./manifestTemplate";
 
 afterEach(() => {
   cleanup();
@@ -311,6 +312,35 @@ test("页面提供明确导航、设置顶栏入口和根据导入生成入口",
   expect(window.location.hash).toBe("#import");
 });
 
+test("根据导入页面提供可直接填写的 manifest.json 模板下载入口", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([]))),
+  );
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "根据导入生成" }));
+  expect(
+    screen.getByRole("button", { name: "下载 manifest.json 模板" }),
+  ).toBeInTheDocument();
+  const manifest = JSON.parse(MANIFEST_TEMPLATE) as {
+    videos: Array<Record<string, unknown>>;
+    imu: Record<string, unknown>;
+  };
+  expect(manifest.videos[0]).toMatchObject({
+    channel: "camera_1",
+    path: "videos/camera_1.mp4",
+    codec: "h264",
+    time_source: "container_pts",
+    start_raw_device_timestamp_ns: 0,
+  });
+  expect(manifest.imu).toMatchObject({ path: "imu.csv", format: "csv" });
+});
+
 test("可通过 URL hash 直接打开设置页并返回仪表盘", async () => {
   window.history.replaceState({}, "", "#settings");
   vi.stubGlobal(
@@ -354,14 +384,7 @@ test("导入页面按上传、校验状态控制四个操作入口", async () =>
           validator_version: "rc2-import-v1",
           status: "uploaded",
           permission_confirmed: true,
-          validation: {
-            status: "passed",
-            security: { status: "passed", errors: [] },
-            compatibility: { status: "passed", errors: [] },
-            errors: [],
-            warnings: ["缺少可选设备状态或设备日志"],
-            manifest: null,
-          },
+          validation: {},
           created_task_id: null,
         }),
       ),
@@ -406,12 +429,73 @@ test("导入页面按上传、校验状态控制四个操作入口", async () =>
   ).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "导入实际测试文件" }));
   expect(await screen.findByText(/请点击“校验导入文件”/)).toBeInTheDocument();
+  expect(screen.getByText("文件已上传，尚未校验")).toBeInTheDocument();
+  expect(screen.getByText("测试标签")).toBeInTheDocument();
+  expect(
+    screen.getByText(/用于标记这批实际数据的来源或用途/),
+  ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "转为标准格式" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "校验导入文件" }));
   expect(
     await screen.findByText("导入校验通过，可以加入任务列表"),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "加入任务列表" })).toBeDisabled();
+});
+
+test("实际测试文件上传失败时展示可读的对象错误信息", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "ok", database: "ok" })),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([])))
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          detail: { message: "该 ZIP 已导入", existing_import_id: 7 },
+        }),
+        { status: 409 },
+      ),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 7,
+          sha256: "a".repeat(64),
+          source_filename: "actual.zip",
+          first_imported_at: "2026-08-30T00:00:00Z",
+          validator_version: "rc2-import-v1",
+          status: "nonstandard_convertible",
+          permission_confirmed: true,
+          validation: {},
+          created_task_id: null,
+        }),
+      ),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "根据导入生成" }));
+  fireEvent.change(screen.getByLabelText("实际测试 ZIP"), {
+    target: {
+      files: [new File(["zip"], "actual.zip", { type: "application/zip" })],
+    },
+  });
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "确认具有处理和展示权限" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "导入实际测试文件" }));
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "文件已载入，请点击“校验导入文件”继续",
+  );
+  expect(screen.getByRole("button", { name: "校验导入文件" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "转为标准格式" }));
+  expect(
+    screen.getByRole("dialog", { name: "标准格式转换功能开发中" }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "知道了" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
 });
 
 test("已保存任务展示筛选、分页以及删除和归档边界", async () => {

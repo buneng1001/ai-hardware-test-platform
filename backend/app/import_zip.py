@@ -47,6 +47,15 @@ def _record_from_row(row) -> ImportRecord:
     )
 
 
+@router.get("/{import_id}", response_model=ImportRecord)
+def get_import(import_id: int) -> ImportRecord:
+    with open_database() as connection:
+        row = connection.execute("SELECT * FROM import_records WHERE id = ?", (import_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="导入记录不存在")
+    return _record_from_row(row)
+
+
 @router.post("", response_model=ImportRecord, status_code=status.HTTP_201_CREATED)
 async def upload_import(file: UploadFile = File(...), permission_confirmed: bool = Form(...)) -> ImportRecord:
     if not permission_confirmed:

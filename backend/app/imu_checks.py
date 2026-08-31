@@ -4,13 +4,17 @@ import math
 from pathlib import Path
 
 from app.artifact_io import read_fault_truth
+from app.imu_schema import normalize_imu_row
 from app.run_models import Artifact, BasicCheck, RunConfigurationSnapshot
 
 
 def run_imu_checks(artifacts: list[Artifact], data_dir: Path, snapshot: RunConfigurationSnapshot) -> list[BasicCheck]:
     """从公开 IMU 产物计算采样完整性和时间戳质量。"""
     imu_artifact = next(artifact for artifact in artifacts if artifact.kind == "imu")
-    rows = _read_rows(data_dir / imu_artifact.path, snapshot.imu.format)
+    rows = [
+        normalize_imu_row(row, index)
+        for index, row in enumerate(_read_rows(data_dir / imu_artifact.path, snapshot.imu.format))
+    ]
     truth = read_fault_truth(artifacts, data_dir)
     expected_interval = 1 / snapshot.imu.sample_rate_hz
     indices = [int(row["sample_index"]) for row in rows]
