@@ -354,14 +354,7 @@ test("导入页面按上传、校验状态控制四个操作入口", async () =>
           validator_version: "rc2-import-v1",
           status: "uploaded",
           permission_confirmed: true,
-          validation: {
-            status: "passed",
-            security: { status: "passed", errors: [] },
-            compatibility: { status: "passed", errors: [] },
-            errors: [],
-            warnings: ["缺少可选设备状态或设备日志"],
-            manifest: null,
-          },
+          validation: {},
           created_task_id: null,
         }),
       ),
@@ -406,6 +399,10 @@ test("导入页面按上传、校验状态控制四个操作入口", async () =>
   ).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "导入实际测试文件" }));
   expect(await screen.findByText(/请点击“校验导入文件”/)).toBeInTheDocument();
+  expect(screen.getByText("测试标签")).toBeInTheDocument();
+  expect(
+    screen.getByText(/用于标记这批实际数据的来源或用途/),
+  ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "转为标准格式" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "校验导入文件" }));
   expect(

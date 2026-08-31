@@ -127,6 +127,28 @@ form,
   margin-top: 16px;
 }
 
+.permission-confirmation {
+  display: flex !important;
+  align-items: center;
+  gap: 10px !important;
+  cursor: pointer;
+}
+
+.permission-confirmation input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  margin: 0;
+  accent-color: #60d6c4;
+}
+
+.field-help {
+  color: #b5c8cc;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .task-panel > button {
   margin-top: 16px;
 }

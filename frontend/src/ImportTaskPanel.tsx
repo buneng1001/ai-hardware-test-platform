@@ -19,6 +19,10 @@ type ImportTaskPanelProps = {
 };
 
 export function ImportTaskPanel(props: ImportTaskPanelProps) {
+  const validation = props.record?.validation;
+  const warnings = validation?.warnings ?? [];
+  const errors = validation?.errors ?? [];
+
   return (
     <section className="task-panel" aria-labelledby="import-task-title">
       <p className="eyebrow">根据导入生成</p>
@@ -34,8 +38,9 @@ export function ImportTaskPanel(props: ImportTaskPanelProps) {
           }
         />
       </label>
-      <label>
+      <label className="permission-confirmation">
         <input
+          id="import-permission-confirmation"
           type="checkbox"
           checked={props.permissionConfirmed}
           aria-label="确认具有处理和展示权限"
@@ -81,10 +86,10 @@ export function ImportTaskPanel(props: ImportTaskPanelProps) {
                 ? "不通过"
                 : props.record.status}
           </p>
-          {props.record.validation.warnings.map((warning) => (
+          {warnings.map((warning) => (
             <p key={warning}>警告：{warning}</p>
           ))}
-          {props.record.validation.errors.map((error) => (
+          {errors.map((error) => (
             <p key={error}>错误：{error}</p>
           ))}
         </section>
@@ -97,9 +102,14 @@ export function ImportTaskPanel(props: ImportTaskPanelProps) {
           onChange={(event) => props.onNameChange(event.target.value)}
         />
       </label>
-      <label>
+      <label htmlFor="import-test-label">
         测试标签
+        <span className="field-help">
+          用于标记这批实际数据的来源或用途，例如“版本 1.2
+          回归测试”。填写后便于在任务列表中筛选和识别。
+        </span>
         <input
+          id="import-test-label"
           value={props.label}
           onChange={(event) => props.onLabelChange(event.target.value)}
         />
