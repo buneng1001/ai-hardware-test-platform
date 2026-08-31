@@ -145,21 +145,6 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
             {displayItems.map((task) => (
               <article className="task-card" key={task.id}>
                 <h3>{task.name}</h3>
-                {taskById.has(task.id) && (
-                  <p>
-                    {modeLabels[taskById.get(task.id)!.mode]} ·{" "}
-                    {scenarioLabels[taskById.get(task.id)!.scenario]} · 草稿
-                  </p>
-                )}
-                {hasConfiguration(task.id) && (
-                  <p>
-                    配置：{taskById.get(task.id)!.video.channels} 路视频 ·{" "}
-                    {taskById.get(task.id)!.video.resolution} ·{" "}
-                    {taskById.get(task.id)!.video.fps} FPS · IMU{" "}
-                    {taskById.get(task.id)!.imu.sample_rate_hz}Hz · 参考时钟{" "}
-                    {taskById.get(task.id)!.reference_channel}
-                  </p>
-                )}
                 <p className="task-status-line">
                   <span
                     className={`task-status-badge ${
@@ -176,6 +161,21 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
                     </span>
                   )}
                 </p>
+                {taskById.has(task.id) && (
+                  <p>
+                    {modeLabels[taskById.get(task.id)!.mode]} ·{" "}
+                    {scenarioLabels[taskById.get(task.id)!.scenario]} · 草稿
+                  </p>
+                )}
+                {hasConfiguration(task.id) && (
+                  <p>
+                    配置：{taskById.get(task.id)!.video.channels} 路视频 ·{" "}
+                    {taskById.get(task.id)!.video.resolution} ·{" "}
+                    {taskById.get(task.id)!.video.fps} FPS · IMU{" "}
+                    {taskById.get(task.id)!.imu.sample_rate_hz}Hz · 参考时钟{" "}
+                    {taskById.get(task.id)!.reference_channel}
+                  </p>
+                )}
                 <p>
                   来源：
                   {task.source === "synthetic_generated"
