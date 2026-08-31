@@ -1,17 +1,53 @@
-import type { SavedTaskPage } from "./collectionTasksApi";
+import type {
+  CollectionTask,
+  SavedTask,
+  SavedTaskPage,
+} from "./collectionTasksApi";
 import type { SavedTaskFilters } from "./appTypes";
 
+const modeLabels = {
+  quick: "快速",
+  standard: "标准",
+  custom: "自定义",
+} as const;
+const scenarioLabels = {
+  normal: "正常采集",
+  video_drop: "单路视频掉帧",
+  imu_anomaly: "IMU 异常",
+  storage_exhaustion: "存储不足",
+  temperature_combination: "温升关联组合故障",
+  fixed_offset: "固定偏移",
+  linear_drift: "线性漂移",
+} as const;
+
 type SavedTasksPanelProps = {
+  taskDetails: CollectionTask[] | null;
+  executingTaskId: number | null;
   tasks: SavedTaskPage | null;
   error: string | null;
   filters: SavedTaskFilters;
   onFiltersChange: (filters: SavedTaskFilters) => void;
   onRefresh: (page?: number, filters?: SavedTaskFilters) => void;
+  onExecute: (taskId: number) => void;
   onArchive: (taskId: number) => void;
   onDelete: (taskId: number) => void;
 };
 
 export function SavedTasksPanel(props: SavedTasksPanelProps) {
+  const taskById = new Map(
+    props.taskDetails?.map((task) => [task.id, task]) ?? [],
+  );
+  const displayItems: SavedTask[] = props.tasks
+    ? props.tasks.items
+    : (props.taskDetails?.map((task) => ({
+        id: task.id,
+        name: task.name,
+        source: task.source ?? "synthetic_generated",
+        execution_status: "never_executed",
+        archived: task.archived ?? false,
+        run_count: 0,
+        created_at: task.created_at,
+      })) ?? []);
   const update = (next: SavedTaskFilters) => {
     props.onFiltersChange(next);
     props.onRefresh(1, next);
@@ -19,8 +55,11 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
   return (
     <section className="task-list" aria-labelledby="saved-task-title">
       <p className="eyebrow">已保存任务</p>
-      <h2 id="saved-task-title">任务生命周期</h2>
-      <p>列表按来源、执行状态和归档状态提供筛选；每页最多 10 条。</p>
+      <h2 id="saved-task-title">任务管理</h2>
+      <p>
+        在同一个列表中查看任务配置、执行状态和生命周期；支持筛选、执行、删除和归档，每页最多
+        10 条。
+      </p>
       <div className="configuration-grid" aria-label="已保存任务筛选">
         <label>
           来源
@@ -83,51 +122,96 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
         刷新已保存任务
       </button>
       {props.error && <p role="alert">{props.error}</p>}
-      {props.tasks && (
+      {props.tasks === null && props.taskDetails === null && (
+        <p role="status">正在加载采集任务…</p>
+      )}
+      {(props.tasks || props.taskDetails) && (
         <>
-          <p>
-            第 {props.tasks.page} 页 · 共 {props.tasks.total} 条
-          </p>
-          {props.tasks.items.map((task) => (
+          {props.tasks && (
+            <p>
+              第 {props.tasks.page} 页 · 共 {props.tasks.total} 条
+            </p>
+          )}
+          {displayItems.length === 0 && <p>还没有采集任务。</p>}
+          {displayItems.map((task) => (
             <article className="task-card" key={task.id}>
               <h3>{task.name}</h3>
+              {taskById.has(task.id) && (
+                <p>
+                  {modeLabels[taskById.get(task.id)!.mode]} ·{" "}
+                  {scenarioLabels[taskById.get(task.id)!.scenario]} · 草稿
+                </p>
+              )}
+              {taskById.has(task.id) && (
+                <p>
+                  配置：{modeLabels[taskById.get(task.id)!.mode]} ·{" "}
+                  {scenarioLabels[taskById.get(task.id)!.scenario]}
+                </p>
+              )}
               <p>
                 来源：
                 {task.source === "synthetic_generated"
                   ? "合成数据"
                   : "导入实际数据"}{" "}
                 · {task.execution_status === "has_runs" ? "已有运行" : "未执行"}{" "}
-                · {task.archived ? "已归档" : "未归档"}
+                · {task.archived ? "已归档" : "未归档"} · 运行 {task.run_count}{" "}
+                次
               </p>
-              {task.execution_status === "has_runs" ? (
-                <button type="button" onClick={() => props.onArchive(task.id)}>
-                  归档任务 {task.name}
-                </button>
-              ) : (
-                <button type="button" onClick={() => props.onDelete(task.id)}>
-                  删除任务 {task.name}
-                </button>
-              )}
+              <p>
+                创建时间：{new Date(task.created_at).toLocaleString("zh-CN")}
+              </p>
+              <div className="task-actions">
+                {taskById.has(task.id) && !task.archived && (
+                  <button
+                    type="button"
+                    disabled={props.executingTaskId !== null}
+                    onClick={() => props.onExecute(task.id)}
+                  >
+                    {props.executingTaskId === task.id
+                      ? "正在执行…"
+                      : "执行任务"}
+                  </button>
+                )}
+                {task.execution_status === "has_runs" && !task.archived ? (
+                  <button
+                    type="button"
+                    onClick={() => props.onArchive(task.id)}
+                  >
+                    归档任务 {task.name}
+                  </button>
+                ) : (
+                  !task.archived && (
+                    <button
+                      type="button"
+                      onClick={() => props.onDelete(task.id)}
+                    >
+                      删除任务 {task.name}
+                    </button>
+                  )
+                )}
+              </div>
             </article>
           ))}
-          <div className="pagination" aria-label="已保存任务分页">
-            <button
-              type="button"
-              disabled={props.tasks.page <= 1}
-              onClick={() => props.onRefresh(props.tasks!.page - 1)}
-            >
-              上一页
-            </button>
-            <button
-              type="button"
-              disabled={
-                props.tasks.page * props.tasks.page_size >= props.tasks.total
-              }
-              onClick={() => props.onRefresh(props.tasks!.page + 1)}
-            >
-              下一页
-            </button>
-          </div>
+          {props.tasks && (
+            <div className="pagination" aria-label="已保存任务分页">
+              <button
+                type="button"
+                disabled={props.tasks.page <= 1}
+                onClick={() => props.onRefresh(props.tasks!.page - 1)}
+              >
+                上一页
+              </button>
+              <button
+                type="button"
+                disabled={
+                  props.tasks.page * props.tasks.page_size >= props.tasks.total
+                }
+                onClick={() => props.onRefresh(props.tasks!.page + 1)}
+              >
+                下一页
+              </button>
+            </div>
+          )}
         </>
       )}
     </section>

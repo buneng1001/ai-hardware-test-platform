@@ -32,7 +32,6 @@ import { ImportTaskPanel } from "./ImportTaskPanel";
 import { Navigation } from "./Navigation";
 import { SavedTasksPanel } from "./SavedTasksPanel";
 import { SettingsPanel } from "./SettingsPanel";
-import { TaskListPanel } from "./TaskListPanel";
 import type { PageKey, SavedTaskFilters } from "./appTypes";
 
 type Health = { status: "ok"; database: "ok" };
@@ -191,17 +190,15 @@ export function App() {
         {formError && <p role="alert">{formError}</p>}
       </section>
       <div hidden={!visible("saved")}>
-        <TaskListPanel
-          tasks={tasks}
-          executingTaskId={executingTaskId}
-          onExecute={(id) => void executeTask(id)}
-        />
         <SavedTasksPanel
+          taskDetails={tasks}
+          executingTaskId={executingTaskId}
           tasks={savedTasks}
           error={savedTaskError}
           filters={savedTaskFilters}
           onFiltersChange={setSavedTaskFilters}
           onRefresh={(page, filters) => void refreshSavedTasks(page, filters)}
+          onExecute={(id) => void executeTask(id)}
           onArchive={(id) => void archiveSavedTask(id)}
           onDelete={(id) => void removeSavedTask(id)}
         />

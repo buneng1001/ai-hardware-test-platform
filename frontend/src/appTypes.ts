@@ -1,6 +1,5 @@
 import type {
   AiSettings,
-  CollectionTask,
   DiagnosisMode,
   DiagnosisProvider,
   ImportRecord,
@@ -47,10 +46,4 @@ export type SavedTasksPanelState = {
   error: string | null;
   page: number;
   filters: SavedTaskFilters;
-};
-
-export type TaskListPanelProps = {
-  tasks: CollectionTask[] | null;
-  executingTaskId: number | null;
-  onExecute: (taskId: number) => void;
 };
