@@ -366,6 +366,7 @@ button:disabled {
 
 .task-runs {
   display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   max-height: 176px;
   margin-top: 16px;
@@ -373,16 +374,40 @@ button:disabled {
   padding-right: 8px;
   border-top: 1px solid #254550;
   overflow-y: auto;
+  scrollbar-color: #39736e #102832;
+  scrollbar-width: thin;
+}
+
+.task-runs::-webkit-scrollbar {
+  width: 8px;
+}
+
+.task-runs::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #102832;
+}
+
+.task-runs::-webkit-scrollbar-thumb {
+  border: 2px solid #102832;
+  border-radius: 999px;
+  background: #39736e;
+}
+
+.task-runs strong {
+  grid-column: 1 / -1;
 }
 
 .run-link {
-  width: fit-content;
+  width: 100%;
   min-height: 36px;
   padding: 6px 12px;
   color: #bfe8e1;
   border: 1px solid #39736e;
   background: transparent;
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .saved-task-refresh {
@@ -465,5 +490,9 @@ button:disabled {
 
   .saved-task-grid {
     grid-template-columns: 1fr;
+  }
+
+  .task-runs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
