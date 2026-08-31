@@ -1,6 +1,6 @@
 [project]
 name = "hardware-test-platform-api"
-version = "0.1.0rc1"
+version = "0.1.0"
 description = "智能硬件测试执行与诊断平台后端"
 requires-python = ">=3.12"
 dependencies = [
