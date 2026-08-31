@@ -140,6 +140,27 @@ test("测试工程师能创建快速正常采集任务并重新查看", async ()
     .mockResolvedValueOnce(
       new Response(JSON.stringify(createdTask), { status: 201 }),
     );
+  fetchMock.mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        items: [
+          {
+            id: createdTask.id,
+            name: createdTask.name,
+            source: "synthetic_generated",
+            execution_status: "never_executed",
+            archived: false,
+            run_count: 0,
+            runs: [],
+            created_at: createdTask.created_at,
+          },
+        ],
+        page: 1,
+        page_size: 10,
+        total: 1,
+      }),
+    ),
+  );
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
@@ -152,7 +173,7 @@ test("测试工程师能创建快速正常采集任务并重新查看", async ()
     await screen.findByRole("heading", { name: "面试快速正常采集" }),
   ).toBeInTheDocument();
   expect(screen.getByText("快速 · 正常采集 · 草稿")).toBeInTheDocument();
-  expect(fetchMock).toHaveBeenLastCalledWith(
+  expect(fetchMock).toHaveBeenCalledWith(
     "/api/collection-tasks",
     expect.objectContaining({
       method: "POST",
@@ -230,6 +251,27 @@ test("页面刷新后能从公开 API 重新显示已保存采集任务", async 
       .fn()
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: 7,
+                name: "已持久化任务",
+                source: "synthetic_generated",
+                execution_status: "never_executed",
+                archived: false,
+                run_count: 0,
+                runs: [],
+                created_at: "2026-08-22T12:00:00Z",
+              },
+            ],
+            page: 1,
+            page_size: 10,
+            total: 1,
+          }),
+        ),
       )
       .mockResolvedValueOnce(
         new Response(
@@ -528,18 +570,15 @@ test("已保存任务展示筛选、分页以及删除和归档边界", async ()
     .mockResolvedValueOnce(
       new Response(JSON.stringify({ status: "ok", database: "ok" })),
     )
-    .mockResolvedValueOnce(new Response(JSON.stringify([])))
     .mockResolvedValueOnce(
       new Response(
         JSON.stringify({ items: tasks, page: 1, page_size: 10, total: 2 }),
       ),
-    );
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify([])));
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
-  fireEvent.click(
-    await screen.findByRole("button", { name: "刷新已保存任务" }),
-  );
   expect(await screen.findByText("有运行任务")).toBeInTheDocument();
   expect(
     screen.getByText(
@@ -671,6 +710,27 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
       .fn()
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: task.id,
+                name: task.name,
+                source: "synthetic_generated",
+                execution_status: "never_executed",
+                archived: false,
+                run_count: 0,
+                runs: [],
+                created_at: task.created_at,
+              },
+            ],
+            page: 1,
+            page_size: 10,
+            total: 1,
+          }),
+        ),
       )
       .mockResolvedValueOnce(new Response(JSON.stringify([task])))
       .mockResolvedValueOnce(

@@ -206,6 +206,11 @@ export function useAppController() {
       setSavedTaskError("已保存任务加载失败，请稍后重试");
     }
   };
+  useEffect(() => {
+    if (activePage === "saved") {
+      void refreshSavedTasks();
+    }
+  }, [activePage]);
   const removeSavedTask = async (taskId: number) => {
     try {
       await deleteCollectionTask(taskId);
