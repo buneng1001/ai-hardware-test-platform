@@ -367,9 +367,12 @@ button:disabled {
 .task-runs {
   display: grid;
   gap: 8px;
+  max-height: 176px;
   margin-top: 16px;
   padding-top: 16px;
+  padding-right: 8px;
   border-top: 1px solid #254550;
+  overflow-y: auto;
 }
 
 .run-link {
