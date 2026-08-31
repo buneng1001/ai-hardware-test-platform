@@ -364,6 +364,24 @@ button:disabled {
   margin-top: 0;
 }
 
+.task-runs {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #254550;
+}
+
+.run-link {
+  width: fit-content;
+  min-height: 36px;
+  padding: 6px 12px;
+  color: #bfe8e1;
+  border: 1px solid #39736e;
+  background: transparent;
+  text-align: left;
+}
+
 .saved-task-refresh {
   margin-top: 16px;
 }

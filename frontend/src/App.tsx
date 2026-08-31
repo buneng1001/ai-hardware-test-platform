@@ -198,6 +198,7 @@ export function App() {
           filters={savedTaskFilters}
           onFiltersChange={setSavedTaskFilters}
           onRefresh={(page, filters) => void refreshSavedTasks(page, filters)}
+          onOpenRun={(id) => void openDashboardRun(id)}
           onExecute={(id) => void executeTask(id)}
           onArchive={(id) => void archiveSavedTask(id)}
           onDelete={(id) => void removeSavedTask(id)}

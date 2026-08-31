@@ -30,7 +30,16 @@ export type SavedTask = {
   execution_status: "never_executed" | "has_runs";
   archived: boolean;
   run_count: number;
+  runs: SavedTaskRun[];
   created_at: string;
+};
+
+export type SavedTaskRun = {
+  id: number;
+  execution_number: number;
+  status: RunStatus;
+  created_at: string;
+  completed_at: string | null;
 };
 
 export type SavedTaskPage = {

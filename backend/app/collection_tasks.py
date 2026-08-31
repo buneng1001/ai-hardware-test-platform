@@ -134,7 +134,18 @@ class SavedTask(BaseModel):
     execution_status: Literal["never_executed", "has_runs"]
     archived: bool
     run_count: int
+    runs: list["SavedTaskRun"]
     created_at: datetime
+
+
+class SavedTaskRun(BaseModel):
+    """已保存任务卡片中用于追溯的运行摘要。"""
+
+    id: int
+    execution_number: int
+    status: str
+    created_at: datetime
+    completed_at: datetime | None
 
 
 class SavedTaskPage(BaseModel):
@@ -185,7 +196,10 @@ def list_collection_tasks() -> list[CollectionTask]:
     return [task_from_row(row) for row in rows]
 
 
-def _saved_task_from_row(row: sqlite3.Row) -> SavedTask:
+def _saved_task_from_row(
+    row: sqlite3.Row,
+    runs: list[SavedTaskRun] | None = None,
+) -> SavedTask:
     return SavedTask(
         id=row["id"],
         name=row["name"],
@@ -193,6 +207,7 @@ def _saved_task_from_row(row: sqlite3.Row) -> SavedTask:
         execution_status="has_runs" if row["run_count"] else "never_executed",
         archived=bool(row["archived"]),
         run_count=row["run_count"],
+        runs=runs or [],
         created_at=row["created_at"],
     )
 
@@ -231,8 +246,29 @@ def list_saved_tasks(
             f"GROUP BY t.id {having} ORDER BY t.id DESC LIMIT ? OFFSET ?",
             [*parameters, page_size, (page - 1) * page_size],
         ).fetchall()
+        task_ids = [row["id"] for row in rows]
+        run_rows = []
+        if task_ids:
+            placeholders = ",".join("?" for _ in task_ids)
+            run_rows = connection.execute(
+                f"SELECT id, collection_task_id, task_execution_number, status, created_at, completed_at "
+                f"FROM runs WHERE collection_task_id IN ({placeholders}) "
+                "ORDER BY task_execution_number DESC, id DESC",
+                task_ids,
+            ).fetchall()
+    runs_by_task: dict[int, list[SavedTaskRun]] = {task_id: [] for task_id in task_ids}
+    for run in run_rows:
+        runs_by_task[run["collection_task_id"]].append(
+            SavedTaskRun(
+                id=run["id"],
+                execution_number=run["task_execution_number"],
+                status=run["status"],
+                created_at=run["created_at"],
+                completed_at=run["completed_at"],
+            )
+        )
     return SavedTaskPage(
-        items=[_saved_task_from_row(row) for row in rows],
+        items=[_saved_task_from_row(row, runs_by_task[row["id"]]) for row in rows],
         page=page,
         page_size=page_size,
         total=total,

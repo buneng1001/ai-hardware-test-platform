@@ -28,6 +28,7 @@ type SavedTasksPanelProps = {
   filters: SavedTaskFilters;
   onFiltersChange: (filters: SavedTaskFilters) => void;
   onRefresh: (page?: number, filters?: SavedTaskFilters) => void;
+  onOpenRun: (runId: number) => void;
   onExecute: (taskId: number) => void;
   onArchive: (taskId: number) => void;
   onDelete: (taskId: number) => void;
@@ -50,6 +51,7 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
         execution_status: "never_executed",
         archived: task.archived ?? false,
         run_count: 0,
+        runs: [],
         created_at: task.created_at,
       })) ?? []);
   const update = (next: SavedTaskFilters) => {
@@ -188,6 +190,22 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
                 <p>
                   创建时间：{new Date(task.created_at).toLocaleString("zh-CN")}
                 </p>
+                {(task.runs ?? []).length > 0 && (
+                  <div className="task-runs">
+                    <strong>运行记录</strong>
+                    {(task.runs ?? []).map((run) => (
+                      <button
+                        className="run-link"
+                        type="button"
+                        key={run.id}
+                        onClick={() => props.onOpenRun(run.id)}
+                      >
+                        运行 #{run.id} · 第 {run.execution_number} 次 ·{" "}
+                        {run.status}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="task-actions">
                   {taskById.has(task.id) && !task.archived && (
                     <button
