@@ -11,8 +11,8 @@
 | 人工结果与自动检查独立汇总 | 已验证 | `backend/tests/test_manual_check_results_api.py`、`test_report_api.py`；验收脚本 `manual` |
 | Mock 诊断、真值评估和仪表盘 | 已验证 | `backend/tests/test_mock_diagnosis_api.py`、`test_ai_evaluation_dashboard_api.py` |
 | 模型不可用时运行和原始报告仍完成 | 已验证 | `backend/tests/test_siliconflow_contract.py`；验收脚本 `degradation` |
-| HTML 报告和 ZIP 清单/哈希 | 已验证 | `backend/tests/test_report_api.py`；验收脚本 `normal-report.html`、`normal-evidence.zip` |
-| 后端、前端、契约和公开 API 主 seam | 已验证 | `.github/workflows/ci.yml`；本地验证命令见 README |
+| 基础 HTML 报告和 ZIP 清单/哈希 | 已验证 | `backend/tests/test_report_api.py`；验收脚本 `normal-report.html`、`normal-evidence.zip` |
+| GitHub Actions CI 骨架及后端、前端、契约和公开 API 主 seam | 已验证 | `.github/workflows/ci.yml`；本地验证命令见 README；完整企业级准入未纳入首版 |
 | Allure 可查看结果 | 已验证 | 验收目录 `allure-results/ticket20-acceptance-result.json`；CI artifact `ticket20-allure-and-acceptance` |
 | 仓库、日志、数据库、HTML、ZIP 安全扫描 | 已验证 | `scripts/check_repository_safety.py`、`scripts/check_artifact_safety.py` |
 | 真实硅基流动线上调用效果 | 未验证 | 本地与 CI 均不使用真实 Key，只有适配器契约和 Mock 证据 |
