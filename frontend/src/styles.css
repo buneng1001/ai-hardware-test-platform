@@ -338,6 +338,19 @@ button:disabled {
   margin-top: 16px;
 }
 
+.pagination {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #254550;
+}
+
+.pagination button {
+  min-width: 96px;
+  margin: 0;
+}
+
 .task-list > button {
   margin-top: 16px;
 }

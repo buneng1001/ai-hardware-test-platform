@@ -211,6 +211,7 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
           {props.tasks && (
             <div className="pagination" aria-label="已保存任务分页">
               <button
+                className="secondary-button"
                 type="button"
                 disabled={props.tasks.page <= 1}
                 onClick={() => props.onRefresh(props.tasks!.page - 1)}
@@ -218,6 +219,7 @@ export function SavedTasksPanel(props: SavedTasksPanelProps) {
                 上一页
               </button>
               <button
+                className="secondary-button"
                 type="button"
                 disabled={
                   props.tasks.page * props.tasks.page_size >= props.tasks.total
