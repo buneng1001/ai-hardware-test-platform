@@ -18,7 +18,7 @@ export const MANIFEST_TEMPLATE = `{
     }
   ],
   "imu": {
-    "_说明": "通常只需修改 path；format 只支持 csv 或 jsonl，sample_rate_hz 可填写采集设备标称值。",
+    "_说明": "通常只需修改 path；format 只支持 csv 或 jsonl，sample_rate_hz 可填写采集设备标称值。CSV 常见列名可使用 time、accel_x、accel_y、accel_z、gyro_x、gyro_y、gyro_z。",
     "path": "imu.csv",
     "format": "csv",
     "sample_rate_hz": 100,

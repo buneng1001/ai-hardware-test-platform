@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from pydantic import ValidationError
 
 from app.run_models import VideoConfiguration
+from app.imu_schema import normalize_imu_row
 
 MAX_ARCHIVE_BYTES = 2 * 1024**3
 MAX_EXTRACTED_BYTES = 10 * 1024**3
@@ -207,13 +208,15 @@ def _validate_imu(manifest: dict[str, object], extract_path: Path) -> list[str]:
         return []
     path = extract_path / _relative_path(imu["path"])
     try:
-        rows = list(_read_imu_rows(path, imu["format"]))
+        rows = [
+            normalize_imu_row(row, index)
+            for index, row in enumerate(_read_imu_rows(path, imu["format"]), start=0)
+        ]
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, csv.Error, ValueError) as error:
         return [f"IMU 文件无法读取：{error}"]
     if len(rows) < 2:
         return ["IMU 至少需要两个样本以验证采样率"]
     required = {
-        "raw_device_timestamp_ns",
         "relative_timestamp_s",
         "accel_x_m_s2",
         "accel_y_m_s2",

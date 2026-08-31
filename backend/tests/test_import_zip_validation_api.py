@@ -122,7 +122,7 @@ def test_import_rejects_fault_truth_and_duplicate_sha256_without_partial_task(tm
         assert any("fault_truth.json" in error for error in forged_result.json()["detail"]["errors"])
 
 
-def test_import_marks_nonstandard_imu_columns_as_convertible(tmp_path, monkeypatch):
+def test_import_accepts_common_imu_column_names(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
     manifest = {
         "schema_version": "1.0",
@@ -154,8 +154,8 @@ def test_import_marks_nonstandard_imu_columns_as_convertible(tmp_path, monkeypat
         result = client.post(f"/api/imports/{uploaded.json()['id']}/validate")
 
     assert result.status_code == 200
-    assert result.json()["status"] == "nonstandard_convertible"
-    assert "IMU 缺少六轴字段" in result.json()["validation"]["errors"][0]
+    assert result.json()["status"] == "passed"
+    assert result.json()["validation"]["errors"] == []
 
 
 def test_import_rejects_path_traversal_without_leaving_formal_data(tmp_path, monkeypatch):
