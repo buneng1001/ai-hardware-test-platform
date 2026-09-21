@@ -15,6 +15,7 @@ from app.import_zip import cleanup_expired_staging
 from app.import_zip import router as import_zip_router
 from app.manual_check_results import router as manual_check_results_router
 from app.manual_result_import import router as manual_result_import_router
+from app.project_workspace import router as project_workspace_router
 from app.report import router as report_router
 from app.run_executor import RunExecutor
 from app.runs import process_run, recover_unfinished_runs
@@ -50,6 +51,7 @@ app.include_router(report_router)
 app.include_router(evidence_router)
 app.include_router(diagnosis_router)
 app.include_router(settings_router)
+app.include_router(project_workspace_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)

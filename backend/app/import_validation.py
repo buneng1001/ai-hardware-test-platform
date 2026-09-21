@@ -8,8 +8,8 @@ from pathlib import Path, PurePosixPath
 
 from pydantic import ValidationError
 
-from app.run_models import VideoConfiguration
 from app.imu_schema import normalize_imu_row
+from app.run_models import VideoConfiguration
 
 MAX_ARCHIVE_BYTES = 2 * 1024**3
 MAX_EXTRACTED_BYTES = 10 * 1024**3
@@ -74,13 +74,7 @@ def validate_archive(archive_path: Path, extract_path: Path) -> dict[str, object
     nonstandard_imu = bool(compatibility_errors) and all(
         error.startswith("IMU 缺少六轴字段") for error in compatibility_errors
     )
-    status_value = (
-        "nonstandard_convertible"
-        if nonstandard_imu
-        else "passed"
-        if not errors
-        else "failed"
-    )
+    status_value = "nonstandard_convertible" if nonstandard_imu else "passed" if not errors else "failed"
     if status_value == "passed" and manifest and manifest.get("schema_version") != "1.0":
         status_value = "nonstandard_convertible"
     return _result(
@@ -208,10 +202,7 @@ def _validate_imu(manifest: dict[str, object], extract_path: Path) -> list[str]:
         return []
     path = extract_path / _relative_path(imu["path"])
     try:
-        rows = [
-            normalize_imu_row(row, index)
-            for index, row in enumerate(_read_imu_rows(path, imu["format"]), start=0)
-        ]
+        rows = [normalize_imu_row(row, index) for index, row in enumerate(_read_imu_rows(path, imu["format"]), start=0)]
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, csv.Error, ValueError) as error:
         return [f"IMU 文件无法读取：{error}"]
     if len(rows) < 2:

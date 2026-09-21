@@ -354,6 +354,27 @@ test("页面提供明确导航、设置顶栏入口和根据导入生成入口",
   expect(window.location.hash).toBe("#import");
 });
 
+test("主导航可以打开项目与产品版本工作区", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([])))
+      .mockResolvedValueOnce(new Response(JSON.stringify([]))),
+  );
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "项目工作区" }));
+
+  expect(
+    await screen.findByRole("heading", { name: "项目与产品版本" }),
+  ).toBeInTheDocument();
+  expect(window.location.hash).toBe("#projects");
+});
+
 test("根据导入页面提供可直接填写的 manifest.json 模板下载入口", async () => {
   vi.stubGlobal(
     "fetch",

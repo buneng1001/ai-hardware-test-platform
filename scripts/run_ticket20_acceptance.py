@@ -181,7 +181,7 @@ def main() -> int:
             task = client.post(
                 "/api/collection-tasks",
                 json={
-                    "name": f"Ticket20-{scenario}",
+                    "name": f"Ticket20-alignment-{scenario}",
                     "mode": "quick",
                     "scenario": scenario,
                 },
