@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 15
+LATEST_SCHEMA_VERSION = 16
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -254,6 +254,61 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             CREATE INDEX idx_product_versions_project_id ON product_versions(project_id);
             INSERT INTO schema_migrations (version) VALUES (15);
             PRAGMA user_version = 15;
+            """
+        )
+        current_version = 15
+
+    if current_version < 16:
+        connection.executescript(
+            """
+            CREATE TABLE source_test_case_imports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_version_id INTEGER NOT NULL,
+                source_filename TEXT NOT NULL,
+                field_mapping TEXT NOT NULL,
+                import_options TEXT NOT NULL,
+                imported_at TEXT NOT NULL,
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_source_test_case_imports_version ON source_test_case_imports(product_version_id);
+            CREATE TABLE source_test_cases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_version_id INTEGER NOT NULL,
+                import_record_id INTEGER,
+                case_number TEXT NOT NULL,
+                title TEXT NOT NULL,
+                priority TEXT NOT NULL DEFAULT '',
+                preconditions TEXT NOT NULL DEFAULT '',
+                input TEXT NOT NULL DEFAULT '',
+                steps TEXT NOT NULL DEFAULT '',
+                expected_result TEXT NOT NULL DEFAULT '',
+                test_type TEXT NOT NULL DEFAULT '',
+                module TEXT NOT NULL DEFAULT '',
+                test_item TEXT NOT NULL DEFAULT '',
+                test_result TEXT NOT NULL DEFAULT '',
+                test_record TEXT NOT NULL DEFAULT '',
+                pre_test_notes TEXT NOT NULL DEFAULT '',
+                planned_execution_time TEXT NOT NULL DEFAULT '',
+                attachment TEXT NOT NULL DEFAULT '',
+                software_version TEXT NOT NULL DEFAULT '',
+                source_import_deleted INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE,
+                FOREIGN KEY (import_record_id) REFERENCES source_test_case_imports(id) ON DELETE SET NULL,
+                UNIQUE (import_record_id, case_number)
+            );
+            CREATE INDEX idx_source_test_cases_version_filters
+                ON source_test_cases(product_version_id, module, test_item, priority, software_version);
+            CREATE TABLE source_test_case_selections (
+                product_version_id INTEGER NOT NULL,
+                source_test_case_id INTEGER NOT NULL,
+                selected_at TEXT NOT NULL,
+                PRIMARY KEY (product_version_id, source_test_case_id),
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE,
+                FOREIGN KEY (source_test_case_id) REFERENCES source_test_cases(id) ON DELETE CASCADE
+            );
+            INSERT INTO schema_migrations (version) VALUES (16);
+            PRAGMA user_version = 16;
             """
         )
 

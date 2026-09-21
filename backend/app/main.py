@@ -21,6 +21,7 @@ from app.run_executor import RunExecutor
 from app.runs import process_run, recover_unfinished_runs
 from app.runs import router as runs_router
 from app.settings import router as settings_router
+from app.source_test_cases import router as source_test_cases_router
 
 
 class HealthResponse(BaseModel):
@@ -52,6 +53,7 @@ app.include_router(evidence_router)
 app.include_router(diagnosis_router)
 app.include_router(settings_router)
 app.include_router(project_workspace_router)
+app.include_router(source_test_cases_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)

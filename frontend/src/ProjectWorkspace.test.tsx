@@ -96,7 +96,9 @@ test("项目详情可以管理不带测试范围的产品版本并显示趋势�
       }),
     )
     .mockResolvedValueOnce(jsonResponse(version, 201))
-    .mockResolvedValueOnce(jsonResponse(editedVersion));
+    .mockResolvedValueOnce(jsonResponse(editedVersion))
+    .mockResolvedValueOnce(jsonResponse({ items: [] }))
+    .mockResolvedValueOnce(jsonResponse([]));
   vi.stubGlobal("fetch", fetchMock);
 
   render(<ProjectWorkspace />);
@@ -121,7 +123,7 @@ test("项目详情可以管理不带测试范围的产品版本并显示趋势�
   expect(
     screen.getByRole("navigation", { name: "项目工作区导航" }),
   ).toHaveTextContent("IRIS/EVT1");
-  expect(fetchMock).toHaveBeenLastCalledWith(
+  expect(fetchMock).toHaveBeenCalledWith(
     "/api/product-versions/11",
     expect.objectContaining({
       method: "PATCH",
@@ -273,6 +275,10 @@ test("刷新产品版本地址后可以恢复项目和版本上下文", async ()
           }),
         );
       }
+      if (url.startsWith("/api/product-versions/11/source-test-cases?"))
+        return Promise.resolve(jsonResponse({ items: [] }));
+      if (url === "/api/product-versions/11/source-test-case-imports")
+        return Promise.resolve(jsonResponse([]));
       return Promise.reject(new Error(`未预期请求：${url}`));
     }),
   );
@@ -327,6 +333,10 @@ test("返回项目列表地址时清除已打开的项目和版本上下文", as
           }),
         );
       }
+      if (url.startsWith("/api/product-versions/11/source-test-cases?"))
+        return Promise.resolve(jsonResponse({ items: [] }));
+      if (url === "/api/product-versions/11/source-test-case-imports")
+        return Promise.resolve(jsonResponse([]));
       return Promise.reject(new Error(`未预期请求：${url}`));
     }),
   );
