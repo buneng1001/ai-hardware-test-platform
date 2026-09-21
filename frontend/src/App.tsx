@@ -30,6 +30,7 @@ import { DashboardPanel } from "./DashboardPanel";
 import { isTerminalRun, RunDetail } from "./RunDetail";
 import { ImportTaskPanel } from "./ImportTaskPanel";
 import { Navigation } from "./Navigation";
+import { ProjectWorkspace } from "./ProjectWorkspace";
 import { SavedTasksPanel } from "./SavedTasksPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import type { PageKey, SavedTaskFilters } from "./appTypes";
@@ -217,6 +218,7 @@ export function App() {
           temporaryApiKey={temporaryApiKey}
         />
       )}
+      {visible("projects") && <ProjectWorkspace />}
     </main>
   );
 }

@@ -9,6 +9,7 @@ import type {
 export type PageKey =
   | "all"
   | "dashboard"
+  | "projects"
   | "new-task"
   | "import"
   | "saved"

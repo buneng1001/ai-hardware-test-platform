@@ -33,7 +33,7 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         columns = {row[1] for row in connection.execute("PRAGMA table_info(runs)").fetchall()}
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
-    assert version == 14
+    assert version == 15
     assert "alignment_result" in columns
     with open_database() as connection:
         assert (
@@ -45,3 +45,10 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         diagnosis_columns = {row[1] for row in connection.execute("PRAGMA table_info(diagnosis_runs)").fetchall()}
     assert "provider" in diagnosis_columns
     assert "evaluation_result" in columns
+
+    with open_database() as connection:
+        project_columns = {row[1] for row in connection.execute("PRAGMA table_info(projects)").fetchall()}
+        version_foreign_keys = connection.execute("PRAGMA foreign_key_list(product_versions)").fetchall()
+
+    assert {"id", "name", "product_name", "description", "created_at", "updated_at"} <= project_columns
+    assert any(row[2] == "projects" and row[3] == "project_id" for row in version_foreign_keys)

@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 14
+LATEST_SCHEMA_VERSION = 15
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -227,6 +227,35 @@ def migrate_database(connection: sqlite3.Connection) -> None:
         if collection_tasks_exists:
             connection.execute("ALTER TABLE collection_tasks ADD COLUMN label TEXT NOT NULL DEFAULT ''")
         connection.executescript("INSERT INTO schema_migrations (version) VALUES (14); PRAGMA user_version = 14;")
+        current_version = 14
+
+    if current_version < 15:
+        connection.executescript(
+            """
+            CREATE TABLE projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                product_name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE product_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                version TEXT NOT NULL COLLATE NOCASE,
+                name TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                UNIQUE (project_id, version)
+            );
+            CREATE INDEX idx_product_versions_project_id ON product_versions(project_id);
+            INSERT INTO schema_migrations (version) VALUES (15);
+            PRAGMA user_version = 15;
+            """
+        )
 
 
 def get_data_dir() -> Path:
@@ -240,6 +269,7 @@ def open_database() -> Iterator[sqlite3.Connection]:
     data_dir.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(data_dir / "platform.sqlite3") as connection:
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
         migrate_database(connection)
         yield connection
 
