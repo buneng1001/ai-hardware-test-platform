@@ -27,6 +27,15 @@ export function Navigation({ activePage, onNavigate }: NavigationProps) {
           {label}
         </button>
       ))}
+      {import.meta.env.DEV && (
+        <button
+          type="button"
+          aria-current={activePage === "prototype" ? "page" : undefined}
+          onClick={() => onNavigate("prototype")}
+        >
+          v0.2.0 Web Demo
+        </button>
+      )}
     </nav>
   );
 }

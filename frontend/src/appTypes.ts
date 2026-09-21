@@ -14,7 +14,8 @@ export type PageKey =
   | "import"
   | "saved"
   | "run-detail"
-  | "settings";
+  | "settings"
+  | "prototype";
 
 export type SavedTaskFilters = {
   source?: "synthetic_generated" | "imported_actual_data";

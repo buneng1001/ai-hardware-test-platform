@@ -39,6 +39,7 @@ const navigablePages: PageKey[] = [
   "saved",
   "run-detail",
   "settings",
+  "prototype",
 ];
 
 function pageFromHash(): PageKey {

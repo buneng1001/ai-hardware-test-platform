@@ -33,6 +33,7 @@ import { Navigation } from "./Navigation";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import { SavedTasksPanel } from "./SavedTasksPanel";
 import { SettingsPanel } from "./SettingsPanel";
+import { V020FrontendPrototype } from "./V020FrontendPrototype";
 import type { PageKey, SavedTaskFilters } from "./appTypes";
 
 type Health = { status: "ok"; database: "ok" };
@@ -101,24 +102,28 @@ export function App() {
     activePage === "dashboard" || activePage === "settings";
   return (
     <main className="status-page">
-      <Navigation activePage={activePage} onNavigate={navigate} />
-      <div className="hero-layout">
-        <div className="hero-copy">
-          <p className="eyebrow">本地运行基线</p>
-          <h1>
-            <span>智能硬件</span>
-            <span>测试执行与诊断平台</span>
-          </h1>
-          {state === "loading" && <p role="status">正在检查服务状态…</p>}
-          {state === "unavailable" && <p role="alert">服务暂不可用</p>}
-          {typeof state === "object" && (
-            <section className="status-card" aria-label="平台状态">
-              <p>服务运行正常</p>
-              <p>SQLite 可用</p>
-            </section>
-          )}
+      {!visible("prototype") && (
+        <Navigation activePage={activePage} onNavigate={navigate} />
+      )}
+      {!visible("prototype") && (
+        <div className="hero-layout">
+          <div className="hero-copy">
+            <p className="eyebrow">本地运行基线</p>
+            <h1>
+              <span>智能硬件</span>
+              <span>测试执行与诊断平台</span>
+            </h1>
+            {state === "loading" && <p role="status">正在检查服务状态…</p>}
+            {state === "unavailable" && <p role="alert">服务暂不可用</p>}
+            {typeof state === "object" && (
+              <section className="status-card" aria-label="平台状态">
+                <p>服务运行正常</p>
+                <p>SQLite 可用</p>
+              </section>
+            )}
+          </div>
         </div>
-      </div>
+      )}
       <div
         className="primary-panels"
         hidden={!visible("dashboard") && !settingsVisible}
@@ -218,6 +223,7 @@ export function App() {
           temporaryApiKey={temporaryApiKey}
         />
       )}
+      {visible("prototype") && <V020FrontendPrototype onNavigate={navigate} />}
       {visible("projects") && <ProjectWorkspace />}
     </main>
   );
