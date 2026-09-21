@@ -1,6 +1,7 @@
 import { DeletionImpactDialog } from "./DeletionImpactDialog";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
 import { ProjectListPanel } from "./ProjectListPanel";
+import { SourceTestCasesPanel } from "./SourceTestCasesPanel";
 import { useProjectWorkspace } from "./useProjectWorkspace";
 import "./projectWorkspace.css";
 
@@ -54,6 +55,9 @@ export function ProjectWorkspace() {
           }
         />
       </div>
+      {workspace.openedVersion && (
+        <SourceTestCasesPanel productVersionId={workspace.openedVersion.id} />
+      )}
       {workspace.pendingDeletion && workspace.dialogData && (
         <DeletionImpactDialog
           target={workspace.pendingDeletion.kind}
