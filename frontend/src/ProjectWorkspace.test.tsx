@@ -292,3 +292,57 @@ test("刷新产品版本地址后可以恢复项目和版本上下文", async ()
     within(versionWorkspace).getByText("首轮 Beta 验证"),
   ).toBeInTheDocument();
 });
+
+test("返回项目列表地址时清除已打开的项目和版本上下文", async () => {
+  const version = {
+    id: 11,
+    project_id: 1,
+    version: "EVT1",
+    name: "工程验证一版",
+    description: "首轮 Beta 验证",
+    created_at: "2026-09-21T08:10:00Z",
+    updated_at: "2026-09-21T08:10:00Z",
+  };
+  const detail: ProjectDetail = {
+    ...project,
+    product_version_count: 1,
+    product_versions: [version],
+  };
+  window.history.replaceState({}, "", "#projects/1/versions/11");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: string | URL | Request) => {
+      const url = String(input);
+      if (url.startsWith("/api/projects?"))
+        return Promise.resolve(jsonResponse([project]));
+      if (url === "/api/projects/1")
+        return Promise.resolve(jsonResponse(detail));
+      if (url === "/api/projects/1/trends") {
+        return Promise.resolve(
+          jsonResponse({
+            project_id: 1,
+            status: "empty",
+            message: "暂无趋势数据",
+            points: [],
+          }),
+        );
+      }
+      return Promise.reject(new Error(`未预期请求：${url}`));
+    }),
+  );
+
+  render(<ProjectWorkspace />);
+  await screen.findByRole("region", { name: "产品版本工作区" });
+
+  window.history.replaceState({}, "", "#projects");
+  fireEvent(window, new HashChangeEvent("hashchange"));
+
+  await waitFor(() => {
+    expect(
+      screen.queryByRole("navigation", { name: "项目工作区导航" }),
+    ).not.toBeInTheDocument();
+  });
+  expect(
+    screen.queryByRole("region", { name: "产品版本工作区" }),
+  ).not.toBeInTheDocument();
+});

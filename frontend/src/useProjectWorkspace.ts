@@ -84,7 +84,17 @@ export function useProjectWorkspace() {
     if (route) void loadProject(route.projectId, route.versionId);
     const restoreRoute = () => {
       const nextRoute = projectWorkspaceRouteFromHash();
-      if (nextRoute) void loadProject(nextRoute.projectId, nextRoute.versionId);
+      if (nextRoute) {
+        void loadProject(nextRoute.projectId, nextRoute.versionId);
+        return;
+      }
+      if (window.location.hash === "#projects") {
+        setSelected(null);
+        setOpenedVersion(null);
+        setTrend(null);
+        setPendingDeletion(null);
+        setError(null);
+      }
     };
     window.addEventListener("hashchange", restoreRoute);
     return () => window.removeEventListener("hashchange", restoreRoute);
