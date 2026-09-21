@@ -52,6 +52,20 @@ export type ProjectTrend = {
   points: Array<Record<string, unknown>>;
 };
 
+export type ProjectSort = "updated_desc" | "name_asc" | "created_asc";
+
+export type ProjectCommand = {
+  name: string;
+  product_name: string;
+  description: string;
+};
+
+export type VersionCommand = {
+  version: string;
+  name: string;
+  description: string;
+};
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = init ? await fetch(url, init) : await fetch(url);
   if (!response.ok) {
@@ -70,7 +84,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
-export function listProjects(search = "", sort = "updated_desc") {
+export function listProjects(search = "", sort: ProjectSort = "updated_desc") {
   const query = new URLSearchParams({ search, sort });
   return request<ProjectSummary[]>(`/api/projects?${query.toString()}`);
 }

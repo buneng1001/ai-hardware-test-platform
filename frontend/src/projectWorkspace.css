@@ -7,6 +7,13 @@
 .workspace-header {
   margin-bottom: 1.5rem;
 }
+.workspace-context {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: -0.5rem 0 1rem;
+  color: #aebbd0;
+}
 .workspace-header h2 {
   margin: 0.25rem 0;
   font-size: clamp(2rem, 4vw, 3.25rem);

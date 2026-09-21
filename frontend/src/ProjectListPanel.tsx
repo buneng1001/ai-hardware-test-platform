@@ -1,18 +1,16 @@
 import { type FormEvent, useState } from "react";
 
-import type { ProjectSummary } from "./projectsApi";
-
-export type ProjectCommand = {
-  name: string;
-  product_name: string;
-  description: string;
-};
+import type {
+  ProjectCommand,
+  ProjectSort,
+  ProjectSummary,
+} from "./projectsApi";
 
 type ProjectListPanelProps = {
   projects: ProjectSummary[] | null;
   busy: boolean;
-  onCreate: (command: ProjectCommand) => Promise<void>;
-  onSearch: (search: string, sort: string) => Promise<void>;
+  onCreate: (command: ProjectCommand) => Promise<boolean>;
+  onSearch: (search: string, sort: ProjectSort) => Promise<void>;
   onOpen: (projectId: number) => void;
   onDelete: (projectId: number) => void;
 };
@@ -29,12 +27,11 @@ export function ProjectListPanel({
 }: ProjectListPanelProps) {
   const [command, setCommand] = useState<ProjectCommand>(emptyCommand);
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("updated_desc");
+  const [sort, setSort] = useState<ProjectSort>("updated_desc");
 
   const submitProject = async (event: FormEvent) => {
     event.preventDefault();
-    await onCreate(command);
-    setCommand(emptyCommand);
+    if (await onCreate(command)) setCommand(emptyCommand);
   };
 
   return (
@@ -93,7 +90,7 @@ export function ProjectListPanel({
           项目排序
           <select
             value={sort}
-            onChange={(event) => setSort(event.target.value)}
+            onChange={(event) => setSort(event.target.value as ProjectSort)}
           >
             <option value="updated_desc">最近更新</option>
             <option value="name_asc">项目名称</option>

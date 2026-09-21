@@ -5,26 +5,21 @@ import type {
   ProductVersion,
   ProjectDetail,
   ProjectTrend,
+  VersionCommand,
 } from "./projectsApi";
-
-export type VersionCommand = {
-  version: string;
-  name: string;
-  description: string;
-};
 
 type ProjectDetailPanelProps = {
   project: ProjectDetail | null;
   trend: ProjectTrend | null;
   openedVersion: ProductVersion | null;
   busy: boolean;
-  onCreateVersion: (command: VersionCommand) => Promise<void>;
+  onCreateVersion: (command: VersionCommand) => Promise<boolean>;
   onOpenVersion: (version: ProductVersion) => void;
   onEditVersion: (
     versionId: number,
     name: string,
     description: string,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   onDeleteVersion: (version: ProductVersion) => void;
 };
 
@@ -44,8 +39,7 @@ export function ProjectDetailPanel({
 
   const submitVersion = async (event: FormEvent) => {
     event.preventDefault();
-    await onCreateVersion(command);
-    setCommand(emptyCommand);
+    if (await onCreateVersion(command)) setCommand(emptyCommand);
   };
 
   return (

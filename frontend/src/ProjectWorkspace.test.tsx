@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
@@ -12,6 +13,7 @@ import type { ProjectDetail, ProjectSummary } from "./projectsApi";
 
 afterEach(() => {
   cleanup();
+  window.history.replaceState({}, "", "#dashboard");
   vi.unstubAllGlobals();
 });
 
@@ -100,6 +102,7 @@ test("项目详情可以管理不带测试范围的产品版本并显示趋势�
   render(<ProjectWorkspace />);
   fireEvent.click(await screen.findByRole("button", { name: "打开 IRIS" }));
   expect(await screen.findByText("暂无趋势数据")).toBeInTheDocument();
+  expect(window.location.hash).toBe("#projects/1");
   fireEvent.change(screen.getByLabelText("版本号"), {
     target: { value: "EVT1" },
   });
@@ -113,6 +116,11 @@ test("项目详情可以管理不带测试范围的产品版本并显示趋势�
   fireEvent.click(screen.getByRole("button", { name: "保存 EVT1" }));
 
   expect(await screen.findByText("工程验证一版")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "打开 EVT1" }));
+  expect(window.location.hash).toBe("#projects/1/versions/11");
+  expect(
+    screen.getByRole("navigation", { name: "项目工作区导航" }),
+  ).toHaveTextContent("IRIS/EVT1");
   expect(fetchMock).toHaveBeenLastCalledWith(
     "/api/product-versions/11",
     expect.objectContaining({
@@ -229,4 +237,58 @@ test("删除产品版本前展示该版本的记录和报告影响范围", async
     "/api/product-versions/11?confirm=true",
     { method: "DELETE" },
   );
+});
+
+test("刷新产品版本地址后可以恢复项目和版本上下文", async () => {
+  const version = {
+    id: 11,
+    project_id: 1,
+    version: "EVT1",
+    name: "工程验证一版",
+    description: "首轮 Beta 验证",
+    created_at: "2026-09-21T08:10:00Z",
+    updated_at: "2026-09-21T08:10:00Z",
+  };
+  const detail: ProjectDetail = {
+    ...project,
+    product_version_count: 1,
+    product_versions: [version],
+  };
+  window.history.replaceState({}, "", "#projects/1/versions/11");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: string | URL | Request) => {
+      const url = String(input);
+      if (url.startsWith("/api/projects?"))
+        return Promise.resolve(jsonResponse([project]));
+      if (url === "/api/projects/1")
+        return Promise.resolve(jsonResponse(detail));
+      if (url === "/api/projects/1/trends") {
+        return Promise.resolve(
+          jsonResponse({
+            project_id: 1,
+            status: "empty",
+            message: "暂无趋势数据",
+            points: [],
+          }),
+        );
+      }
+      return Promise.reject(new Error(`未预期请求：${url}`));
+    }),
+  );
+
+  render(<ProjectWorkspace />);
+
+  const versionWorkspace = await screen.findByRole("region", {
+    name: "产品版本工作区",
+  });
+  expect(
+    within(versionWorkspace).getByText("当前产品版本"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("navigation", { name: "项目工作区导航" }),
+  ).toHaveTextContent("IRIS/EVT1");
+  expect(
+    within(versionWorkspace).getByText("首轮 Beta 验证"),
+  ).toBeInTheDocument();
 });

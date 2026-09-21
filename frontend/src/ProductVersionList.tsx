@@ -9,7 +9,7 @@ type ProductVersionListProps = {
     versionId: number,
     name: string,
     description: string,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   onDelete: (version: ProductVersion) => void;
 };
 
@@ -57,9 +57,9 @@ export function ProductVersionList({
                 <button
                   type="button"
                   onClick={() =>
-                    void onEdit(version.id, name, description).then(() =>
-                      setEditingId(null),
-                    )
+                    void onEdit(version.id, name, description).then((saved) => {
+                      if (saved) setEditingId(null);
+                    })
                   }
                 >
                   保存 {version.version}

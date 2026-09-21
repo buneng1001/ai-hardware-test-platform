@@ -43,7 +43,9 @@ const navigablePages: PageKey[] = [
 
 function pageFromHash(): PageKey {
   if (typeof window !== "undefined") {
-    const hashPage = window.location.hash.slice(1) as PageKey;
+    const hashValue = window.location.hash.slice(1);
+    if (hashValue.startsWith("projects/")) return "projects";
+    const hashPage = hashValue as PageKey;
     if (navigablePages.includes(hashPage)) return hashPage;
   }
   return "dashboard";
