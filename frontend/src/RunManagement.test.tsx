@@ -44,6 +44,60 @@ const queuedRun = {
   error: null,
 };
 
+function createRunLifecycleFetchMock(
+  taskDetails: typeof task,
+  initialRun: typeof queuedRun,
+  completedRun: unknown,
+  reviewedRun?: unknown,
+) {
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input.toString();
+    if (url === "/api/health") {
+      return Promise.resolve(
+        new Response(JSON.stringify({ status: "ok", database: "ok" })),
+      );
+    }
+    if (url === "/api/collection-tasks") {
+      return Promise.resolve(new Response(JSON.stringify([taskDetails])));
+    }
+    if (url.startsWith("/api/collection-tasks/saved?")) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: taskDetails.id,
+                name: taskDetails.name,
+                source: "synthetic_generated",
+                execution_status: "never_executed",
+                archived: false,
+                run_count: 0,
+                runs: [],
+                created_at: taskDetails.created_at,
+              },
+            ],
+            page: 1,
+            page_size: 10,
+            total: 1,
+          }),
+        ),
+      );
+    }
+    if (url === `/api/collection-tasks/${taskDetails.id}/runs`) {
+      return Promise.resolve(
+        new Response(JSON.stringify(initialRun), { status: 201 }),
+      );
+    }
+    if (url === `/api/runs/${initialRun.id}` && !init) {
+      return Promise.resolve(new Response(JSON.stringify(completedRun)));
+    }
+    if (url === `/api/runs/${initialRun.id}/alignment-review`) {
+      return Promise.resolve(new Response(JSON.stringify(reviewedRun)));
+    }
+    throw new Error(`未预期请求：${url}`);
+  });
+}
+
 test("测试工程师能执行正常任务并查看运行阶段产物和检查结果", async () => {
   const completedRun = {
     ...queuedRun,
@@ -71,16 +125,7 @@ test("测试工程师能执行正常任务并查看运行阶段产物和检查�
   };
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "ok", database: "ok" })),
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify([task])))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(queuedRun), { status: 201 }),
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify(completedRun))),
+    createRunLifecycleFetchMock(task, queuedRun, completedRun),
   );
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "已保存任务" }));
@@ -204,16 +249,7 @@ test("运行详情展示掉帧失败指标、异常窗口和故障真值命中",
   };
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "ok", database: "ok" })),
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify([videoDropTask])))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(queuedRun), { status: 201 }),
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify(completedRun))),
+    createRunLifecycleFetchMock(videoDropTask, queuedRun, completedRun),
   );
 
   render(<App />);
@@ -278,16 +314,7 @@ test("运行详情展示 IMU 异常指标、位置和故障真值命中", async 
   };
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "ok", database: "ok" })),
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify([imuTask])))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(queuedRun), { status: 201 }),
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify(completedRun))),
+    createRunLifecycleFetchMock(imuTask, queuedRun, completedRun),
   );
 
   render(<App />);
@@ -382,17 +409,12 @@ test("运行详情可查看并提交锚点复核且独立展示内容同步", as
       parameters: { camera_1: 0, camera_4: -0.113 },
     },
   };
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValueOnce(
-      new Response(JSON.stringify({ status: "ok", database: "ok" })),
-    )
-    .mockResolvedValueOnce(new Response(JSON.stringify([task])))
-    .mockResolvedValueOnce(
-      new Response(JSON.stringify(queuedRun), { status: 201 }),
-    )
-    .mockResolvedValueOnce(new Response(JSON.stringify(completedRun)))
-    .mockResolvedValueOnce(new Response(JSON.stringify(reviewedRun)));
+  const fetchMock = createRunLifecycleFetchMock(
+    task,
+    queuedRun,
+    completedRun,
+    reviewedRun,
+  );
   vi.stubGlobal("fetch", fetchMock);
 
   render(<App />);

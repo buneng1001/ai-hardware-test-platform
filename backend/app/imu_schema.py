@@ -1,6 +1,5 @@
 from collections.abc import Mapping
 
-
 IMU_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "sample_index": ("sample_index", "index", "序号"),
     "relative_timestamp_s": (
@@ -37,18 +36,10 @@ def normalize_imu_row(row: Mapping[str, object], index: int) -> dict[str, object
         source = next((alias for alias in aliases if alias in row), None)
         if source is not None:
             value = row[source]
-            normalized[canonical] = (
-                _time_in_seconds(value, source)
-                if canonical == "relative_timestamp_s"
-                else value
-            )
+            normalized[canonical] = _time_in_seconds(value, source) if canonical == "relative_timestamp_s" else value
     if "relative_timestamp_s" not in normalized:
         source = next(
-            (
-                name
-                for name in row
-                if "time" in name.lower() or "timestamp" in name.lower()
-            ),
+            (name for name in row if "time" in name.lower() or "timestamp" in name.lower()),
             None,
         )
         if source is not None:
