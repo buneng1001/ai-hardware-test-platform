@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 16
+LATEST_SCHEMA_VERSION = 17
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -309,6 +309,31 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             );
             INSERT INTO schema_migrations (version) VALUES (16);
             PRAGMA user_version = 16;
+            """
+        )
+
+    if current_version < 17:
+        connection.executescript(
+            """
+            CREATE TABLE automation_test_cases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_version_id INTEGER NOT NULL,
+                source_test_case_id INTEGER NOT NULL UNIQUE,
+                case_number TEXT UNIQUE,
+                title TEXT NOT NULL DEFAULT '',
+                input TEXT NOT NULL DEFAULT '',
+                steps TEXT NOT NULL DEFAULT '',
+                expected_result TEXT NOT NULL DEFAULT '',
+                conversion_status TEXT NOT NULL,
+                confidence TEXT NOT NULL,
+                review_note TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE,
+                FOREIGN KEY (source_test_case_id) REFERENCES source_test_cases(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_automation_test_cases_version ON automation_test_cases(product_version_id, id);
+            INSERT INTO schema_migrations (version) VALUES (17);
+            PRAGMA user_version = 17;
             """
         )
 
