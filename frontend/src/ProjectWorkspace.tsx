@@ -1,4 +1,5 @@
 import { DeletionImpactDialog } from "./DeletionImpactDialog";
+import { AutomationTestCasesPanel } from "./AutomationTestCasesPanel";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
 import { ProjectListPanel } from "./ProjectListPanel";
 import { SourceTestCasesPanel } from "./SourceTestCasesPanel";
@@ -56,7 +57,12 @@ export function ProjectWorkspace() {
         />
       </div>
       {workspace.openedVersion && (
-        <SourceTestCasesPanel productVersionId={workspace.openedVersion.id} />
+        <>
+          <SourceTestCasesPanel productVersionId={workspace.openedVersion.id} />
+          <AutomationTestCasesPanel
+            productVersionId={workspace.openedVersion.id}
+          />
+        </>
       )}
       {workspace.pendingDeletion && workspace.dialogData && (
         <DeletionImpactDialog

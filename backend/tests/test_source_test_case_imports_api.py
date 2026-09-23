@@ -133,13 +133,13 @@ def test_xlsx_preview_and_import_record_deletion_explain_affected_source_cases(c
     with open_database() as connection:
         connection.execute(
             """
-            CREATE TABLE automation_test_cases (
-                id INTEGER PRIMARY KEY,
-                source_test_case_id INTEGER NOT NULL REFERENCES source_test_cases(id)
-            )
-            """
+            INSERT INTO automation_test_cases
+                (product_version_id, source_test_case_id, case_number, conversion_status,
+                 confidence, review_note, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (version_id, 1, "AUTO-000001", "candidate", "low", "需人工审核", "2026-09-23T00:00:00+00:00"),
         )
-        connection.execute("INSERT INTO automation_test_cases (source_test_case_id) VALUES (1)")
 
     impact = client.get(f"/api/source-test-case-imports/{record['id']}/deletion-impact")
     assert impact.status_code == 200

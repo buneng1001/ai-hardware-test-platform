@@ -50,7 +50,11 @@ export function SourceTestCaseList({
       ) : (
         <div className="source-case-table" role="list">
           {items.map((item) => (
-            <label className="source-case-row" key={item.id}>
+            <label
+              className="source-case-row"
+              id={`source-test-case-${item.id}`}
+              key={item.id}
+            >
               <input
                 aria-label={`选择 ${item.case_number}`}
                 type="checkbox"
