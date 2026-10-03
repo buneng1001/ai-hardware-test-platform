@@ -10,6 +10,7 @@ export type PageKey =
   | "all"
   | "dashboard"
   | "projects"
+  | "data-packages"
   | "new-task"
   | "import"
   | "saved"

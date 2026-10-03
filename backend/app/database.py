@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 18
+LATEST_SCHEMA_VERSION = 19
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -386,6 +386,36 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             CREATE INDEX idx_automation_case_history_case ON automation_test_case_history(automation_test_case_id, id);
             INSERT INTO schema_migrations (version) VALUES (18);
             PRAGMA user_version = 18;
+            """
+        )
+
+    if current_version < 19:
+        connection.executescript(
+            """
+            CREATE TABLE data_packages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_task_id INTEGER NOT NULL,
+                source_run_id INTEGER NOT NULL UNIQUE,
+                source_type TEXT NOT NULL,
+                data_kind TEXT NOT NULL,
+                fault_type TEXT,
+                version_fingerprint TEXT NOT NULL,
+                generated_at TEXT NOT NULL,
+                validation_status TEXT NOT NULL,
+                validation_message TEXT NOT NULL DEFAULT '',
+                files TEXT NOT NULL,
+                channels TEXT NOT NULL,
+                timestamps TEXT NOT NULL,
+                integrity TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (source_task_id) REFERENCES collection_tasks(id),
+                FOREIGN KEY (source_run_id) REFERENCES runs(id)
+            );
+            CREATE INDEX idx_data_packages_source_task ON data_packages(source_task_id, source_run_id DESC);
+            CREATE INDEX idx_data_packages_filters
+                ON data_packages(source_type, data_kind, fault_type, validation_status);
+            INSERT INTO schema_migrations (version) VALUES (19);
+            PRAGMA user_version = 19;
             """
         )
 

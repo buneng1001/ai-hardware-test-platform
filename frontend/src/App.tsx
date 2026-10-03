@@ -27,6 +27,7 @@ import {
 } from "./collectionTasksApi";
 import { CollectionTaskForm } from "./CollectionTaskForm";
 import { DashboardPanel } from "./DashboardPanel";
+import { DataPackagesPanel } from "./DataPackagesPanel";
 import { isTerminalRun, RunDetail } from "./RunDetail";
 import { ImportTaskPanel } from "./ImportTaskPanel";
 import { Navigation } from "./Navigation";
@@ -225,6 +226,11 @@ export function App() {
       )}
       {visible("prototype") && <V020FrontendPrototype onNavigate={navigate} />}
       {visible("projects") && <ProjectWorkspace />}
+      {visible("data-packages") && (
+        <div className="page-shell page-shell--compact">
+          <DataPackagesPanel />
+        </div>
+      )}
     </main>
   );
 }
