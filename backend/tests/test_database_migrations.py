@@ -33,7 +33,7 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         columns = {row[1] for row in connection.execute("PRAGMA table_info(runs)").fetchall()}
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
-    assert version == 19
+    assert version == 21
     assert "alignment_result" in columns
     with open_database() as connection:
         assert (
@@ -86,6 +86,18 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         "validation_status",
     } <= package_columns
     assert any(row[2] == "runs" and row[3] == "source_run_id" for row in package_foreign_keys)
+    with open_database() as connection:
+        group_columns = {row[1] for row in connection.execute("PRAGMA table_info(test_groups)").fetchall()}
+        assignment_foreign_keys = connection.execute(
+            "PRAGMA foreign_key_list(test_group_data_package_assignments)"
+        ).fetchall()
+    assert {"product_version_id", "name", "hidden"} <= group_columns
+    assert {row[2] for row in assignment_foreign_keys} == {
+        "test_groups",
+        "automation_test_cases",
+        "data_packages",
+        "test_group_automation_cases",
+    }
 
 
 def test_version_seventeen_automation_cases_upgrade_without_losing_existing_candidates(tmp_path, monkeypatch):
@@ -136,3 +148,43 @@ def test_version_seventeen_automation_cases_upgrade_without_losing_existing_cand
             """
         )
         assert connection.execute("SELECT COUNT(*) FROM automation_test_cases").fetchone()[0] == 2
+
+
+def test_version_twenty_assignment_upgrade_removes_orphaned_group_relation(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+    connection = sqlite3.connect(tmp_path / "platform.sqlite3")
+    connection.executescript(
+        """
+        CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT);
+        CREATE TABLE test_groups (id INTEGER PRIMARY KEY);
+        CREATE TABLE automation_test_cases (id INTEGER PRIMARY KEY);
+        CREATE TABLE data_packages (id INTEGER PRIMARY KEY);
+        CREATE TABLE test_group_automation_cases (
+            test_group_id INTEGER NOT NULL,
+            automation_test_case_id INTEGER NOT NULL,
+            position INTEGER NOT NULL,
+            PRIMARY KEY (test_group_id, automation_test_case_id)
+        );
+        CREATE TABLE test_group_data_package_assignments (
+            test_group_id INTEGER NOT NULL,
+            automation_test_case_id INTEGER NOT NULL,
+            data_package_id INTEGER NOT NULL,
+            PRIMARY KEY (test_group_id, automation_test_case_id, data_package_id)
+        );
+        INSERT INTO test_groups VALUES (1);
+        INSERT INTO automation_test_cases VALUES (2);
+        INSERT INTO data_packages VALUES (3);
+        INSERT INTO test_group_automation_cases VALUES (1, 2, 1);
+        INSERT INTO test_group_data_package_assignments VALUES (1, 2, 3);
+        PRAGMA user_version = 20;
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    with open_database() as connection:
+        connection.execute(
+            "DELETE FROM test_group_automation_cases WHERE test_group_id = ? AND automation_test_case_id = ?",
+            (1, 2),
+        )
+        assert connection.execute("SELECT COUNT(*) FROM test_group_data_package_assignments").fetchone()[0] == 0
