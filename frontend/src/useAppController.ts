@@ -34,6 +34,7 @@ type PageState = Health | "loading" | "unavailable";
 const navigablePages: PageKey[] = [
   "dashboard",
   "projects",
+  "data-packages",
   "new-task",
   "import",
   "saved",

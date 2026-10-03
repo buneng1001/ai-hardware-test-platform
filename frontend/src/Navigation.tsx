@@ -12,6 +12,7 @@ export function Navigation({ activePage, onNavigate }: NavigationProps) {
         [
           ["dashboard", "仪表盘与AI配置"],
           ["projects", "项目工作区"],
+          ["data-packages", "测试数据包"],
           ["new-task", "新建任务"],
           ["import", "根据导入生成"],
           ["saved", "已保存任务"],

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from app.data_packages import register_data_package_from_completed_run
 from app.database import get_data_dir, open_database
 from app.manual_check_results import list_manual_results
 from app.run_models import Artifact, BasicCheck, RunConfigurationSnapshot, RunRecord, StageEvent
@@ -130,7 +131,10 @@ def save_active_run(record: RunRecord) -> bool:
                 record.id,
             ),
         )
-    return cursor.rowcount == 1
+        saved = cursor.rowcount == 1
+        if saved and record.status == "completed":
+            register_data_package_from_completed_run(record, connection)
+    return saved
 
 
 def save_cancelled_evidence(record: RunRecord) -> None:

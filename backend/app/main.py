@@ -10,6 +10,7 @@ from app.ai_evaluation import router as ai_evaluation_router
 from app.automation_case_history import router as automation_case_history_router
 from app.automation_test_cases import router as automation_test_cases_router
 from app.collection_tasks import router as collection_tasks_router
+from app.data_packages import router as data_packages_router
 from app.database import check_database
 from app.diagnosis import router as diagnosis_router
 from app.evidence_package import router as evidence_router
@@ -45,6 +46,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="智能硬件测试执行与诊断平台", version="0.1.0", lifespan=lifespan)
 app.include_router(collection_tasks_router)
+app.include_router(data_packages_router)
 app.include_router(ai_evaluation_router)
 app.include_router(manual_check_results_router)
 app.include_router(manual_result_import_router)

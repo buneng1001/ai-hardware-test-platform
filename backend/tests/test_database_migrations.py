@@ -33,7 +33,7 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         columns = {row[1] for row in connection.execute("PRAGMA table_info(runs)").fetchall()}
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
-    assert version == 18
+    assert version == 19
     assert "alignment_result" in columns
     with open_database() as connection:
         assert (
@@ -74,6 +74,18 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         row[1] for row in connection.execute("PRAGMA table_info(automation_test_case_history)").fetchall()
     }
     assert {"product_version_id", "automation_test_case_id", "event_type", "snapshot"} <= history_columns
+    with open_database() as connection:
+        package_columns = {row[1] for row in connection.execute("PRAGMA table_info(data_packages)").fetchall()}
+        package_foreign_keys = connection.execute("PRAGMA foreign_key_list(data_packages)").fetchall()
+    assert {
+        "source_task_id",
+        "source_run_id",
+        "source_type",
+        "version_fingerprint",
+        "generated_at",
+        "validation_status",
+    } <= package_columns
+    assert any(row[2] == "runs" and row[3] == "source_run_id" for row in package_foreign_keys)
 
 
 def test_version_seventeen_automation_cases_upgrade_without_losing_existing_candidates(tmp_path, monkeypatch):
