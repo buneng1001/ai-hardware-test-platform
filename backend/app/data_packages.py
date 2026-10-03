@@ -217,17 +217,30 @@ def _association_count(connection: sqlite3.Connection, table: str, package_id: i
     return connection.execute(f"SELECT COUNT(*) FROM {table} WHERE data_package_id = ?", (package_id,)).fetchone()[0]
 
 
+def _test_group_assignment_counts(connection: sqlite3.Connection, package_id: int) -> tuple[int, int]:
+    tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    if "test_group_data_package_assignments" not in tables:
+        return (0, 0)
+    row = connection.execute(
+        """
+        SELECT COUNT(DISTINCT test_group_id), COUNT(DISTINCT automation_test_case_id)
+        FROM test_group_data_package_assignments WHERE data_package_id = ?
+        """,
+        (package_id,),
+    ).fetchone()
+    return (row[0], row[1])
+
+
 @router.get("/{data_package_id}/deletion-impact", response_model=DataPackageDeletionImpact)
 def get_data_package_deletion_impact(data_package_id: int) -> DataPackageDeletionImpact:
     with open_database() as connection:
         row = connection.execute("SELECT id FROM data_packages WHERE id = ?", (data_package_id,)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="数据包不存在")
+        test_group_count, automation_case_count = _test_group_assignment_counts(connection, data_package_id)
         counts = {
-            "test_groups": _association_count(connection, "test_group_data_packages", data_package_id),
-            "automation_test_cases": _association_count(
-                connection, "automation_test_case_data_packages", data_package_id
-            ),
+            "test_groups": test_group_count,
+            "automation_test_cases": automation_case_count,
             "automation_execution_records": _association_count(
                 connection, "automation_execution_data_packages", data_package_id
             ),

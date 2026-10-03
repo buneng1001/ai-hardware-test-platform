@@ -3,6 +3,7 @@ import { AutomationTestCasesPanel } from "./AutomationTestCasesPanel";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
 import { ProjectListPanel } from "./ProjectListPanel";
 import { SourceTestCasesPanel } from "./SourceTestCasesPanel";
+import { TestGroupsPanel } from "./TestGroupsPanel";
 import { useProjectWorkspace } from "./useProjectWorkspace";
 import "./projectWorkspace.css";
 
@@ -62,6 +63,7 @@ export function ProjectWorkspace() {
           <AutomationTestCasesPanel
             productVersionId={workspace.openedVersion.id}
           />
+          <TestGroupsPanel productVersionId={workspace.openedVersion.id} />
         </>
       )}
       {workspace.pendingDeletion && workspace.dialogData && (

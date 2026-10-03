@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 19
+LATEST_SCHEMA_VERSION = 21
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -416,6 +416,88 @@ def migrate_database(connection: sqlite3.Connection) -> None:
                 ON data_packages(source_type, data_kind, fault_type, validation_status);
             INSERT INTO schema_migrations (version) VALUES (19);
             PRAGMA user_version = 19;
+            """
+        )
+        current_version = 19
+
+    if current_version < 20:
+        connection.executescript(
+            """
+            CREATE TABLE test_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_version_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                hidden INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE,
+                UNIQUE (product_version_id, name)
+            );
+            CREATE INDEX idx_test_groups_version_visibility
+                ON test_groups(product_version_id, hidden, updated_at DESC);
+            CREATE TABLE test_group_source_cases (
+                test_group_id INTEGER NOT NULL,
+                source_test_case_id INTEGER NOT NULL,
+                position INTEGER NOT NULL,
+                PRIMARY KEY (test_group_id, source_test_case_id),
+                FOREIGN KEY (test_group_id) REFERENCES test_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (source_test_case_id) REFERENCES source_test_cases(id) ON DELETE CASCADE
+            );
+            CREATE TABLE test_group_automation_cases (
+                test_group_id INTEGER NOT NULL,
+                automation_test_case_id INTEGER NOT NULL,
+                position INTEGER NOT NULL,
+                PRIMARY KEY (test_group_id, automation_test_case_id),
+                FOREIGN KEY (test_group_id) REFERENCES test_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (automation_test_case_id) REFERENCES automation_test_cases(id) ON DELETE CASCADE
+            );
+            CREATE TABLE test_group_data_package_assignments (
+                test_group_id INTEGER NOT NULL,
+                automation_test_case_id INTEGER NOT NULL,
+                data_package_id INTEGER NOT NULL,
+                PRIMARY KEY (test_group_id, automation_test_case_id, data_package_id),
+                FOREIGN KEY (test_group_id) REFERENCES test_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (automation_test_case_id) REFERENCES automation_test_cases(id) ON DELETE CASCADE,
+                FOREIGN KEY (test_group_id, automation_test_case_id)
+                    REFERENCES test_group_automation_cases(test_group_id, automation_test_case_id) ON DELETE CASCADE,
+                FOREIGN KEY (data_package_id) REFERENCES data_packages(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_test_group_assignments_package
+                ON test_group_data_package_assignments(data_package_id);
+            INSERT INTO schema_migrations (version) VALUES (20);
+            PRAGMA user_version = 20;
+            """
+        )
+
+    if current_version < 21:
+        # v0.2.0-rc.1 的早期数据库缺少组内自动化用例的复合外键；重建后删除用例范围会一并删除关联。
+        connection.executescript(
+            """
+            CREATE TABLE test_group_data_package_assignments_v21 (
+                test_group_id INTEGER NOT NULL,
+                automation_test_case_id INTEGER NOT NULL,
+                data_package_id INTEGER NOT NULL,
+                PRIMARY KEY (test_group_id, automation_test_case_id, data_package_id),
+                FOREIGN KEY (test_group_id) REFERENCES test_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (automation_test_case_id) REFERENCES automation_test_cases(id) ON DELETE CASCADE,
+                FOREIGN KEY (test_group_id, automation_test_case_id)
+                    REFERENCES test_group_automation_cases(test_group_id, automation_test_case_id) ON DELETE CASCADE,
+                FOREIGN KEY (data_package_id) REFERENCES data_packages(id) ON DELETE CASCADE
+            );
+            INSERT INTO test_group_data_package_assignments_v21
+                (test_group_id, automation_test_case_id, data_package_id)
+            SELECT assignment.test_group_id, assignment.automation_test_case_id, assignment.data_package_id
+            FROM test_group_data_package_assignments assignment
+            JOIN test_group_automation_cases item
+              ON item.test_group_id = assignment.test_group_id
+             AND item.automation_test_case_id = assignment.automation_test_case_id;
+            DROP TABLE test_group_data_package_assignments;
+            ALTER TABLE test_group_data_package_assignments_v21 RENAME TO test_group_data_package_assignments;
+            CREATE INDEX idx_test_group_assignments_package
+                ON test_group_data_package_assignments(data_package_id);
+            INSERT INTO schema_migrations (version) VALUES (21);
+            PRAGMA user_version = 21;
             """
         )
 
