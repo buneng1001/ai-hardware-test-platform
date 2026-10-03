@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 17
+LATEST_SCHEMA_VERSION = 18
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -334,6 +334,58 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             CREATE INDEX idx_automation_test_cases_version ON automation_test_cases(product_version_id, id);
             INSERT INTO schema_migrations (version) VALUES (17);
             PRAGMA user_version = 17;
+            """
+        )
+        current_version = 17
+
+    if current_version < 18:
+        # SQLite 不支持直接移除旧的来源唯一约束；重建表以允许同一来源派生多个可执行资产，
+        # 同时保留已有候选及其稳定编号。
+        connection.executescript(
+            """
+            CREATE TABLE automation_test_cases_v18 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_version_id INTEGER NOT NULL,
+                source_test_case_id INTEGER NOT NULL,
+                case_number TEXT UNIQUE,
+                title TEXT NOT NULL DEFAULT '',
+                input TEXT NOT NULL DEFAULT '',
+                steps TEXT NOT NULL DEFAULT '',
+                expected_result TEXT NOT NULL DEFAULT '',
+                conversion_status TEXT NOT NULL,
+                confidence TEXT NOT NULL,
+                review_note TEXT NOT NULL,
+                validation_status TEXT NOT NULL DEFAULT 'unvalidated',
+                validation_message TEXT NOT NULL DEFAULT '',
+                feedback_input TEXT NOT NULL DEFAULT '',
+                feedback_status TEXT NOT NULL DEFAULT 'not_requested',
+                feedback_response TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE,
+                FOREIGN KEY (source_test_case_id) REFERENCES source_test_cases(id) ON DELETE CASCADE
+            );
+            INSERT INTO automation_test_cases_v18
+                (id, product_version_id, source_test_case_id, case_number, title, input, steps, expected_result,
+                 conversion_status, confidence, review_note, created_at, updated_at)
+            SELECT id, product_version_id, source_test_case_id, case_number, title, input, steps, expected_result,
+                   conversion_status, confidence, review_note, created_at, created_at
+            FROM automation_test_cases;
+            DROP TABLE automation_test_cases;
+            ALTER TABLE automation_test_cases_v18 RENAME TO automation_test_cases;
+            CREATE INDEX idx_automation_test_cases_version ON automation_test_cases(product_version_id, id);
+            CREATE TABLE automation_test_case_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_version_id INTEGER NOT NULL,
+                automation_test_case_id INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                snapshot TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_automation_case_history_case ON automation_test_case_history(automation_test_case_id, id);
+            INSERT INTO schema_migrations (version) VALUES (18);
+            PRAGMA user_version = 18;
             """
         )
 

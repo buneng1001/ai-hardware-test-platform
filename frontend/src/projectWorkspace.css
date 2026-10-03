@@ -83,7 +83,7 @@
 }
 
 .automation-case-heading,
-.automation-case-row {
+.automation-case-row-header {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -106,11 +106,42 @@
 }
 
 .automation-case-row {
-  display: grid;
-  grid-template-columns: 8rem 8rem minmax(12rem, 1fr) 8rem minmax(12rem, 1fr);
   padding: 0.75rem;
   border: 1px solid #c6d0df;
   border-radius: 0.5rem;
+}
+
+.automation-case-row-header {
+  flex-wrap: wrap;
+}
+
+.automation-case-editor,
+.automation-case-create {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.automation-case-editor label,
+.automation-case-create label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.automation-case-editor textarea,
+.automation-case-create input {
+  min-height: 2.5rem;
+  resize: vertical;
+}
+
+.automation-feedback {
+  border-left: 3px solid #58709a;
+  padding-left: 0.6rem;
+}
+
+.automation-case-history {
+  margin-top: 0.75rem;
 }
 
 .automation-case-row--failed {

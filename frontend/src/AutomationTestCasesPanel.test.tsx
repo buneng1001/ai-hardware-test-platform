@@ -30,7 +30,13 @@ const automationCases = {
       conversion_status: "candidate",
       confidence: "low",
       review_note: "规则转换候选，低可信度，需人工审核。",
+      validation_status: "unvalidated",
+      validation_message: "",
+      feedback_input: "",
+      feedback_status: "not_requested",
+      feedback_response: "",
       created_at: "2026-09-23T00:00:00+00:00",
+      updated_at: "2026-09-23T00:00:00+00:00",
     },
     {
       id: 2,
@@ -45,7 +51,13 @@ const automationCases = {
       conversion_status: "failed",
       confidence: "low",
       review_note: "缺少测试用例标题",
+      validation_status: "unvalidated",
+      validation_message: "标题不能为空",
+      feedback_input: "",
+      feedback_status: "not_requested",
+      feedback_response: "",
       created_at: "2026-09-23T00:00:00+00:00",
+      updated_at: "2026-09-23T00:00:00+00:00",
     },
   ],
 };
@@ -94,4 +106,76 @@ test("测试工程师可生成低可信度规则候选并从候选表跳回来�
       { method: "POST" },
     ),
   );
+});
+
+test("编辑与 AI 反馈使用独立输入，反馈适配器不可用时保留用户文本", async () => {
+  const fetchMock = vi.fn(
+    (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/product-versions/11/automation-test-cases") {
+        return Promise.resolve(response({ items: automationCases.items }));
+      }
+      if (
+        url === "/api/product-versions/11/automation-test-cases/1" &&
+        init?.method === "PATCH"
+      ) {
+        return Promise.resolve(
+          response({
+            ...automationCases.items[0],
+            title: "已编辑",
+            validation_status: "unvalidated",
+          }),
+        );
+      }
+      if (url === "/api/product-versions/11/automation-test-cases/1/feedback") {
+        return Promise.resolve(
+          response(
+            {
+              detail: "AI 反馈适配器不可用；已保留输入，请稍后重试或人工修改。",
+            },
+            503,
+          ),
+        );
+      }
+      return Promise.reject(new Error(`未预期请求：${url}`));
+    },
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<AutomationTestCasesPanel productVersionId={11} />);
+  await screen.findByText("AUTO-000001");
+  fireEvent.change(screen.getByLabelText("AUTO-000001 标题"), {
+    target: { value: "已编辑" },
+  });
+  fireEvent.click(screen.getAllByRole("button", { name: "保存修改" })[0]);
+  expect(await screen.findByDisplayValue("已编辑")).toBeInTheDocument();
+
+  const feedback = screen.getByLabelText("AUTO-000001 AI 反馈");
+  fireEvent.change(feedback, { target: { value: "请改成命令行" } });
+  expect(screen.getAllByRole("button", { name: "保存修改" })[0]).toBeDisabled();
+  fireEvent.click(screen.getAllByRole("button", { name: "提交 AI 反馈" })[0]);
+  await waitFor(() =>
+    expect(
+      screen
+        .getAllByRole("alert")
+        .some((item) => item.textContent?.includes("AI 反馈适配器不可用")),
+    ).toBe(true),
+  );
+  expect(feedback).toHaveValue("请改成命令行");
+});
+
+test("存在未保存编辑时会提示浏览器确认离开页面", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => Promise.resolve(response({ items: automationCases.items }))),
+  );
+  render(<AutomationTestCasesPanel productVersionId={11} />);
+  await screen.findByText("AUTO-000001");
+  fireEvent.change(screen.getByLabelText("AUTO-000001 标题"), {
+    target: { value: "未保存标题" },
+  });
+
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(true);
 });
