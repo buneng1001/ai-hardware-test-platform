@@ -67,6 +67,8 @@ test("测试工程师可打开测试组详情并在用例表逐条关联已校�
         );
       if (url === "/api/test-groups/4")
         return Promise.resolve(response(detail));
+      if (url === "/api/test-groups/4/automation-executions")
+        return Promise.resolve(response({ items: [] }));
       if (url === "/api/product-versions/11/automation-test-cases")
         return Promise.resolve(response({ items: [] }));
       if (url === "/api/product-versions/11/source-test-cases?")
@@ -132,4 +134,70 @@ test("测试工程师可打开测试组详情并在用例表逐条关联已校�
     ),
   );
   expect(await screen.findByText("数据包关联已更新。")).toBeInTheDocument();
+});
+
+test("测试工程师先完成准备检查，再从测试组创建数据驱动模拟执行记录", async () => {
+  const execution = {
+    id: 9,
+    test_group_id: 4,
+    execution_number: 1,
+    status: "completed",
+    started_at: "2026-10-04T00:00:00+00:00",
+    completed_at: "2026-10-04T00:00:01+00:00",
+    summary: { passed: 1, failed: 0, blocked: 0, not_executed: 0 },
+    group_snapshot: { name: "基础回归" },
+    case_results: [
+      {
+        automation_test_case_id: 2,
+        case_number: "AUTO-000002",
+        title: "录制检查",
+        position: 1,
+        status: "passed",
+        message: "已完成数据包完整性与确定性检查。",
+      },
+    ],
+  };
+  const fetchMock = vi.fn(
+    (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith("/api/product-versions/11/test-groups?"))
+        return Promise.resolve(
+          response({ items: [detail], page: 1, page_size: 20, total: 1 }),
+        );
+      if (url === "/api/test-groups/4")
+        return Promise.resolve(response(detail));
+      if (url === "/api/product-versions/11/automation-test-cases")
+        return Promise.resolve(response({ items: [] }));
+      if (url === "/api/product-versions/11/source-test-cases?")
+        return Promise.resolve(response({ items: [] }));
+      if (url === "/api/data-packages")
+        return Promise.resolve(response({ items: [] }));
+      if (url === "/api/test-groups/4/automation-executions") {
+        return Promise.resolve(
+          init?.method === "POST"
+            ? response(execution, 201)
+            : response({ items: [] }),
+        );
+      }
+      if (
+        url === "/api/test-groups/4/automation-execution-preparations" &&
+        init?.method === "POST"
+      ) {
+        return Promise.resolve(response({ passed: true, checks: [] }));
+      }
+      return Promise.reject(new Error(`未预期请求：${url}`));
+    },
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<TestGroupsPanel productVersionId={11} />);
+  fireEvent.click(await screen.findByRole("button", { name: "基础回归" }));
+  fireEvent.click(await screen.findByRole("button", { name: "开始准备检查" }));
+  fireEvent.click(await screen.findByRole("button", { name: "开始执行" }));
+
+  expect(await screen.findByText("自动化执行 #1 已完成。")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/test-groups/4/automation-executions",
+    expect.objectContaining({ method: "POST" }),
+  );
 });

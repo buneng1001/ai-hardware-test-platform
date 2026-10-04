@@ -33,7 +33,7 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         columns = {row[1] for row in connection.execute("PRAGMA table_info(runs)").fetchall()}
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
-    assert version == 21
+    assert version == 23
     assert "alignment_result" in columns
     with open_database() as connection:
         assert (
@@ -188,3 +188,10 @@ def test_version_twenty_assignment_upgrade_removes_orphaned_group_relation(tmp_p
             (1, 2),
         )
         assert connection.execute("SELECT COUNT(*) FROM test_group_data_package_assignments").fetchone()[0] == 0
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 23
+        assert connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'automation_execution_records'"
+        ).fetchone()
+        assert connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = 'automation_execution_snapshots_immutable'"
+        ).fetchone()

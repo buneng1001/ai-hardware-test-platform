@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.ai_evaluation import router as ai_evaluation_router
 from app.automation_case_history import router as automation_case_history_router
+from app.automation_executions import router as automation_executions_router
 from app.automation_test_cases import router as automation_test_cases_router
 from app.collection_tasks import router as collection_tasks_router
 from app.data_packages import router as data_packages_router
@@ -62,6 +63,7 @@ app.include_router(source_test_cases_router)
 app.include_router(automation_test_cases_router)
 app.include_router(automation_case_history_router)
 app.include_router(test_groups_router)
+app.include_router(automation_executions_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)

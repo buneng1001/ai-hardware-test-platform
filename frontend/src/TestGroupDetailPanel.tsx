@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { TestGroupCasesPanel } from "./TestGroupCasesPanel";
+import { AutomationExecutionPanel } from "./AutomationExecutionPanel";
 import {
   deleteTestGroup,
   getTestGroupDeletionImpact,
@@ -126,6 +127,7 @@ export function TestGroupDetailPanel({
         </button>
       </form>
       <TestGroupCasesPanel detail={detail} onChange={onChange} />
+      <AutomationExecutionPanel groupId={detail.id} />
     </section>
   );
 }

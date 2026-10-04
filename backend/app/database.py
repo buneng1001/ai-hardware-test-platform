@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 21
+LATEST_SCHEMA_VERSION = 23
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -498,6 +498,74 @@ def migrate_database(connection: sqlite3.Connection) -> None:
                 ON test_group_data_package_assignments(data_package_id);
             INSERT INTO schema_migrations (version) VALUES (21);
             PRAGMA user_version = 21;
+            """
+        )
+
+    if current_version < 22:
+        # 自动化执行记录保存事实快照，不引用可变业务资产，避免测试组、用例或数据包后续修改覆盖历史。
+        connection.executescript(
+            """
+            CREATE TABLE automation_execution_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_group_id INTEGER NOT NULL,
+                product_version_id INTEGER NOT NULL,
+                execution_number INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                execution_mode TEXT NOT NULL,
+                group_snapshot TEXT NOT NULL,
+                configuration_snapshot TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                UNIQUE (test_group_id, execution_number)
+            );
+            CREATE INDEX idx_automation_execution_records_group
+                ON automation_execution_records(test_group_id, id DESC);
+            CREATE TABLE automation_execution_case_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                automation_execution_id INTEGER NOT NULL,
+                automation_test_case_id INTEGER NOT NULL,
+                position INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                message TEXT NOT NULL,
+                case_snapshot TEXT NOT NULL,
+                FOREIGN KEY (automation_execution_id) REFERENCES automation_execution_records(id) ON DELETE CASCADE,
+                UNIQUE (automation_execution_id, automation_test_case_id)
+            );
+            CREATE TABLE automation_execution_data_packages (
+                automation_execution_id INTEGER NOT NULL,
+                automation_test_case_id INTEGER NOT NULL,
+                data_package_id INTEGER NOT NULL,
+                package_snapshot TEXT NOT NULL,
+                PRIMARY KEY (automation_execution_id, automation_test_case_id, data_package_id),
+                FOREIGN KEY (automation_execution_id) REFERENCES automation_execution_records(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_automation_execution_packages_package
+                ON automation_execution_data_packages(data_package_id);
+            CREATE TRIGGER automation_execution_records_immutable
+            BEFORE UPDATE ON automation_execution_records
+            BEGIN SELECT RAISE(ABORT, 'automation execution records are immutable'); END;
+            CREATE TRIGGER automation_execution_case_results_immutable
+            BEFORE UPDATE ON automation_execution_case_results
+            BEGIN SELECT RAISE(ABORT, 'automation execution case results are immutable'); END;
+            CREATE TRIGGER automation_execution_data_packages_immutable
+            BEFORE UPDATE ON automation_execution_data_packages
+            BEGIN SELECT RAISE(ABORT, 'automation execution data packages are immutable'); END;
+            INSERT INTO schema_migrations (version) VALUES (22);
+            PRAGMA user_version = 22;
+            """
+        )
+
+    if current_version < 23:
+        # 执行状态可在受控生命周期中变化；事实快照和结果明细仍绝不允许被覆盖。
+        connection.executescript(
+            """
+            DROP TRIGGER automation_execution_records_immutable;
+            CREATE TRIGGER automation_execution_snapshots_immutable
+            BEFORE UPDATE OF group_snapshot, configuration_snapshot, summary ON automation_execution_records
+            BEGIN SELECT RAISE(ABORT, 'automation execution snapshots are immutable'); END;
+            INSERT INTO schema_migrations (version) VALUES (23);
+            PRAGMA user_version = 23;
             """
         )
 

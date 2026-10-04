@@ -87,7 +87,10 @@ export function TestGroupAutomationScope({
   };
 
   return (
-    <section className="test-group-automation-scope">
+    <section
+      id="test-group-automation-scope"
+      className="test-group-automation-scope"
+    >
       {message && <p role="status">{message}</p>}
       <h4>自动化用例与数据包</h4>
       <div className="test-group-candidates">
