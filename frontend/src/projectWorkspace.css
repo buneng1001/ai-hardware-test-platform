@@ -77,7 +77,8 @@
 .automation-case-panel,
 .data-package-panel,
 .test-groups-panel,
-.test-group-detail {
+.test-group-detail,
+.manual-test-results-panel {
   margin-top: 1rem;
   padding: 1rem;
   border: 1px solid var(--border, #d5d9e2);
@@ -150,7 +151,8 @@
 .test-group-filters,
 .test-group-candidates,
 .test-group-bulk-package,
-.test-group-case-table {
+.test-group-case-table,
+.manual-test-result-list {
   display: grid;
   gap: 0.65rem;
   margin: 0.75rem 0;
@@ -159,12 +161,15 @@
 .test-group-filters label,
 .test-group-candidates label,
 .test-group-bulk-package label,
-.test-group-case-table label {
+.test-group-case-table label,
+.manual-test-result-row label,
+.manual-test-batch-picker {
   display: grid;
   gap: 0.25rem;
 }
 .test-group-card,
-.test-group-case-table article {
+.test-group-case-table article,
+.manual-test-result-row {
   display: grid;
   gap: 0.5rem;
   padding: 0.75rem;
@@ -174,6 +179,20 @@
 }
 .test-group-warning {
   color: #9a3412;
+}
+.manual-test-result-row textarea {
+  min-height: 3rem;
+  resize: vertical;
+}
+.manual-test-attachments {
+  display: grid;
+  gap: 0.35rem;
+}
+.manual-test-attachments span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .automation-case-heading h3,

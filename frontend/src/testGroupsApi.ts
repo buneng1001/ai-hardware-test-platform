@@ -119,6 +119,9 @@ export function getTestGroupDeletionImpact(groupId: number) {
     source_test_cases: number;
     automation_test_cases: number;
     data_package_assignments: number;
+    manual_test_result_batches: number;
+    manual_test_results: number;
+    manual_test_result_attachments: number;
   }>(`/api/test-groups/${groupId}/deletion-impact`);
 }
 

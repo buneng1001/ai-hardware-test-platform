@@ -32,25 +32,35 @@ class AttachmentCommand(BaseModel):
         return value
 
 
-def save_manual_attachment(run_id: int, result_id: int, command: AttachmentCommand) -> dict[str, str | int]:
-    """严格解码并保存人工检查的小型附件，只向 API 暴露安全元数据。"""
+def decode_attachment(command: AttachmentCommand) -> bytes:
+    """严格解码人工附件，供不同结果域共享相同安全限制。"""
     try:
         content = base64.b64decode(command.content_base64, validate=True)
     except (ValueError, binascii.Error) as error:
         raise HTTPException(status_code=422, detail="附件内容不是有效 Base64") from error
     if len(content) > MAX_ATTACHMENT_BYTES:
         raise HTTPException(status_code=413, detail="附件不能超过 1 MiB")
+    return content
 
-    attachment_dir = get_data_dir() / "runs" / str(run_id) / "manual-attachments"
-    attachment_dir.mkdir(parents=True, exist_ok=True)
-    stored_path = attachment_dir / f"{result_id}-{command.filename}"
-    stored_path.write_bytes(content)
+
+def attachment_metadata(command: AttachmentCommand, content: bytes) -> dict[str, str | int]:
     return {
         "filename": command.filename,
         "content_type": command.content_type,
         "size_bytes": len(content),
         "sha256": hashlib.sha256(content).hexdigest(),
     }
+
+
+def save_manual_attachment(run_id: int, result_id: int, command: AttachmentCommand) -> dict[str, str | int]:
+    """保存运行级人工检查附件，只向 API 暴露安全元数据。"""
+    content = decode_attachment(command)
+
+    attachment_dir = get_data_dir() / "runs" / str(run_id) / "manual-attachments"
+    attachment_dir.mkdir(parents=True, exist_ok=True)
+    stored_path = attachment_dir / f"{result_id}-{command.filename}"
+    stored_path.write_bytes(content)
+    return attachment_metadata(command, content)
 
 
 def get_manual_attachment_path(run_id: int, result_id: int, filename: str) -> Path:

@@ -28,7 +28,9 @@ export type AssetCounts = {
   data_packages: number;
   test_groups: number;
   automation_execution_records: number;
-  manual_test_records: number;
+  manual_test_result_batches: number;
+  manual_test_results: number;
+  manual_test_result_attachments: number;
   online_reports: number;
 };
 

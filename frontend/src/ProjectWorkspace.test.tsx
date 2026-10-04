@@ -142,7 +142,9 @@ test("删除项目前必须展示产品版本和资产影响范围", async () =>
       data_packages: 0,
       test_groups: 1,
       automation_execution_records: 0,
-      manual_test_records: 0,
+      manual_test_result_batches: 0,
+      manual_test_results: 0,
+      manual_test_result_attachments: 0,
       online_reports: 0,
     },
     total_affected_assets: 4,
@@ -195,7 +197,9 @@ test("删除产品版本前展示该版本的记录和报告影响范围", async
     data_packages: 0,
     test_groups: 2,
     automation_execution_records: 3,
-    manual_test_records: 1,
+    manual_test_result_batches: 1,
+    manual_test_results: 1,
+    manual_test_result_attachments: 0,
     online_reports: 1,
   };
   const fetchMock = vi
@@ -228,7 +232,7 @@ test("删除产品版本前展示该版本的记录和报告影响范围", async
 
   const dialog = await screen.findByRole("dialog", { name: "删除影响范围" });
   expect(dialog).toHaveTextContent("自动化执行记录：3");
-  expect(dialog).toHaveTextContent("人工测试记录：1");
+  expect(dialog).toHaveTextContent("人工测试结果：1");
   expect(dialog).toHaveTextContent("在线报告：1");
   fireEvent.click(screen.getByRole("button", { name: "确认删除产品版本" }));
 

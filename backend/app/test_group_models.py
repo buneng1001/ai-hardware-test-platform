@@ -47,6 +47,9 @@ class TestGroupDeletionImpact(BaseModel):
     source_test_cases: int
     automation_test_cases: int
     data_package_assignments: int
+    manual_test_result_batches: int
+    manual_test_results: int
+    manual_test_result_attachments: int
     message: str
 
 

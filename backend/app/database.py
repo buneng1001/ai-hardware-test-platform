@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 23
+LATEST_SCHEMA_VERSION = 25
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -566,6 +566,81 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             BEGIN SELECT RAISE(ABORT, 'automation execution snapshots are immutable'); END;
             INSERT INTO schema_migrations (version) VALUES (23);
             PRAGMA user_version = 23;
+            """
+        )
+
+    if current_version < 24:
+        # 人工结果独立于 v0.1 运行记录，按测试组中的来源用例和一次录入批次保存。
+        connection.executescript(
+            """
+            CREATE TABLE manual_test_result_batches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_group_id INTEGER NOT NULL,
+                product_version_id INTEGER NOT NULL,
+                batch_number INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (test_group_id) REFERENCES test_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE,
+                UNIQUE (test_group_id, batch_number)
+            );
+            CREATE INDEX idx_manual_test_result_batches_group
+                ON manual_test_result_batches(test_group_id, id DESC);
+            CREATE TABLE manual_test_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                manual_test_result_batch_id INTEGER NOT NULL,
+                source_test_case_id INTEGER NOT NULL,
+                status TEXT NOT NULL CHECK (status IN ('passed', 'failed', 'blocked', 'not_executed')),
+                actual_result TEXT,
+                notes TEXT,
+                executed_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (manual_test_result_batch_id) REFERENCES manual_test_result_batches(id) ON DELETE CASCADE,
+                FOREIGN KEY (source_test_case_id) REFERENCES source_test_cases(id) ON DELETE RESTRICT,
+                UNIQUE (manual_test_result_batch_id, source_test_case_id)
+            );
+            CREATE INDEX idx_manual_test_results_source_case ON manual_test_results(source_test_case_id);
+            CREATE TABLE manual_test_result_attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                manual_test_result_id INTEGER NOT NULL,
+                filename TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                size_bytes INTEGER NOT NULL,
+                sha256 TEXT NOT NULL,
+                storage_status TEXT NOT NULL DEFAULT 'stored' CHECK (storage_status IN ('stored', 'cleaned')),
+                usage_status TEXT NOT NULL DEFAULT 'unused' CHECK (usage_status IN ('unused', 'used')),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (manual_test_result_id) REFERENCES manual_test_results(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_manual_test_result_attachments_result
+                ON manual_test_result_attachments(manual_test_result_id, id);
+            CREATE TABLE report_staleness_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_group_id INTEGER NOT NULL,
+                product_version_id INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                source_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (test_group_id) REFERENCES test_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_report_staleness_events_group
+                ON report_staleness_events(test_group_id, id DESC);
+            INSERT INTO schema_migrations (version) VALUES (24);
+            PRAGMA user_version = 24;
+            """
+        )
+
+    if current_version < 25:
+        # 批次范围是报告事实的一部分；后续增删测试组成员不能改写历史“未执行”表达。
+        connection.executescript(
+            """
+            ALTER TABLE manual_test_result_batches ADD COLUMN scope_snapshot TEXT NOT NULL DEFAULT '[]';
+            INSERT INTO schema_migrations (version) VALUES (25);
+            PRAGMA user_version = 25;
             """
         )
 

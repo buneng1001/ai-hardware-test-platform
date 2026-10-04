@@ -191,13 +191,27 @@ def get_test_group_deletion_impact(group_id: int) -> TestGroupDeletionImpact:
     with open_database() as connection:
         group = _group_row(connection, group_id)
         counts = _summary_from_row(connection, group)
+        manual_counts = connection.execute(
+            """
+            SELECT COUNT(DISTINCT batch.id) AS batches, COUNT(DISTINCT result.id) AS results,
+                   COUNT(attachment.id) AS attachments
+            FROM manual_test_result_batches batch
+            LEFT JOIN manual_test_results result ON result.manual_test_result_batch_id = batch.id
+            LEFT JOIN manual_test_result_attachments attachment ON attachment.manual_test_result_id = result.id
+            WHERE batch.test_group_id = ?
+            """,
+            (group_id,),
+        ).fetchone()
         return TestGroupDeletionImpact(
             test_group_id=group_id,
             name=group["name"],
             source_test_cases=counts.source_test_case_count,
             automation_test_cases=counts.automation_test_case_count,
             data_package_assignments=counts.data_package_assignment_count,
-            message="删除只移除测试组范围和数据包关联，不会删除平台级用例或数据包。",
+            manual_test_result_batches=manual_counts["batches"],
+            manual_test_results=manual_counts["results"],
+            manual_test_result_attachments=manual_counts["attachments"],
+            message="删除会移除测试组范围、人工结果及其附件；不会删除平台级用例或数据包。",
         )
 
 

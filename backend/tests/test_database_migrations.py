@@ -33,7 +33,7 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         columns = {row[1] for row in connection.execute("PRAGMA table_info(runs)").fetchall()}
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
-    assert version == 23
+    assert version == 25
     assert "alignment_result" in columns
     with open_database() as connection:
         assert (
@@ -98,6 +98,19 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         "data_packages",
         "test_group_automation_cases",
     }
+    with open_database() as connection:
+        manual_batch_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(manual_test_result_batches)").fetchall()
+        }
+        attachment_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(manual_test_result_attachments)").fetchall()
+        }
+        batch_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(manual_test_result_batches)").fetchall()
+        }
+    assert {"test_group_id", "product_version_id", "batch_number"} <= manual_batch_columns
+    assert {"storage_status", "usage_status", "size_bytes"} <= attachment_columns
+    assert "scope_snapshot" in batch_columns
 
 
 def test_version_seventeen_automation_cases_upgrade_without_losing_existing_candidates(tmp_path, monkeypatch):
@@ -188,7 +201,7 @@ def test_version_twenty_assignment_upgrade_removes_orphaned_group_relation(tmp_p
             (1, 2),
         )
         assert connection.execute("SELECT COUNT(*) FROM test_group_data_package_assignments").fetchone()[0] == 0
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 23
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 25
         assert connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'automation_execution_records'"
         ).fetchone()

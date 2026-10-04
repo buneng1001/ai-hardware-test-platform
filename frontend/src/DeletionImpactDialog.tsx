@@ -6,7 +6,9 @@ const assetLabels: Array<[keyof AssetCounts, string]> = [
   ["data_packages", "数据包"],
   ["test_groups", "测试组"],
   ["automation_execution_records", "自动化执行记录"],
-  ["manual_test_records", "人工测试记录"],
+  ["manual_test_result_batches", "人工测试记录批次"],
+  ["manual_test_results", "人工测试结果"],
+  ["manual_test_result_attachments", "人工测试附件"],
   ["online_reports", "在线报告"],
 ];
 
