@@ -54,6 +54,14 @@ def render_text(report: FactReport) -> str:
             lines.append(
                 f"- {item['case_number']} {item['title']}：{item['source']} {result}{consistency}；{item['message']}"
             )
+    lines.extend(["", "附件使用状态"])
+    if report.attachment_summary.attachments:
+        lines.extend(
+            f"- {item.filename}：已使用；{'已清理' if item.storage_status == 'cleaned' else '原始文件已保留'}"
+            for item in report.attachment_summary.attachments
+        )
+    else:
+        lines.append("无")
     lines.extend(["", "跨模块问题"])
     lines.extend([f"- {item['case_number']}：{item['message']}" for item in data["cross_module_issues"]] or ["无"])
     return "\n".join(lines)
