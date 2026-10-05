@@ -171,5 +171,8 @@ def test_data_package_assignments_are_scoped_to_one_group_and_keep_warnings(clie
     assert next(item for item in readded if item["id"] == automation[0]["id"])["data_packages"] == []
     deleted = client.delete(f"/api/test-groups/{groups[0]['id']}")
     assert deleted.status_code == 400
-    assert client.get(f"/api/test-groups/{groups[0]['id']}/deletion-impact").json()["automation_test_cases"] == 2
+    group_impact = client.get(f"/api/test-groups/{groups[0]['id']}/deletion-impact").json()
+    assert group_impact["automation_test_cases"] == 2
+    assert group_impact["manual_test_results"] == 0
+    assert group_impact["manual_test_result_attachments"] == 0
     assert client.delete(f"/api/test-groups/{groups[0]['id']}?confirm=true").status_code == 204

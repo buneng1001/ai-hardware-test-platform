@@ -19,6 +19,8 @@ from app.import_zip import cleanup_expired_staging
 from app.import_zip import router as import_zip_router
 from app.manual_check_results import router as manual_check_results_router
 from app.manual_result_import import router as manual_result_import_router
+from app.manual_test_result_attachments import router as manual_test_result_attachments_router
+from app.manual_test_results import router as manual_test_results_router
 from app.project_workspace import router as project_workspace_router
 from app.report import router as report_router
 from app.run_executor import RunExecutor
@@ -52,6 +54,8 @@ app.include_router(data_packages_router)
 app.include_router(ai_evaluation_router)
 app.include_router(manual_check_results_router)
 app.include_router(manual_result_import_router)
+app.include_router(manual_test_results_router)
+app.include_router(manual_test_result_attachments_router)
 app.include_router(import_zip_router)
 app.include_router(runs_router)
 app.include_router(report_router)

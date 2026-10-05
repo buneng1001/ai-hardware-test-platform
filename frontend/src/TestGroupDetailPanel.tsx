@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { TestGroupCasesPanel } from "./TestGroupCasesPanel";
 import { AutomationExecutionPanel } from "./AutomationExecutionPanel";
+import { ManualTestResultsPanel } from "./ManualTestResultsPanel";
 import {
   deleteTestGroup,
   getTestGroupDeletionImpact,
@@ -25,11 +26,12 @@ export function TestGroupDetailPanel({
   });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [manualResultsOpen, setManualResultsOpen] = useState(false);
 
-  useEffect(
-    () => setDraft({ name: detail.name, description: detail.description }),
-    [detail.id, detail.name, detail.description],
-  );
+  useEffect(() => {
+    setDraft({ name: detail.name, description: detail.description });
+    setManualResultsOpen(false);
+  }, [detail.id, detail.name, detail.description]);
 
   const run = async (
     action: () => Promise<TestGroupDetail | void>,
@@ -82,7 +84,7 @@ export function TestGroupDetailPanel({
                 const impact = await getTestGroupDeletionImpact(detail.id);
                 if (
                   !window.confirm(
-                    `将移除 ${impact.source_test_cases} 条原始用例、${impact.automation_test_cases} 条自动化用例和 ${impact.data_package_assignments} 条数据包关联。`,
+                    `将移除 ${impact.source_test_cases} 条原始用例、${impact.automation_test_cases} 条自动化用例、${impact.data_package_assignments} 条数据包关联、${impact.manual_test_results} 条人工结果及 ${impact.manual_test_result_attachments} 个附件。`,
                   )
                 )
                   return;
@@ -126,8 +128,25 @@ export function TestGroupDetailPanel({
           保存基本信息
         </button>
       </form>
-      <TestGroupCasesPanel detail={detail} onChange={onChange} />
-      <AutomationExecutionPanel groupId={detail.id} />
+      {manualResultsOpen ? (
+        <ManualTestResultsPanel
+          groupId={detail.id}
+          onBack={() => setManualResultsOpen(false)}
+        />
+      ) : (
+        <>
+          <TestGroupCasesPanel detail={detail} onChange={onChange} />
+          <div className="workspace-actions">
+            <button type="button" onClick={() => setManualResultsOpen(true)}>
+              录入人工结果
+            </button>
+          </div>
+          <AutomationExecutionPanel
+            groupId={detail.id}
+            onOpenManual={() => setManualResultsOpen(true)}
+          />
+        </>
+      )}
     </section>
   );
 }

@@ -26,7 +26,9 @@ ASSET_TABLES = {
     "data_packages": "data_packages",
     "test_groups": "test_groups",
     "automation_execution_records": "automation_execution_records",
-    "manual_test_records": "manual_test_records",
+    "manual_test_result_batches": "manual_test_result_batches",
+    "manual_test_results": "manual_test_results",
+    "manual_test_result_attachments": "manual_test_result_attachments",
     "online_reports": "online_reports",
 }
 
@@ -83,6 +85,23 @@ def _asset_counts(connection: sqlite3.Connection, version_ids: list[int]) -> dic
                 f"SELECT COUNT(*) FROM {table_name} WHERE product_version_id IN ({placeholders})",
                 version_ids,
             ).fetchone()[0]
+    counts["manual_test_results"] = connection.execute(
+        f"""
+        SELECT COUNT(*) FROM manual_test_results result
+        JOIN manual_test_result_batches batch ON batch.id = result.manual_test_result_batch_id
+        WHERE batch.product_version_id IN ({placeholders})
+        """,
+        version_ids,
+    ).fetchone()[0]
+    counts["manual_test_result_attachments"] = connection.execute(
+        f"""
+        SELECT COUNT(*) FROM manual_test_result_attachments attachment
+        JOIN manual_test_results result ON result.id = attachment.manual_test_result_id
+        JOIN manual_test_result_batches batch ON batch.id = result.manual_test_result_batch_id
+        WHERE batch.product_version_id IN ({placeholders})
+        """,
+        version_ids,
+    ).fetchone()[0]
     return counts
 
 

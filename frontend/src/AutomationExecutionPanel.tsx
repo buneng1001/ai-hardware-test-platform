@@ -15,7 +15,13 @@ const resultLabel = {
   not_executed: "未执行",
 };
 
-export function AutomationExecutionPanel({ groupId }: { groupId: number }) {
+export function AutomationExecutionPanel({
+  groupId,
+  onOpenManual,
+}: {
+  groupId: number;
+  onOpenManual?: () => void;
+}) {
   const [records, setRecords] = useState<AutomationExecution[]>([]);
   const [checks, setChecks] = useState<PreparationCheck[] | null>(null);
   const [ready, setReady] = useState(false);
@@ -102,6 +108,11 @@ export function AutomationExecutionPanel({ groupId }: { groupId: number }) {
         <button type="button" disabled={busy} onClick={() => void refresh()}>
           刷新执行状态
         </button>
+        {onOpenManual && (
+          <button type="button" disabled={busy} onClick={onOpenManual}>
+            录入人工结果
+          </button>
+        )}
       </div>
       {message && <p role="status">{message}</p>}
       {checks && checks.length > 0 && (
