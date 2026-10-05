@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 25
+LATEST_SCHEMA_VERSION = 26
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -641,6 +641,27 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             ALTER TABLE manual_test_result_batches ADD COLUMN scope_snapshot TEXT NOT NULL DEFAULT '[]';
             INSERT INTO schema_migrations (version) VALUES (25);
             PRAGMA user_version = 25;
+            """
+        )
+
+    if current_version < 26:
+        # 最终事实报告是独立快照；选择的执行和人工批次后续变更、删除均不能改写报告内容。
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS online_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_group_id INTEGER NOT NULL,
+                product_version_id INTEGER NOT NULL,
+                automation_execution_id INTEGER,
+                manual_batch_ids TEXT NOT NULL,
+                snapshot TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (test_group_id) REFERENCES test_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (product_version_id) REFERENCES product_versions(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_online_reports_group ON online_reports(test_group_id, id DESC);
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (26);
+            PRAGMA user_version = 26;
             """
         )
 

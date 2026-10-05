@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { TestGroupCasesPanel } from "./TestGroupCasesPanel";
 import { AutomationExecutionPanel } from "./AutomationExecutionPanel";
 import { ManualTestResultsPanel } from "./ManualTestResultsPanel";
+import { FactReportPanel } from "./FactReportPanel";
 import {
   deleteTestGroup,
   getTestGroupDeletionImpact,
@@ -27,10 +28,12 @@ export function TestGroupDetailPanel({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [manualResultsOpen, setManualResultsOpen] = useState(false);
+  const [factReportOpen, setFactReportOpen] = useState(false);
 
   useEffect(() => {
     setDraft({ name: detail.name, description: detail.description });
     setManualResultsOpen(false);
+    setFactReportOpen(false);
   }, [detail.id, detail.name, detail.description]);
 
   const run = async (
@@ -133,12 +136,17 @@ export function TestGroupDetailPanel({
           groupId={detail.id}
           onBack={() => setManualResultsOpen(false)}
         />
+      ) : factReportOpen ? (
+        <FactReportPanel groupId={detail.id} />
       ) : (
         <>
           <TestGroupCasesPanel detail={detail} onChange={onChange} />
           <div className="workspace-actions">
             <button type="button" onClick={() => setManualResultsOpen(true)}>
               录入人工结果
+            </button>
+            <button type="button" onClick={() => setFactReportOpen(true)}>
+              最终报告
             </button>
           </div>
           <AutomationExecutionPanel
