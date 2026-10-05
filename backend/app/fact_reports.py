@@ -5,7 +5,7 @@ import sqlite3
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app.automation_executions import _record_from_row
@@ -13,6 +13,7 @@ from app.database import open_database
 from app.fact_report_models import FactReport, FactReportCreate
 from app.fact_report_rendering import STATUS_LABELS, render_html, render_text
 from app.manual_test_results import _batch_from_row
+from app.report_analysis import analysis_is_enabled, enqueue_analysis, latest_analysis, run_analysis_in_background
 from app.test_group_queries import get_group_row
 
 router = APIRouter(tags=["fact reports"])
@@ -228,10 +229,11 @@ def _build_snapshot(connection: sqlite3.Connection, group_id: int, command: Fact
     }
 
 
-def _from_row(row: sqlite3.Row) -> FactReport:
+def _from_row(connection: sqlite3.Connection, row: sqlite3.Row) -> FactReport:
     values = dict(row)
     values["manual_batch_ids"] = json.loads(values["manual_batch_ids"])
     values["snapshot"] = json.loads(values["snapshot"])
+    values["analysis"] = latest_analysis(connection, values["id"])
     return FactReport.model_validate(values)
 
 
@@ -239,11 +241,11 @@ def _get_report(connection: sqlite3.Connection, report_id: int) -> FactReport:
     row = connection.execute("SELECT * FROM online_reports WHERE id = ?", (report_id,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="事实报告不存在")
-    return _from_row(row)
+    return _from_row(connection, row)
 
 
 @router.post("/api/test-groups/{group_id}/fact-reports", response_model=FactReport, status_code=status.HTTP_201_CREATED)
-def create_fact_report(group_id: int, command: FactReportCreate) -> FactReport:
+def create_fact_report(group_id: int, command: FactReportCreate, background_tasks: BackgroundTasks) -> FactReport:
     with open_database() as connection:
         snapshot = _build_snapshot(connection, group_id, command)
         group = get_group_row(connection, group_id)
@@ -260,6 +262,9 @@ def create_fact_report(group_id: int, command: FactReportCreate) -> FactReport:
                 _now(),
             ),
         ).lastrowid
+        if analysis_is_enabled():
+            enqueue_analysis(connection, report_id)
+            background_tasks.add_task(run_analysis_in_background, report_id)
         return _get_report(connection, report_id)
 
 

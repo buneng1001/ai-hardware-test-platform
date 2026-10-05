@@ -234,6 +234,89 @@ def test_fact_report_combines_snapshots_marks_conflicts_and_downloads(client):
     assert client.post(f"/api/test-groups/{group_id}/fact-reports", json={}).status_code == 422
 
 
+def test_report_analysis_is_optional_persisted_and_never_changes_fact_report(client, monkeypatch):
+    package_id = _create_data_package(client, "video_drop")
+    group_id, _ = _create_ready_group(client, [package_id])
+    execution = client.post(f"/api/test-groups/{group_id}/automation-executions").json()
+    report = client.post(
+        f"/api/test-groups/{group_id}/fact-reports", json={"automation_execution_id": execution["id"]}
+    ).json()
+
+    assert report["analysis"] == {"status": "not_enabled", "message": "AI 分析未启用", "output": None}
+    assert client.post(f"/api/fact-reports/{report['id']}/analysis").json()["status"] == "not_enabled"
+
+    monkeypatch.setenv("REPORT_ANALYSIS_MODE", "mock")
+    automatically_analyzed = client.post(
+        f"/api/test-groups/{group_id}/fact-reports", json={"automation_execution_id": execution["id"]}
+    ).json()
+    assert automatically_analyzed["analysis"]["status"] == "pending"
+    for _ in range(20):
+        automatically_analyzed = client.get(f"/api/fact-reports/{automatically_analyzed['id']}").json()
+        if automatically_analyzed["analysis"]["status"] == "completed":
+            break
+        time.sleep(0.01)
+    assert automatically_analyzed["analysis"]["status"] == "completed"
+    completed = client.post(f"/api/fact-reports/{report['id']}/analysis")
+
+    assert completed.status_code == 201
+    analysis = completed.json()
+    assert analysis["status"] == "completed"
+    assert (
+        analysis["output"]["stage_recommendation"]["suggestion"]
+        == "请依据已保存事实报告补充验证后，再决定是否推进阶段。"
+    )
+    assert analysis["output"]["risks"][0]["evidence_refs"]
+    persisted = client.get(f"/api/fact-reports/{report['id']}").json()
+    assert persisted["snapshot"] == report["snapshot"]
+    assert persisted["analysis"]["status"] == "completed"
+
+    class InvalidOutputAdapter:
+        def generate_json(self, **_kwargs):
+            return {
+                "risks": [{"content": "未引用事实的风险", "evidence_refs": ["invented:threshold"]}],
+                "additional_verifications": [],
+                "regression_recommendations": [],
+                "stage_recommendation": {
+                    "suggestion": "建议暂停",
+                    "content": "没有有效依据",
+                    "evidence_refs": ["invented:threshold"],
+                },
+            }
+
+    monkeypatch.setenv("REPORT_ANALYSIS_MODE", "configured")
+    monkeypatch.setenv("AI_DIAGNOSIS_MODE", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setattr("app.report_analysis.get_provider_adapter", lambda _provider: InvalidOutputAdapter())
+    failed = client.post(f"/api/fact-reports/{report['id']}/analysis").json()
+
+    assert failed == {"status": "failed", "message": "分析未完成：模型分析结构无效", "output": None}
+    assert client.get(f"/api/fact-reports/{report['id']}").json()["snapshot"] == report["snapshot"]
+
+    from app.siliconflow import ModelErrorKind, SiliconFlowError
+
+    class UnavailableAdapter:
+        def generate_json(self, **_kwargs):
+            raise SiliconFlowError(ModelErrorKind.TIMEOUT, "模型请求超时", True)
+
+    monkeypatch.setattr("app.report_analysis.get_provider_adapter", lambda _provider: UnavailableAdapter())
+    still_created = client.post(
+        f"/api/test-groups/{group_id}/fact-reports", json={"automation_execution_id": execution["id"]}
+    )
+    unavailable = client.post(f"/api/fact-reports/{report['id']}/analysis").json()
+
+    assert still_created.status_code == 201
+    background_report = still_created.json()
+    assert background_report["analysis"]["status"] == "pending"
+    for _ in range(20):
+        background_report = client.get(f"/api/fact-reports/{background_report['id']}").json()
+        if background_report["analysis"]["status"] == "failed":
+            break
+        time.sleep(0.01)
+    assert background_report["analysis"] == {"status": "failed", "message": "分析未完成：模型请求超时", "output": None}
+    assert unavailable == {"status": "failed", "message": "分析未完成：模型请求超时", "output": None}
+    assert client.get(f"/api/fact-reports/{report['id']}").json()["snapshot"] == report["snapshot"]
+
+
 def test_preparation_detects_cases_edited_after_group_assignment(client):
     package_id = _create_data_package(client)
     group_id, case_id = _create_ready_group(client, [package_id])

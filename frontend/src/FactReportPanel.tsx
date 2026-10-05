@@ -4,7 +4,12 @@ import {
   listAutomationExecutions,
   type AutomationExecution,
 } from "./automationExecutionsApi";
-import { createFactReport, type FactReport } from "./factReportsApi";
+import {
+  createFactReport,
+  getFactReport,
+  retryFactReportAnalysis,
+  type FactReport,
+} from "./factReportsApi";
 import {
   getManualTestResultPage,
   type ManualTestResultBatch,
@@ -35,6 +40,34 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
       );
   }, [groupId]);
 
+  useEffect(() => {
+    if (!report || report.analysis.status !== "pending") return;
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      try {
+        const refreshed = await getFactReport(report.id);
+        if (cancelled) return;
+        setReport(refreshed);
+        if (refreshed.analysis.status === "pending" && attempts++ < 9) {
+          timer = setTimeout(() => void refresh(), 1000);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(
+            error instanceof Error ? error.message : "报告分析状态刷新失败",
+          );
+        }
+      }
+    };
+    void refresh();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [report?.analysis.status, report?.id]);
+
   const generate = async () => {
     setBusy(true);
     setMessage(null);
@@ -47,6 +80,22 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "事实报告生成失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const retryAnalysis = async () => {
+    if (!report) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      setReport({
+        ...report,
+        analysis: await retryFactReportAnalysis(report.id),
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "报告分析重试失败");
     } finally {
       setBusy(false);
     }
@@ -112,7 +161,34 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
             </p>
           ))}
           <p>阶段推进结论：{report.snapshot.stage_progress.conclusion}</p>
-          <p>AI 区域状态：{report.snapshot.ai_analysis.message}</p>
+          <p>AI 分析：{report.analysis.message}</p>
+          {report.analysis.output && (
+            <section aria-label="AI 分析建议">
+              <p>
+                AI 阶段建议：
+                {report.analysis.output.stage_recommendation.suggestion}
+              </p>
+              <AnalysisItems
+                title="高风险问题"
+                items={report.analysis.output.risks}
+              />
+              <AnalysisItems
+                title="补充验证"
+                items={report.analysis.output.additional_verifications}
+              />
+              <AnalysisItems
+                title="回归建议"
+                items={report.analysis.output.regression_recommendations}
+              />
+            </section>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void retryAnalysis()}
+          >
+            重试报告分析
+          </button>
           <iframe
             title="事实报告预览"
             src={`/api/fact-reports/${report.id}.html`}
@@ -127,6 +203,29 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
             </a>
           </p>
         </>
+      )}
+    </section>
+  );
+}
+
+function AnalysisItems({
+  title,
+  items,
+}: {
+  title: string;
+  items: { content: string }[];
+}) {
+  return (
+    <section>
+      <h5>{title}</h5>
+      {items.length ? (
+        <ul>
+          {items.map((item) => (
+            <li key={item.content}>{item.content}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>无</p>
       )}
     </section>
   );

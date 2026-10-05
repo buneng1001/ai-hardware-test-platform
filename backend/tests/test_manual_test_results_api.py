@@ -194,7 +194,7 @@ def test_manual_result_migration_keeps_the_existing_v23_database_usable(tmp_path
             row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
         }
 
-    assert version == 26
+    assert version == 27
     assert {"manual_test_result_batches", "manual_test_results", "manual_test_result_attachments"} <= tables
     with open_database() as connection:
         assert connection.execute("SELECT case_number FROM source_test_cases WHERE id = 1").fetchone()[0] == "SRC-1"

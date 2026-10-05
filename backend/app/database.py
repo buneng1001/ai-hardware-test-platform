@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 26
+LATEST_SCHEMA_VERSION = 27
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -662,6 +662,30 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             CREATE INDEX IF NOT EXISTS idx_online_reports_group ON online_reports(test_group_id, id DESC);
             INSERT OR IGNORE INTO schema_migrations (version) VALUES (26);
             PRAGMA user_version = 26;
+            """
+        )
+
+    if current_version < 27:
+        # AI 分析是事实报告的可重试附属记录，绝不回写 online_reports.snapshot。
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS report_analysis_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                is_mock INTEGER NOT NULL,
+                input_snapshot TEXT NOT NULL,
+                output TEXT,
+                error TEXT,
+                created_at TEXT NOT NULL,
+                completed_at TEXT NOT NULL,
+                FOREIGN KEY (report_id) REFERENCES online_reports(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_report_analysis_runs_report ON report_analysis_runs(report_id, id DESC);
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (27);
+            PRAGMA user_version = 27;
             """
         )
 

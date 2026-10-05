@@ -203,6 +203,39 @@ class ProviderAdapter:
                 raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型响应结构无效", False) from error
         raise AssertionError("连接检查重试循环未返回")
 
+    def generate_json(self, *, api_key: str, model: str, evidence_json: str, system_prompt: str) -> dict[str, object]:
+        """为报告分析等独立结构化任务复用同一服务商、超时和重试策略。"""
+        if not api_key:
+            raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, f"未配置 {self.provider} API Key", False)
+        body = {
+            "model": model,
+            "response_format": {"type": "json_object"},
+            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": evidence_json}],
+        }
+        if self.provider != "kimi":
+            body["temperature"] = 0
+        request_data = {"api_key": api_key, "endpoint": self._endpoint, "body": body}
+        for attempt in range(3):
+            try:
+                response_status, response_text = self._transport(request_data)
+                if response_status < 200 or response_status >= 300:
+                    kind, retryable = _classify_status(response_status)
+                    raise SiliconFlowError(kind, _status_message(response_status), retryable)
+                parsed = json.loads(response_text)
+                content = parsed["choices"][0]["message"]["content"]
+                if isinstance(content, dict):
+                    return content
+                if isinstance(content, str):
+                    return json.loads(content.removeprefix("```json").removeprefix("```").removesuffix("```").strip())
+                raise TypeError("content 不是允许的结构化内容")
+            except SiliconFlowError as error:
+                if not error.retryable or attempt == 2:
+                    raise
+                self._sleep(0.05 * (attempt + 1))
+            except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
+                raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型响应结构无效", False) from error
+        raise AssertionError("模型重试循环未返回")
+
 
 class SiliconFlowAdapter(ProviderAdapter):
     """保留 RC1 公共类名，兼容已有调用方和测试 seam。"""
