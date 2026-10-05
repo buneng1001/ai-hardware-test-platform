@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 27
+LATEST_SCHEMA_VERSION = 28
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -687,6 +687,124 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             INSERT OR IGNORE INTO schema_migrations (version) VALUES (27);
             PRAGMA user_version = 27;
             """
+        )
+
+    if current_version < 28:
+        # 在线报告只保留一个当前版本；过期、覆盖和附件清理都不能改写报告事实快照。
+        report_columns = {row[1] for row in connection.execute("PRAGMA table_info(online_reports)").fetchall()}
+        if "lifecycle_status" not in report_columns:
+            connection.execute(
+                """ALTER TABLE online_reports ADD COLUMN lifecycle_status TEXT NOT NULL DEFAULT 'current'
+                   CHECK (lifecycle_status IN ('current', 'stale', 'superseded'))"""
+            )
+        connection.executescript(
+            """
+            UPDATE online_reports
+            SET lifecycle_status = 'superseded'
+            WHERE id NOT IN (SELECT MAX(id) FROM online_reports GROUP BY test_group_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_online_reports_one_active_group
+                ON online_reports(test_group_id) WHERE lifecycle_status != 'superseded';
+            CREATE TABLE IF NOT EXISTS report_attachment_usages (
+                report_id INTEGER NOT NULL,
+                attachment_id INTEGER,
+                filename TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                size_bytes INTEGER NOT NULL,
+                PRIMARY KEY (report_id, attachment_id),
+                FOREIGN KEY (report_id) REFERENCES online_reports(id) ON DELETE CASCADE,
+                FOREIGN KEY (attachment_id) REFERENCES manual_test_result_attachments(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_report_attachment_usages_report ON report_attachment_usages(report_id);
+            """
+        )
+        trigger_tables = {
+            "test_group_source_cases",
+            "test_group_automation_cases",
+            "test_group_data_package_assignments",
+            "automation_execution_records",
+            "manual_test_result_batches",
+            "manual_test_results",
+            "manual_test_result_attachments",
+        }
+        available_tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        if trigger_tables <= available_tables:
+            connection.executescript(
+                """
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_group_member_added
+                AFTER INSERT ON test_group_source_cases BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = NEW.test_group_id AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_group_member_removed
+                AFTER DELETE ON test_group_source_cases BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = OLD.test_group_id AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_automation_scope_changed
+                AFTER INSERT ON test_group_automation_cases BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = NEW.test_group_id AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_automation_scope_removed
+                AFTER DELETE ON test_group_automation_cases BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = OLD.test_group_id AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_data_assignment_changed
+                AFTER INSERT ON test_group_data_package_assignments BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = NEW.test_group_id AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_data_assignment_removed
+                AFTER DELETE ON test_group_data_package_assignments BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = OLD.test_group_id AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_automation_execution
+                AFTER INSERT ON automation_execution_records BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = NEW.test_group_id AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_manual_result_created
+                AFTER INSERT ON manual_test_results BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = (
+                        SELECT test_group_id FROM manual_test_result_batches
+                        WHERE id = NEW.manual_test_result_batch_id
+                    )
+                      AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_manual_result_changed
+                AFTER UPDATE OF status, actual_result, notes, executed_at ON manual_test_results BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = (
+                        SELECT test_group_id FROM manual_test_result_batches
+                        WHERE id = NEW.manual_test_result_batch_id
+                    )
+                      AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_manual_result_removed
+                AFTER DELETE ON manual_test_results BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = (
+                        SELECT test_group_id FROM manual_test_result_batches
+                        WHERE id = OLD.manual_test_result_batch_id
+                    )
+                      AND lifecycle_status = 'current';
+                END;
+                CREATE TRIGGER IF NOT EXISTS report_stale_on_attachment_removed
+                AFTER DELETE ON manual_test_result_attachments BEGIN
+                    UPDATE online_reports SET lifecycle_status = 'stale'
+                    WHERE test_group_id = (
+                        SELECT batch.test_group_id FROM manual_test_results result
+                        JOIN manual_test_result_batches batch ON batch.id = result.manual_test_result_batch_id
+                        WHERE result.id = OLD.manual_test_result_id
+                    ) AND lifecycle_status = 'current';
+                END;
+                """
+            )
+        connection.executescript(
+            "INSERT OR IGNORE INTO schema_migrations (version) VALUES (28); PRAGMA user_version = 28;"
         )
 
 

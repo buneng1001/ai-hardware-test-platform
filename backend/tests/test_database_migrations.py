@@ -33,7 +33,7 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
         columns = {row[1] for row in connection.execute("PRAGMA table_info(runs)").fetchall()}
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
-    assert version == 27
+    assert version == 28
     assert "alignment_result" in columns
     with open_database() as connection:
         assert (
@@ -168,6 +168,20 @@ def test_version_seventeen_automation_cases_upgrade_without_losing_existing_cand
         assert connection.execute("SELECT COUNT(*) FROM automation_test_cases").fetchone()[0] == 2
 
 
+def test_version_twenty_eight_partial_migration_can_resume(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+    with open_database() as connection:
+        connection.execute("DROP TABLE report_attachment_usages")
+        connection.execute("PRAGMA user_version = 27")
+
+    with open_database() as connection:
+        attachment_usage_table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'report_attachment_usages'"
+        ).fetchone()
+        assert attachment_usage_table is not None
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 28
+
+
 def test_version_twenty_assignment_upgrade_removes_orphaned_group_relation(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
     connection = sqlite3.connect(tmp_path / "platform.sqlite3")
@@ -206,7 +220,7 @@ def test_version_twenty_assignment_upgrade_removes_orphaned_group_relation(tmp_p
             (1, 2),
         )
         assert connection.execute("SELECT COUNT(*) FROM test_group_data_package_assignments").fetchone()[0] == 0
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 27
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 28
         assert connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'automation_execution_records'"
         ).fetchone()

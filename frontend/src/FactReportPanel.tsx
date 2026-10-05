@@ -6,14 +6,22 @@ import {
 } from "./automationExecutionsApi";
 import {
   createFactReport,
+  cleanupReportUsedAttachments,
+  deleteFactReport,
   getFactReport,
+  getReportAttachmentCleanupImpact,
+  getReportHistory,
   retryFactReportAnalysis,
   type FactReport,
+  type ReportAttachmentCleanupImpact,
+  type ReportHistoryItem,
 } from "./factReportsApi";
 import {
   getManualTestResultPage,
   type ManualTestResultBatch,
 } from "./manualTestResultsApi";
+import { FactReportView } from "./FactReportView";
+import { ReportHistory } from "./ReportHistory";
 
 export function FactReportPanel({ groupId }: { groupId: number }) {
   const [executions, setExecutions] = useState<AutomationExecution[]>([]);
@@ -21,6 +29,10 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
   const [executionId, setExecutionId] = useState<number | null>(null);
   const [batchIds, setBatchIds] = useState<number[]>([]);
   const [report, setReport] = useState<FactReport | null>(null);
+  const [history, setHistory] = useState<ReportHistoryItem[]>([]);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [cleanupImpact, setCleanupImpact] =
+    useState<ReportAttachmentCleanupImpact | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -28,10 +40,17 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
     void Promise.all([
       listAutomationExecutions(groupId),
       getManualTestResultPage(groupId),
+      getReportHistory(groupId),
     ])
-      .then(([automation, manual]) => {
+      .then(async ([automation, manual, reportHistory]) => {
         setExecutions(automation.items);
         setBatches(manual.batches);
+        setHistory(reportHistory.items);
+        const activeReport = reportHistory.items.find(
+          (item) =>
+            item.record_type === "fact_report" && item.status !== "superseded",
+        );
+        if (activeReport) setReport(await getFactReport(activeReport.id));
       })
       .catch((error: unknown) =>
         setMessage(
@@ -72,14 +91,69 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
     setBusy(true);
     setMessage(null);
     try {
-      setReport(
-        await createFactReport(groupId, {
-          automation_execution_id: executionId,
-          manual_batch_ids: batchIds,
-        }),
-      );
+      const created = await createFactReport(groupId, {
+        automation_execution_id: executionId,
+        manual_batch_ids: batchIds,
+      });
+      setReport(created);
+      setCleanupImpact(null);
+      setHistory((await getReportHistory(groupId)).items);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "事实报告生成失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const searchHistory = async () => {
+    try {
+      setHistory((await getReportHistory(groupId, historyQuery)).items);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "历史记录加载失败");
+    }
+  };
+
+  const prepareCleanup = async () => {
+    if (!report) return;
+    try {
+      setCleanupImpact(await getReportAttachmentCleanupImpact(report.id));
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "附件清理影响加载失败",
+      );
+    }
+  };
+
+  const cleanupAttachments = async () => {
+    if (!report) return;
+    setBusy(true);
+    try {
+      await cleanupReportUsedAttachments(report.id);
+      setReport(await getFactReport(report.id));
+      setCleanupImpact(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "附件清理失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeReport = async () => {
+    if (
+      !report ||
+      !window.confirm(
+        "删除在线报告不会删除自动化、人工记录或数据包。是否继续？",
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      await deleteFactReport(report.id);
+      setReport(null);
+      setCleanupImpact(null);
+      setHistory((await getReportHistory(groupId)).items);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "删除在线报告失败");
     } finally {
       setBusy(false);
     }
@@ -154,79 +228,22 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
       </button>
       {message && <p role="status">{message}</p>}
       {report && (
-        <>
-          {report.snapshot.warnings.map((warning) => (
-            <p key={warning} role="status">
-              {warning}
-            </p>
-          ))}
-          <p>阶段推进结论：{report.snapshot.stage_progress.conclusion}</p>
-          <p>AI 分析：{report.analysis.message}</p>
-          {report.analysis.output && (
-            <section aria-label="AI 分析建议">
-              <p>
-                AI 阶段建议：
-                {report.analysis.output.stage_recommendation.suggestion}
-              </p>
-              <AnalysisItems
-                title="高风险问题"
-                items={report.analysis.output.risks}
-              />
-              <AnalysisItems
-                title="补充验证"
-                items={report.analysis.output.additional_verifications}
-              />
-              <AnalysisItems
-                title="回归建议"
-                items={report.analysis.output.regression_recommendations}
-              />
-            </section>
-          )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void retryAnalysis()}
-          >
-            重试报告分析
-          </button>
-          <iframe
-            title="事实报告预览"
-            src={`/api/fact-reports/${report.id}.html`}
-          />
-          <p>
-            <a href={`/api/fact-reports/${report.id}.html`} download>
-              下载 HTML 报告
-            </a>{" "}
-            ·{" "}
-            <a href={`/api/fact-reports/${report.id}.txt`} download>
-              下载纯文字报告
-            </a>
-          </p>
-        </>
+        <FactReportView
+          report={report}
+          cleanupImpact={cleanupImpact}
+          busy={busy}
+          onPrepareCleanup={() => void prepareCleanup()}
+          onCleanup={() => void cleanupAttachments()}
+          onRetryAnalysis={() => void retryAnalysis()}
+          onDelete={() => void removeReport()}
+        />
       )}
-    </section>
-  );
-}
-
-function AnalysisItems({
-  title,
-  items,
-}: {
-  title: string;
-  items: { content: string }[];
-}) {
-  return (
-    <section>
-      <h5>{title}</h5>
-      {items.length ? (
-        <ul>
-          {items.map((item) => (
-            <li key={item.content}>{item.content}</li>
-          ))}
-        </ul>
-      ) : (
-        <p>无</p>
-      )}
+      <ReportHistory
+        items={history}
+        query={historyQuery}
+        onQueryChange={setHistoryQuery}
+        onSearch={() => void searchHistory()}
+      />
     </section>
   );
 }

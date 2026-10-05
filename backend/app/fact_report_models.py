@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -49,3 +50,37 @@ class FactReport(BaseModel):
     snapshot: dict[str, object]
     created_at: datetime
     analysis: ReportAnalysis
+    lifecycle_status: Literal["current", "stale", "superseded"]
+    attachment_summary: "ReportAttachmentSummary"
+
+
+class ReportAttachment(BaseModel):
+    id: int | None
+    filename: str
+    content_type: str
+    size_bytes: int
+    storage_status: Literal["stored", "cleaned"]
+    usage_status: Literal["used"] = "used"
+
+
+class ReportAttachmentSummary(BaseModel):
+    attachment_count: int
+    total_size_bytes: int
+    attachments: list[ReportAttachment]
+
+
+class ReportAttachmentCleanupImpact(ReportAttachmentSummary):
+    report_id: int
+    message: str
+
+
+class ReportHistoryItem(BaseModel):
+    record_type: Literal["automation_execution", "manual_result", "fact_report"]
+    id: int
+    label: str
+    status: str
+    occurred_at: datetime
+
+
+class ReportHistoryPage(BaseModel):
+    items: list[ReportHistoryItem]

@@ -14,6 +14,7 @@ from app.fact_report_models import FactReport, FactReportCreate
 from app.fact_report_rendering import STATUS_LABELS, render_html, render_text
 from app.manual_test_results import _batch_from_row
 from app.report_analysis import analysis_is_enabled, enqueue_analysis, latest_analysis, run_analysis_in_background
+from app.report_lifecycle import attachment_summary, record_attachment_usage
 from app.test_group_queries import get_group_row
 
 router = APIRouter(tags=["fact reports"])
@@ -234,6 +235,7 @@ def _from_row(connection: sqlite3.Connection, row: sqlite3.Row) -> FactReport:
     values["manual_batch_ids"] = json.loads(values["manual_batch_ids"])
     values["snapshot"] = json.loads(values["snapshot"])
     values["analysis"] = latest_analysis(connection, values["id"])
+    values["attachment_summary"] = attachment_summary(connection, values["id"])
     return FactReport.model_validate(values)
 
 
@@ -249,6 +251,11 @@ def create_fact_report(group_id: int, command: FactReportCreate, background_task
     with open_database() as connection:
         snapshot = _build_snapshot(connection, group_id, command)
         group = get_group_row(connection, group_id)
+        connection.execute(
+            """UPDATE online_reports SET lifecycle_status = 'superseded'
+               WHERE test_group_id = ? AND lifecycle_status != 'superseded'""",
+            (group_id,),
+        )
         report_id = connection.execute(
             """INSERT INTO online_reports
                (test_group_id, product_version_id, automation_execution_id, manual_batch_ids, snapshot, created_at)
@@ -262,6 +269,7 @@ def create_fact_report(group_id: int, command: FactReportCreate, background_task
                 _now(),
             ),
         ).lastrowid
+        record_attachment_usage(connection, report_id, command.manual_batch_ids)
         if analysis_is_enabled():
             enqueue_analysis(connection, report_id)
             background_tasks.add_task(run_analysis_in_background, report_id)
