@@ -18,6 +18,28 @@ class FactReportCreate(BaseModel):
         return self
 
 
+class ReportAnalysisItem(BaseModel):
+    content: str = Field(min_length=1, max_length=1000)
+    evidence_refs: list[str] = Field(min_length=1, max_length=20)
+
+
+class ReportStageRecommendation(ReportAnalysisItem):
+    suggestion: str = Field(min_length=1, max_length=300)
+
+
+class ReportAnalysisOutput(BaseModel):
+    risks: list[ReportAnalysisItem] = Field(max_length=20)
+    additional_verifications: list[ReportAnalysisItem] = Field(max_length=20)
+    regression_recommendations: list[ReportAnalysisItem] = Field(max_length=20)
+    stage_recommendation: ReportStageRecommendation
+
+
+class ReportAnalysis(BaseModel):
+    status: str
+    message: str
+    output: ReportAnalysisOutput | None
+
+
 class FactReport(BaseModel):
     id: int
     test_group_id: int
@@ -26,3 +48,4 @@ class FactReport(BaseModel):
     manual_batch_ids: list[int]
     snapshot: dict[str, object]
     created_at: datetime
+    analysis: ReportAnalysis

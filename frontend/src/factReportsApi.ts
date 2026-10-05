@@ -12,6 +12,22 @@ export type FactReport = {
     stage_progress: { conclusion: string; basis: string[] };
     ai_analysis: { status: string; message: string };
   };
+  analysis: ReportAnalysis;
+};
+
+export type ReportAnalysis = {
+  status: string;
+  message: string;
+  output: {
+    risks: { content: string; evidence_refs: string[] }[];
+    additional_verifications: { content: string; evidence_refs: string[] }[];
+    regression_recommendations: { content: string; evidence_refs: string[] }[];
+    stage_recommendation: {
+      suggestion: string;
+      content: string;
+      evidence_refs: string[];
+    };
+  } | null;
 };
 
 export function createFactReport(
@@ -23,4 +39,14 @@ export function createFactReport(
     headers: jsonHeaders,
     body: JSON.stringify(input),
   });
+}
+
+export function retryFactReportAnalysis(reportId: number) {
+  return request<ReportAnalysis>(`/api/fact-reports/${reportId}/analysis`, {
+    method: "POST",
+  });
+}
+
+export function getFactReport(reportId: number) {
+  return request<FactReport>(`/api/fact-reports/${reportId}`);
 }

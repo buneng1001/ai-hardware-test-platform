@@ -25,13 +25,27 @@ def render_text(report: FactReport) -> str:
         *data["stage_progress"]["basis"],
         "",
         "AI 区域状态",
-        data["ai_analysis"]["message"],
+        report.analysis.message,
         "",
         "范围总览",
         json.dumps(data["scope_overview"], ensure_ascii=False),
         "",
         "模块详情",
     ]
+    if report.analysis.output:
+        output = report.analysis.output
+        lines.extend(
+            [
+                "AI 高风险问题",
+                *([f"- {item.content}" for item in output.risks] or ["无"]),
+                "AI 补充验证",
+                *([f"- {item.content}" for item in output.additional_verifications] or ["无"]),
+                "AI 回归建议",
+                *([f"- {item.content}" for item in output.regression_recommendations] or ["无"]),
+                "AI 阶段推进建议",
+                output.stage_recommendation.suggestion,
+            ]
+        )
     for module in data["modules"]:
         lines.extend([f"\n模块：{module['name']}", f"当前事实结论：{module['conclusion']}"])
         for item in module["records"]:
