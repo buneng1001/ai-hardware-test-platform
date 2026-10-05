@@ -187,8 +187,14 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
     provider, model, api_key, is_mock = configuration
     if is_mock:
         return _save(
-            connection, report_id, analysis_input, provider=provider, model=model, is_mock=True,
-            output=build_mock_analysis(analysis_input), error=None,
+            connection,
+            report_id,
+            analysis_input,
+            provider=provider,
+            model=model,
+            is_mock=True,
+            output=build_mock_analysis(analysis_input),
+            error=None,
         )
     try:
         raw_output = get_provider_adapter(provider).generate_json(
@@ -199,13 +205,19 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
                 "只返回报告分析 JSON：risks、additional_verifications、regression_recommendations 和 "
                 "stage_recommendation。"
                 "每项都必须附现有 evidence_refs；只能给建议，不能补充阈值、修改事实或实施质量门禁。"
-            )
+            ),
         )
         output = _validate_output(raw_output, valid_refs)
     except (SiliconFlowError, ValidationError, ValueError) as error:
         return _save(
-            connection, report_id, analysis_input, provider=provider, model=model, is_mock=False,
-            output=None, error="模型分析结构无效" if isinstance(error, ValidationError | ValueError) else str(error),
+            connection,
+            report_id,
+            analysis_input,
+            provider=provider,
+            model=model,
+            is_mock=False,
+            output=None,
+            error="模型分析结构无效" if isinstance(error, ValidationError | ValueError) else str(error),
         )
     except Exception:
         return _save(
@@ -219,8 +231,14 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
             error="模型服务不可用",
         )
     return _save(
-        connection, report_id, analysis_input, provider=provider, model=model, is_mock=False,
-        output=output, error=None,
+        connection,
+        report_id,
+        analysis_input,
+        provider=provider,
+        model=model,
+        is_mock=False,
+        output=output,
+        error=None,
     )
 
 
