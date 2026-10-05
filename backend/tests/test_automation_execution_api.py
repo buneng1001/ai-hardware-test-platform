@@ -45,8 +45,8 @@ def _create_ready_group(client: TestClient, package_ids: list[int]) -> tuple[int
             f"/api/product-versions/{version['id']}/source-test-case-imports",
             json={
                 "source_filename": "cases.csv",
-                "field_mapping": {"case_number": "编号", "title": "标题"},
-                "rows": [{"编号": "SRC-001", "标题": "录制"}],
+                "field_mapping": {"case_number": "编号", "title": "标题", "test_type": "类型", "module": "模块"},
+                "rows": [{"编号": "SRC-001", "标题": "录制", "类型": "mixed", "模块": "采集"}],
             },
         ).status_code
         == 201
@@ -108,6 +108,7 @@ def test_execution_creates_immutable_snapshots_and_fault_data_fails_case(client)
     assert first_record["status"] == "completed"
     assert first_record["summary"] == {"passed": 1, "failed": 0, "blocked": 0, "not_executed": 0}
     assert first_record["group_snapshot"]["name"] == "基础回归"
+    assert first_record["case_results"][0]["case_snapshot"]["module"] == "采集"
     assert first_record["case_results"][0]["status"] == "passed"
 
     second_normal = client.post(f"/api/test-groups/{group_id}/automation-executions")
@@ -154,6 +155,83 @@ def test_execution_creates_immutable_snapshots_and_fault_data_fails_case(client)
     assert cancelled.json()["execution_number"] == 4
     assert cancelled.json()["status"] == "cancelled"
     assert cancelled.json()["summary"] == {"passed": 0, "failed": 0, "blocked": 0, "not_executed": 1}
+
+
+def test_fact_report_combines_snapshots_marks_conflicts_and_downloads(client):
+    normal_package_id = _create_data_package(client)
+    group_id, _ = _create_ready_group(client, [normal_package_id])
+    source_case_id = client.get(f"/api/test-groups/{group_id}").json()["source_test_cases"]
+    if not source_case_id:
+        version_id = client.get(f"/api/test-groups/{group_id}").json()["product_version_id"]
+        source_case_id = client.get(f"/api/product-versions/{version_id}/source-test-cases").json()["items"]
+        assert (
+            client.post(
+                f"/api/test-groups/{group_id}/source-test-cases", json={"case_ids": [source_case_id[0]["id"]]}
+            ).status_code
+            == 200
+        )
+    else:
+        source_case_id = source_case_id
+    execution = client.post(f"/api/test-groups/{group_id}/automation-executions").json()
+    source_id = client.get(f"/api/product-versions/{execution['product_version_id']}/source-test-cases").json()[
+        "items"
+    ][0]["id"]
+    batch = client.post(
+        f"/api/test-groups/{group_id}/manual-test-result-batches",
+        json={"results": [{"source_test_case_id": source_id, "status": "failed", "actual_result": "按键无响应"}]},
+    ).json()
+    manual_only = client.post(
+        f"/api/test-groups/{group_id}/fact-reports", json={"manual_batch_ids": [batch["id"]]}
+    ).json()
+    assert manual_only["snapshot"]["basic_information"]["contains"] == "人工结果"
+
+    created = client.post(
+        f"/api/test-groups/{group_id}/fact-reports",
+        json={"automation_execution_id": execution["id"], "manual_batch_ids": [batch["id"]]},
+    )
+    assert created.status_code == 201
+    report = created.json()
+    assert report["snapshot"]["basic_information"]["contains"] == "自动化和人工结果"
+    assert report["snapshot"]["modules"][0]["name"] == "采集"
+    assert report["snapshot"]["cross_module_issues"][0]["case_number"] == "SRC-001"
+    text = client.get(f"/api/fact-reports/{report['id']}.txt").text
+    markup = client.get(f"/api/fact-reports/{report['id']}.html").text
+    assert "结果不一致" in text
+    assert [
+        text.index(title)
+        for title in ("测试基本信息", "阶段推进事实依据", "AI 区域状态", "范围总览", "模块详情", "跨模块问题")
+    ] == sorted(
+        text.index(title)
+        for title in ("测试基本信息", "阶段推进事实依据", "AI 区域状态", "范围总览", "模块详情", "跨模块问题")
+    )
+    assert "模块详情" in markup
+    assert markup.index("阶段推进事实依据") < markup.index("模块详情")
+    assert (
+        client.put(
+            f"/api/manual-test-result-batches/{batch['id']}",
+            json={"results": [{"source_test_case_id": source_id, "status": "passed"}]},
+        ).status_code
+        == 200
+    )
+    persisted = client.get(f"/api/fact-reports/{report['id']}").json()
+    assert any(item["status"] == "failed" for item in persisted["snapshot"]["modules"][0]["records"])
+    assert client.patch(f"/api/test-groups/{group_id}", json={"description": "当前配置已更新"}).status_code == 200
+    refreshed = client.post(
+        f"/api/test-groups/{group_id}/fact-reports",
+        json={"automation_execution_id": execution["id"]},
+    ).json()
+    assert refreshed["snapshot"]["warnings"] == ["当前记录来自历史配置，报告将使用历史快照。"]
+    other_group = client.post(
+        f"/api/product-versions/{execution['product_version_id']}/test-groups", json={"name": "另一测试组"}
+    ).json()
+    assert (
+        client.post(
+            f"/api/test-groups/{other_group['id']}/fact-reports",
+            json={"automation_execution_id": execution["id"]},
+        ).status_code
+        == 422
+    )
+    assert client.post(f"/api/test-groups/{group_id}/fact-reports", json={}).status_code == 422
 
 
 def test_preparation_detects_cases_edited_after_group_assignment(client):

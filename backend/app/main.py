@@ -15,6 +15,7 @@ from app.data_packages import router as data_packages_router
 from app.database import check_database
 from app.diagnosis import router as diagnosis_router
 from app.evidence_package import router as evidence_router
+from app.fact_reports import router as fact_reports_router
 from app.import_zip import cleanup_expired_staging
 from app.import_zip import router as import_zip_router
 from app.manual_check_results import router as manual_check_results_router
@@ -51,6 +52,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="智能硬件测试执行与诊断平台", version="0.1.0", lifespan=lifespan)
 app.include_router(collection_tasks_router)
 app.include_router(data_packages_router)
+app.include_router(fact_reports_router)
 app.include_router(ai_evaluation_router)
 app.include_router(manual_check_results_router)
 app.include_router(manual_result_import_router)

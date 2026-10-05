@@ -28,7 +28,8 @@ def _now() -> str:
 def _automation_cases(connection: sqlite3.Connection, group_id: int) -> list[sqlite3.Row]:
     return connection.execute(
         """
-        SELECT item.position, automation.*, source.case_number AS source_case_number
+        SELECT item.position, automation.*, source.case_number AS source_case_number,
+               source.module AS source_module, source.test_item AS source_test_item
         FROM test_group_automation_cases item
         JOIN automation_test_cases automation ON automation.id = item.automation_test_case_id
         JOIN source_test_cases source ON source.id = automation.source_test_case_id
@@ -159,6 +160,8 @@ def _case_snapshot(case: sqlite3.Row, packages: list[dict[str, object]]) -> dict
         "automation_test_case_id": case["id"],
         "case_number": case["case_number"],
         "source_case_number": case["source_case_number"],
+        "module": case["source_module"],
+        "test_item": case["source_test_item"],
         "title": case["title"],
         "input": case["input"],
         "steps": case["steps"],
