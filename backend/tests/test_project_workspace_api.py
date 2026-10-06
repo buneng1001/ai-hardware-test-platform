@@ -166,19 +166,13 @@ def _record(case_number: str, source: str, status: str, title: str = "验证") -
 
 
 def _create_version_group(client, project_id: int, version: str, group: str) -> tuple[dict, dict]:
-    product_version = client.post(
-        f"/api/projects/{project_id}/product-versions", json={"version": version}
-    ).json()
-    test_group = client.post(
-        f"/api/product-versions/{product_version['id']}/test-groups", json={"name": group}
-    ).json()
+    product_version = client.post(f"/api/projects/{project_id}/product-versions", json={"version": version}).json()
+    test_group = client.post(f"/api/product-versions/{product_version['id']}/test-groups", json={"name": group}).json()
     return product_version, test_group
 
 
 def test_project_trends_aggregate_only_final_reports_and_keep_stale_points(client, tmp_path):
-    project = client.post(
-        "/api/projects", json={"name": "IRIS", "product_name": "Recorder", "description": ""}
-    ).json()
+    project = client.post("/api/projects", json={"name": "IRIS", "product_name": "Recorder", "description": ""}).json()
     version, group = _create_version_group(client, project["id"], "EVT1", "回归")
     report_id = _insert_final_report(
         tmp_path,
@@ -231,9 +225,7 @@ def test_project_trends_aggregate_only_final_reports_and_keep_stale_points(clien
 
 
 def test_project_trends_filter_by_version_module_group_and_case(client, tmp_path):
-    project = client.post(
-        "/api/projects", json={"name": "Atlas", "product_name": "Camera", "description": ""}
-    ).json()
+    project = client.post("/api/projects", json={"name": "Atlas", "product_name": "Camera", "description": ""}).json()
     first_version, first_group = _create_version_group(client, project["id"], "EVT1", "冒烟")
     second_version, second_group = _create_version_group(client, project["id"], "EVT2", "回归")
     _insert_final_report(
@@ -265,15 +257,16 @@ def test_project_trends_filter_by_version_module_group_and_case(client, tmp_path
     assert response.json()["points"][0]["report_id"] == second_report
     assert response.json()["points"][0]["counts"]["manual"]["failed"] == 1
     empty_version, _ = _create_version_group(client, project["id"], "EVT3", "未执行")
-    assert client.get(
-        f"/api/projects/{project['id']}/trends", params={"product_version_id": empty_version["id"]}
-    ).json()["status"] == "filtered_empty"
+    assert (
+        client.get(f"/api/projects/{project['id']}/trends", params={"product_version_id": empty_version["id"]}).json()[
+            "status"
+        ]
+        == "filtered_empty"
+    )
 
 
 def test_project_comparison_requires_explicit_matching_scope_and_reports_changes(client, tmp_path):
-    project = client.post(
-        "/api/projects", json={"name": "Nova", "product_name": "Sensor", "description": ""}
-    ).json()
+    project = client.post("/api/projects", json={"name": "Nova", "product_name": "Sensor", "description": ""}).json()
     left_version, left_group = _create_version_group(client, project["id"], "EVT1", "基线")
     right_version, right_group = _create_version_group(client, project["id"], "EVT2", "回归")
     left_report = _insert_final_report(

@@ -67,7 +67,7 @@ def _report_rows(
         FROM online_reports report
         JOIN product_versions version ON version.id = report.product_version_id
         JOIN test_groups test_group ON test_group.id = report.test_group_id
-        WHERE {' AND '.join(clauses)}
+        WHERE {" AND ".join(clauses)}
         ORDER BY report.created_at, report.id
         """,
         parameters,
@@ -104,11 +104,11 @@ def _database_report_counts(
             source_parameters.append(source_name)
     results = connection.execute(
         f"""
-        SELECT report.id AS report_id, {', '.join(columns)}
+        SELECT report.id AS report_id, {", ".join(columns)}
         FROM online_reports report
         JOIN json_each(report.snapshot, '$.modules') module
         JOIN json_each(module.value, '$.records') record
-        WHERE {' AND '.join(clauses)}
+        WHERE {" AND ".join(clauses)}
         GROUP BY report.id
         """,
         [*source_parameters, *filter_parameters],
@@ -326,10 +326,9 @@ def compare_project_reports(project_id: int, request: ReportComparisonRequest) -
         for number in sorted(set(left_by_number) & set(right_by_number))
         if left_by_number[number] != right_by_number[number]
     ]
+
     def has_risk(module: TrendModule) -> bool:
-        return any(
-            source.failed or source.blocked for source in (module.counts.automation, module.counts.manual)
-        )
+        return any(source.failed or source.blocked for source in (module.counts.automation, module.counts.manual))
 
     risks = [name for name in shared if has_risk(left_modules[name]) and has_risk(right_modules[name])]
     return ReportComparison(
