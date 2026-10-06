@@ -14,7 +14,6 @@ from app.project_models import (
     ProjectDeletionImpact,
     ProjectDetail,
     ProjectSummary,
-    ProjectTrend,
     VersionImpactItem,
 )
 
@@ -252,10 +251,3 @@ def delete_project(project_id: int, confirm: bool = False) -> Response:
         _get_project(connection, project_id)
         connection.execute("DELETE FROM projects WHERE id = ?", (project_id,))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/api/projects/{project_id}/trends", response_model=ProjectTrend)
-def get_project_trends(project_id: int) -> ProjectTrend:
-    with open_database() as connection:
-        _get_project(connection, project_id)
-    return ProjectTrend(project_id=project_id, status="empty", message="暂无趋势数据", points=[])

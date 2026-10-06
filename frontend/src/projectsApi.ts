@@ -49,9 +49,81 @@ export type VersionDeletionImpact = {
 
 export type ProjectTrend = {
   project_id: number;
-  status: "empty";
+  status: "empty" | "filtered_empty" | "single" | "ready";
   message: string;
-  points: Array<Record<string, unknown>>;
+  points: ProjectTrendPoint[];
+};
+
+export type ResultCounts = {
+  passed: number;
+  failed: number;
+  blocked: number;
+  not_executed: number;
+};
+
+export type ResultSourceCounts = {
+  automation: ResultCounts;
+  manual: ResultCounts;
+};
+
+export type ProjectTrendPoint = {
+  report_id: number;
+  product_version_id: number;
+  product_version: string;
+  test_group_id: number;
+  test_group: string;
+  created_at: string;
+  lifecycle_status: "current" | "stale" | "superseded";
+  counts: ResultSourceCounts;
+  modules: Array<{
+    name: string;
+    conclusion: string;
+    counts: ResultSourceCounts;
+  }>;
+};
+
+export type ReportComparison = {
+  project_id: number;
+  left: {
+    kind: "report" | "product_version";
+    id: number;
+    label: string;
+    report_ids: number[];
+  };
+  right: {
+    kind: "report" | "product_version";
+    id: number;
+    label: string;
+    report_ids: number[];
+  };
+  counts: { left: ResultSourceCounts; right: ResultSourceCounts };
+  modules: Array<{
+    name: string;
+    left: ResultSourceCounts;
+    right: ResultSourceCounts;
+    left_conclusion: string;
+    right_conclusion: string;
+  }>;
+  added_modules: string[];
+  removed_modules: string[];
+  added_scope: Array<{
+    case_number: string;
+    title: string;
+    module: string;
+    sources: string[];
+  }>;
+  removed_scope: Array<{
+    case_number: string;
+    title: string;
+    module: string;
+    sources: string[];
+  }>;
+  unaligned_scope: Array<{
+    case_number: string;
+    left_modules: string[];
+    right_modules: string[];
+  }>;
+  unresolved_risk_modules: string[];
 };
 
 export type ProjectSort = "updated_desc" | "name_asc" | "created_asc";
@@ -107,8 +179,40 @@ export function getProject(projectId: number) {
   return request<ProjectDetail>(`/api/projects/${projectId}`);
 }
 
-export function getProjectTrend(projectId: number) {
-  return request<ProjectTrend>(`/api/projects/${projectId}/trends`);
+export function getProjectTrend(
+  projectId: number,
+  filters: {
+    productVersionId?: string;
+    module?: string;
+    testGroupId?: string;
+    caseNumber?: string;
+  } = {},
+) {
+  const query = new URLSearchParams();
+  if (filters.productVersionId)
+    query.set("product_version_id", filters.productVersionId);
+  if (filters.module?.trim()) query.set("module", filters.module.trim());
+  if (filters.testGroupId) query.set("test_group_id", filters.testGroupId);
+  if (filters.caseNumber?.trim())
+    query.set("case_number", filters.caseNumber.trim());
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return request<ProjectTrend>(`/api/projects/${projectId}/trends${suffix}`);
+}
+
+export function compareProjectReports(
+  projectId: number,
+  command:
+    | { left_report_id: number; right_report_id: number }
+    | { left_product_version_id: number; right_product_version_id: number },
+) {
+  return request<ReportComparison>(
+    `/api/projects/${projectId}/report-comparisons`,
+    {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify(command),
+    },
+  );
 }
 
 export function createProductVersion(

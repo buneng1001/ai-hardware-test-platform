@@ -66,11 +66,85 @@
 .project-card,
 .version-card,
 .trend-empty,
+.project-trends,
 .opened-version {
   border: 1px solid #354665;
   border-radius: 14px;
   padding: 1rem;
   background: #111d34;
+}
+.trend-filters,
+.comparison-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.65rem;
+  margin: 0.9rem 0;
+}
+.trend-filters label,
+.comparison-form label {
+  display: grid;
+  gap: 0.3rem;
+}
+.trend-filters input,
+.trend-filters select,
+.comparison-form select {
+  border: 1px solid #465879;
+  border-radius: 8px;
+  background: #0a1325;
+  color: #f8fafc;
+  padding: 0.55rem;
+}
+.trend-point,
+.comparison-result {
+  margin-top: 0.75rem;
+  border-top: 1px solid #354665;
+  padding-top: 0.75rem;
+}
+.trend-point h5,
+.trend-point p,
+.comparison-result p {
+  margin: 0.25rem 0;
+}
+.trend-module-list article,
+.comparison-module-list article {
+  border-top: 1px solid #354665;
+  margin-top: 0.5rem;
+}
+.comparison-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+.comparison-counts h5 {
+  margin-bottom: 0.25rem;
+}
+.trend-counts {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+.trend-chart {
+  margin: 0.75rem 0;
+}
+.trend-chart svg {
+  display: block;
+  width: min(100%, 34rem);
+  height: auto;
+}
+.trend-chart-axis,
+.trend-chart-passed,
+.trend-chart-risk {
+  fill: none;
+  stroke-width: 3;
+}
+.trend-chart-axis {
+  stroke: #7b8ca9;
+  stroke-width: 1;
+}
+.trend-chart-passed {
+  stroke: #60a5fa;
+}
+.trend-chart-risk {
+  stroke: #fb923c;
 }
 
 .source-case-panel,

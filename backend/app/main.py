@@ -22,6 +22,7 @@ from app.manual_check_results import router as manual_check_results_router
 from app.manual_result_import import router as manual_result_import_router
 from app.manual_test_result_attachments import router as manual_test_result_attachments_router
 from app.manual_test_results import router as manual_test_results_router
+from app.project_trends import router as project_trends_router
 from app.project_workspace import router as project_workspace_router
 from app.report import router as report_router
 from app.report_analysis import router as report_analysis_router
@@ -69,6 +70,7 @@ app.include_router(evidence_router)
 app.include_router(diagnosis_router)
 app.include_router(settings_router)
 app.include_router(project_workspace_router)
+app.include_router(project_trends_router)
 app.include_router(source_test_cases_router)
 app.include_router(automation_test_cases_router)
 app.include_router(automation_case_history_router)
