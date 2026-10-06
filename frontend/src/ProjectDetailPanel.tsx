@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import { ProductVersionList } from "./ProductVersionList";
+import { ProjectTrendPanel } from "./ProjectTrendPanel";
 import type {
   ProductVersion,
   ProjectDetail,
@@ -57,10 +58,7 @@ export function ProjectDetailPanel({
             <h3>{project.name}</h3>
             <p>{project.description || "未填写项目描述"}</p>
           </header>
-          <section className="trend-empty" aria-label="项目趋势">
-            <h4>项目趋势</h4>
-            <p>{trend?.message ?? "正在加载趋势…"}</p>
-          </section>
+          <ProjectTrendPanel project={project} trend={trend} />
           <form
             className="workspace-form version-create"
             onSubmit={(event) => void submitVersion(event)}
