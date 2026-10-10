@@ -171,10 +171,7 @@ function VariantA({
           </div>
         </aside>
         <main>
-          <div className="prototype-topline">
-            <span>v0.2.0 Web Demo</span>
-            <Status tone="good">草稿自动保留在本次 Demo</Status>
-          </div>
+          <div className="prototype-topline" />
           <ManualResultsPage
             drafts={workspaceProps.manualDrafts}
             setDraft={workspaceProps.setManualDraft}
@@ -223,10 +220,7 @@ function VariantA({
         </div>
       </aside>
       <main>
-        <div className="prototype-topline">
-          <span>v0.2.0 Web Demo</span>
-          <Status tone="good">本地假数据</Status>
-        </div>
+        <div className="prototype-topline" />
         <WorkspaceContent {...workspaceProps} />
       </main>
     </div>
@@ -309,9 +303,13 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
   );
   return (
     <div className="prototype-page">
-      <div className="prototype-banner">
-        原型演示 · A 方案 · 仅本地假数据 · 不会写入后端{" "}
-        {runCount > 0 && <span>· 已模拟执行 {runCount} 次</span>}
+      <div
+        className={`prototype-banner${
+          runCount === 0 ? " prototype-banner--placeholder" : ""
+        }`}
+        aria-hidden={runCount === 0}
+      >
+        {runCount > 0 ? `已模拟执行 ${runCount} 次` : "\u200b"}
       </div>
       {view}
     </div>

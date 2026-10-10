@@ -8,12 +8,42 @@ import {
 import { afterEach, expect, test, vi } from "vitest";
 
 import { App } from "./App";
+import { FrontendRoot } from "./FrontendRoot";
 import { MANIFEST_TEMPLATE } from "./manifestTemplate";
 
 afterEach(() => {
   cleanup();
   window.history.replaceState({}, "", "#dashboard");
   vi.unstubAllGlobals();
+});
+
+test("前端入口按 Demo 原流程进入首页、项目列表和工作台", async () => {
+  render(<FrontendRoot />);
+
+  expect(
+    screen.getByRole("heading", { name: "智能硬件自动化用例执行平台" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("navigation", { name: "主导航" })).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
+  expect(screen.getByRole("heading", { name: "项目列表" })).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: /IRIS 头环/ }));
+  expect(
+    screen.getByRole("heading", { name: "EVT1 测试工作区" }),
+  ).toBeVisible();
+
+  for (const copy of [
+    "原型演示",
+    "A 方案",
+    "仅本地假数据",
+    "不会写入后端",
+    "v0.2.0 Web Demo",
+    "本地假数据",
+    "草稿自动保留在本次 Demo",
+  ]) {
+    expect(document.body).not.toHaveTextContent(copy);
+  }
 });
 
 test("测试工程师能在状态页看到后端和数据库可用", async () => {
