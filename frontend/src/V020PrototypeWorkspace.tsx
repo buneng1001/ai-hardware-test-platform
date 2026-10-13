@@ -1,100 +1,28 @@
 import {
-  CaseTable,
   Status,
-  cases,
   dataAssets,
-  dataPackages,
-  type CaseFilter,
   type DataFilter,
   type WorkspaceProps,
 } from "./V020PrototypeShared";
+import { CasesSection } from "./V020PrototypeCases";
+import { GroupSettingsSection } from "./V020PrototypeGroups";
 
-export function ManualResultsPage({
-  drafts,
-  setDraft,
-  onBack,
-}: {
-  drafts: Record<string, { result: string; note: string }>;
-  setDraft: (caseId: string, field: "result" | "note", value: string) => void;
-  onBack: () => void;
-}) {
-  return (
-    <div className="prototype-manual-content">
-      <div className="prototype-kicker">人工测试结果</div>
-      <h1>逐条录入人工测试</h1>
-      <p className="prototype-muted">
-        测试组：EVT1
-        基础录制回归。可以先录入几条，保存后离开；下次进入仍能继续填写。
-      </p>
-      <div className="prototype-manual-list">
-        {cases
-          .filter((item) => !item.automation || item.id === "TC-REC-001")
-          .map((item) => (
-            <div className="prototype-manual-row" key={item.id}>
-              <div>
-                <a href="#source">{item.id}</a>
-                <h3>{item.title}</h3>
-              </div>
-              <label>
-                测试结果
-                <select
-                  value={drafts[item.id]?.result ?? ""}
-                  onChange={(event) =>
-                    setDraft(item.id, "result", event.target.value)
-                  }
-                >
-                  <option value="">未填写</option>
-                  <option value="passed">通过</option>
-                  <option value="failed">失败</option>
-                  <option value="blocked">阻塞</option>
-                </select>
-              </label>
-              <label>
-                测试记录
-                <textarea
-                  value={drafts[item.id]?.note ?? ""}
-                  onChange={(event) =>
-                    setDraft(item.id, "note", event.target.value)
-                  }
-                  placeholder="输入本条人工测试记录"
-                />
-              </label>
-            </div>
-          ))}
-      </div>
-      <div className="prototype-actions">
-        <button>保存当前修改</button>
-        <button className="prototype-secondary" onClick={onBack}>
-          返回执行与结果
-        </button>
-      </div>
-    </div>
-  );
-}
-
-export function WorkspaceContent({
-  section,
-  selected,
-  onToggle,
-  onSelectAll,
-  onInvertSelection,
-  onRun,
-  caseView,
-  setCaseView,
-  groupView,
-  setGroupView,
-  selectedGroup,
-  setSelectedGroup,
-  dataAssignments,
-  setDataAssignment,
-  setSection,
-  dataFilter,
-  setDataFilter,
-  caseFilter,
-  setCaseFilter,
-  onOpenManual,
-}: WorkspaceProps) {
-  const selectedCount = selected.length;
+export function WorkspaceContent(props: WorkspaceProps) {
+  const {
+    section,
+    onRun,
+    selectedGroup,
+    setSelectedGroup,
+    groups,
+    setSection,
+    dataFilter,
+    setDataFilter,
+    onOpenManual,
+  } = props;
+  const copyDataId = (dataId: string) => {
+    if (!navigator.clipboard) return;
+    void navigator.clipboard.writeText(dataId).catch(() => undefined);
+  };
   if (section === "overview")
     return (
       <>
@@ -134,96 +62,7 @@ export function WorkspaceContent({
         </p>
       </>
     );
-  if (section === "cases")
-    return (
-      <>
-        <div className="prototype-kicker">第 1 步 / 用例资产</div>
-        <h2>需求 / 测试用例</h2>
-        <div className="prototype-subtabs">
-          {(
-            [
-              ["requirements", "测试需求"],
-              ["source", "测试用例表"],
-              ["automation", "自动化用例表"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              className={
-                caseView === key
-                  ? "prototype-nav-active"
-                  : "prototype-secondary"
-              }
-              onClick={() => setCaseView(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {caseView === "requirements" && (
-          <div className="prototype-card prototype-requirements">
-            <p className="prototype-muted">
-              导入 Beta 产品需求资料，AI 可根据需求辅助整理测试用例。
-            </p>
-            <label>
-              需求资料
-              <textarea defaultValue="本版本重点验证录制、数据完整性和断电恢复。" />
-            </label>
-            <div className="prototype-actions">
-              <button>导入需求文件</button>
-              <button className="prototype-secondary">保存需求</button>
-            </div>
-          </div>
-        )}
-        {caseView !== "requirements" && (
-          <>
-            <p className="prototype-muted">
-              先核对导入字段，再生成自动化用例。当前勾选 {selectedCount} 条。
-            </p>
-            <div className="prototype-actions">
-              <button>导入 Beta 用例表</button>
-              {caseView === "source" && (
-                <button className="prototype-secondary">生成自动化用例</button>
-              )}
-              {caseView === "automation" && (
-                <>
-                  <button className="prototype-secondary">
-                    提交修改并重新生成
-                  </button>
-                  <button className="prototype-secondary">
-                    校验自动化用例
-                  </button>
-                </>
-              )}
-              <button
-                className="prototype-secondary"
-                onClick={() => setSection("groups")}
-              >
-                加入自动化测试设置
-              </button>
-              <button className="prototype-secondary" onClick={onSelectAll}>
-                全选
-              </button>
-              <button
-                className="prototype-secondary"
-                onClick={onInvertSelection}
-              >
-                反选
-              </button>
-            </div>
-            <CaseTable
-              selected={selected}
-              onToggle={onToggle}
-              automationView={caseView === "automation"}
-            />
-            <div className="prototype-inline-note">
-              原始用例和自动化用例分开保存；自动化表的每行可填写给 AI
-              的修改意见，提交后再点击校验。
-            </div>
-          </>
-        )}
-      </>
-    );
+  if (section === "cases") return <CasesSection {...props} />;
   if (section === "data")
     return (
       <>
@@ -258,9 +97,28 @@ export function WorkspaceContent({
                 <Status tone={asset.kind === "fault" ? "warn" : "good"}>
                   {asset.kind === "fault" ? "故障数据" : "已校验"}
                 </Status>
-                <h3>
-                  {asset.id} · {asset.name}
-                </h3>
+                <div className="prototype-data-title">
+                  <h3>
+                    {asset.id} · {asset.name}
+                  </h3>
+                  <button
+                    className="prototype-copy-button"
+                    type="button"
+                    title="复制编号"
+                    aria-label={`复制数据编号 ${asset.id}`}
+                    onClick={() => copyDataId(asset.id)}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      width="18"
+                      height="18"
+                    >
+                      <path d="M8 8h11v11H8z" />
+                      <path d="M5 16H3V3h13v2" />
+                    </svg>
+                  </button>
+                </div>
                 <p>
                   {asset.detail} ·{" "}
                   {asset.source === "generated" ? "平台生成" : "用户导入"}
@@ -285,91 +143,7 @@ export function WorkspaceContent({
         </div>
       </>
     );
-  if (section === "groups")
-    return (
-      <>
-        <div className="prototype-kicker">第 3 步 / 测试范围</div>
-        <h2>自动化测试设置</h2>
-        {groupView === "list" ? (
-          <>
-            <p className="prototype-muted">
-              一个产品版本可以建立多个自动化测试组，分别配置不同的测试范围和数据。
-            </p>
-            <div className="prototype-group-list">
-              <div className="prototype-card">
-                <Status tone="good">已校验</Status>
-                <h3>EVT1 基础录制回归</h3>
-                <p>12 条用例 · 2 个数据包 · 最近运行 3 次</p>
-                <button onClick={() => setGroupView("detail")}>编辑设置</button>
-              </div>
-              <div className="prototype-card">
-                <Status tone="normal">未运行</Status>
-                <h3>EVT1 断电故障验证</h3>
-                <p>4 条用例 · 1 个故障数据包</p>
-                <button
-                  className="prototype-secondary"
-                  onClick={() => setGroupView("detail")}
-                >
-                  编辑设置
-                </button>
-              </div>
-            </div>
-            <button
-              className="prototype-primary"
-              onClick={() => setGroupView("detail")}
-            >
-              ＋ 新建自动化测试组
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="prototype-group-head">
-              <div>
-                <strong>EVT1 基础录制回归</strong>
-                <p>12 条用例 · 2 个数据包 · 最近运行 3 次</p>
-              </div>
-              <Status tone="good">配置已校验</Status>
-            </div>
-            <div className="prototype-filter-row">
-              <select
-                value={caseFilter}
-                onChange={(event) =>
-                  setCaseFilter(event.target.value as CaseFilter)
-                }
-              >
-                <option value="all">全部用例</option>
-                <option value="录制功能">录制功能</option>
-                <option value="电源管理">电源管理</option>
-                <option value="automation">只看自动化用例</option>
-                <option value="manual">只看人工用例</option>
-              </select>
-              <button className="prototype-secondary">筛选</button>
-            </div>
-            <CaseTable
-              selected={selected}
-              onToggle={onToggle}
-              showData
-              dataAssignments={dataAssignments}
-              onDataChange={setDataAssignment}
-              caseFilter={caseFilter}
-            />
-            <div className="prototype-actions">
-              <button>选择数据包</button>
-              <button className="prototype-secondary">添加用例</button>
-              <button className="prototype-primary" onClick={onRun}>
-                执行自动化测试
-              </button>
-              <button
-                className="prototype-secondary"
-                onClick={() => setGroupView("list")}
-              >
-                返回设置列表
-              </button>
-            </div>
-          </>
-        )}
-      </>
-    );
+  if (section === "groups") return <GroupSettingsSection {...props} />;
   return (
     <>
       <div className="prototype-kicker">第 4 步 / 执行与汇总</div>
@@ -380,9 +154,14 @@ export function WorkspaceContent({
             value={selectedGroup}
             onChange={(event) => setSelectedGroup(event.target.value)}
           >
-            <option>EVT1 基础录制回归</option>
-            <option>EVT1 断电故障验证</option>
-            <option>EVT1 数据完整性专项</option>
+            {Array.from(
+              new Set([
+                ...groups.map((group) => group.name),
+                "EVT1 数据完整性专项",
+              ]),
+            ).map((groupName) => (
+              <option key={groupName}>{groupName}</option>
+            ))}
           </select>
         </label>
         <span className="prototype-muted">

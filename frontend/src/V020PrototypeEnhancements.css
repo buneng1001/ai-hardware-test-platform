@@ -1,0 +1,68 @@
+.prototype-test-steps {
+  min-width: 240px;
+  margin: 0;
+  padding-left: 20px;
+  color: #b9d0d1;
+  line-height: 1.55;
+}
+
+.prototype-table input[list] {
+  min-width: 260px;
+}
+
+.prototype-manual-table {
+  min-width: 1080px;
+}
+
+.prototype-manual-table textarea {
+  min-width: 260px;
+}
+
+.prototype-filter-row label,
+.prototype-group-create label {
+  display: grid;
+  gap: 8px;
+  color: #b9d0d1;
+  font-weight: 700;
+}
+
+.prototype-group-create {
+  max-width: 680px;
+  margin-top: 26px;
+}
+
+.prototype-group-create input {
+  width: 100%;
+}
+
+.prototype-data-title {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.prototype-copy-button {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  color: #72e0ce;
+  border: 1px solid #4c7279;
+  background: transparent;
+}
+
+.prototype-copy-button:hover {
+  border-color: #72e0ce;
+  background: rgb(114 224 206 / 10%);
+}
+
+.prototype-copy-button svg {
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}

@@ -1,11 +1,11 @@
 import { useState } from "react";
 
 import {
-  Status,
   cases,
   dataPackages,
   sections,
   type CaseFilter,
+  type CaseModuleFilter,
   type CaseView,
   type DataFilter,
   type GroupView,
@@ -14,101 +14,9 @@ import {
   type SectionKey,
   type VariantProps,
 } from "./V020PrototypeShared";
-import { ManualResultsPage, WorkspaceContent } from "./V020PrototypeWorkspace";
-
-function PrototypeHome({ onOpenProjects }: { onOpenProjects: () => void }) {
-  return (
-    <div className="prototype-home">
-      <div className="prototype-home-copy">
-        <div className="prototype-kicker">AI 辅助测试平台</div>
-        <h1>
-          <span>智能硬件</span>
-          <span>自动化用例执行平台</span>
-        </h1>
-        <p>
-          面向多传感器采集设备，从测试数据生成与校验，到自动化执行、人工结果汇总和测试报告分析。
-        </p>
-        <div className="prototype-home-capabilities">
-          <span>数据驱动模拟</span>
-          <span>自动化测试</span>
-          <span>模块化报告</span>
-          <span>AI 辅助分析</span>
-        </div>
-        <button className="prototype-primary" onClick={onOpenProjects}>
-          开启平台
-        </button>
-      </div>
-      <div className="prototype-ai-card">
-        <div className="prototype-kicker">AI 配置</div>
-        <h2>配置你的 AI 模型</h2>
-        <p className="prototype-muted">
-          AI
-          用于自动化用例转换和最终报告分析。你也可以先不配置，之后在平台中补充。
-        </p>
-        <label>
-          模型服务
-          <select defaultValue="siliconflow">
-            <option value="siliconflow">SiliconFlow</option>
-            <option value="local">本地模型</option>
-          </select>
-        </label>
-        <label>
-          模型名称
-          <input defaultValue="Qwen/Qwen2.5-72B-Instruct" />
-        </label>
-        <div className="prototype-actions">
-          <button>测试 AI 连接</button>
-          <button className="prototype-secondary" onClick={onOpenProjects}>
-            暂不配置，进入平台
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PrototypeProjects({
-  onOpenWorkspace,
-  onBack,
-}: {
-  onOpenWorkspace: () => void;
-  onBack: () => void;
-}) {
-  return (
-    <div className="prototype-projects">
-      <div className="prototype-projects-head">
-        <div>
-          <div className="prototype-kicker">PROJECTS</div>
-          <h1>项目列表</h1>
-          <p className="prototype-muted">
-            选择一个项目进入版本、趋势和测试工作区。
-          </p>
-        </div>
-        <button className="prototype-secondary" onClick={onBack}>
-          回到首页
-        </button>
-      </div>
-      <div
-        className="prototype-project-card"
-        onClick={onOpenWorkspace}
-        role="button"
-        tabIndex={0}
-      >
-        <div>
-          <Status tone="good">进行中</Status>
-          <h2>IRIS 头环</h2>
-          <p>多传感器采集设备 · 最近更新：今天</p>
-        </div>
-        <div>
-          <strong>EVT1</strong>
-          <span>3 份最终报告</span>
-          <span>最近趋势：需补充验证</span>
-        </div>
-      </div>
-      <button className="prototype-secondary">＋ 新建项目</button>
-    </div>
-  );
-}
+import { PrototypeHome, PrototypeProjects } from "./V020PrototypeEntryScreens";
+import { ManualResultsPage } from "./V020PrototypeManualResults";
+import { WorkspaceContent } from "./V020PrototypeWorkspace";
 
 function VariantA({
   screen,
@@ -173,6 +81,7 @@ function VariantA({
         <main>
           <div className="prototype-topline" />
           <ManualResultsPage
+            groupName={workspaceProps.selectedGroup}
             drafts={workspaceProps.manualDrafts}
             setDraft={workspaceProps.setManualDraft}
             onBack={() => setScreen("workspace")}
@@ -233,8 +142,27 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
   const [selected, setSelected] = useState<string[]>(["TC-REC-001"]);
   const [runCount, setRunCount] = useState(0);
   const [caseView, setCaseView] = useState<CaseView>("requirements");
+  const [caseModuleFilter, setCaseModuleFilter] =
+    useState<CaseModuleFilter>("all");
   const [groupView, setGroupView] = useState<GroupView>("list");
   const [selectedGroup, setSelectedGroup] = useState("EVT1 基础录制回归");
+  const [groups, setGroups] = useState([
+    {
+      name: "EVT1 基础录制回归",
+      status: "validated" as const,
+      caseCount: 12,
+      dataPackageCount: 2,
+      recentRunCount: 3,
+    },
+    {
+      name: "EVT1 断电故障验证",
+      status: "not_run" as const,
+      caseCount: 4,
+      dataPackageCount: 1,
+      recentRunCount: 0,
+    },
+  ]);
+  const [newGroupName, setNewGroupName] = useState("");
   const [dataFilter, setDataFilter] = useState<DataFilter>("all");
   const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
   const [manualDrafts, setManualDrafts] = useState<
@@ -258,6 +186,31 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
       cases.map((item) => item.id).filter((id) => !current.includes(id)),
     );
   const onRun = () => setRunCount((count) => count + 1);
+  const navigateSection = (nextSection: SectionKey) => {
+    if (nextSection === "groups") setGroupView("list");
+    setSection(nextSection);
+  };
+  const createGroup = () => {
+    const name = newGroupName.trim();
+    if (!name) return;
+    setGroups((current) =>
+      current.some((group) => group.name === name)
+        ? current
+        : [
+            ...current,
+            {
+              name,
+              status: "not_run",
+              caseCount: selected.length,
+              dataPackageCount: new Set(Object.values(dataAssignments)).size,
+              recentRunCount: 0,
+            },
+          ],
+    );
+    setSelectedGroup(name);
+    setNewGroupName("");
+    setGroupView("detail");
+  };
   const setDataAssignment = (caseId: string, dataId: string) =>
     setDataAssignments((current) => ({ ...current, [caseId]: dataId }));
   const setManualDraft = (
@@ -275,7 +228,7 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
     }));
   const contentProps: VariantProps = {
     section,
-    setSection,
+    setSection: navigateSection,
     selected,
     onToggle: toggle,
     onSelectAll,
@@ -284,10 +237,16 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
     onNavigate,
     caseView,
     setCaseView,
+    caseModuleFilter,
+    setCaseModuleFilter,
     groupView,
     setGroupView,
     selectedGroup,
     setSelectedGroup,
+    groups,
+    newGroupName,
+    setNewGroupName,
+    createGroup,
     dataAssignments,
     setDataAssignment,
     dataFilter,

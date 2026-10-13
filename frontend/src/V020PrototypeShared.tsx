@@ -2,10 +2,18 @@ export type PrototypeProps = { onNavigate: (page: "dashboard") => void };
 export type SectionKey = "overview" | "cases" | "data" | "groups" | "results";
 export type ScreenKey = "home" | "projects" | "workspace" | "manual";
 export type CaseView = "requirements" | "source" | "automation";
-export type GroupView = "list" | "detail";
+export type GroupView = "list" | "create" | "detail";
 export type DataFilter = "all" | "normal" | "fault" | "generated" | "imported";
+export type CaseModuleFilter = "all" | "录制功能" | "电源管理";
 export type CaseFilter =
   "all" | "录制功能" | "电源管理" | "automation" | "manual";
+export type TestGroup = {
+  name: string;
+  status: "validated" | "not_run";
+  caseCount: number;
+  dataPackageCount: number;
+  recentRunCount: number;
+};
 export type WorkspaceProps = {
   section: SectionKey;
   setSection: (section: SectionKey) => void;
@@ -16,10 +24,16 @@ export type WorkspaceProps = {
   onRun: () => void;
   caseView: CaseView;
   setCaseView: (view: CaseView) => void;
+  caseModuleFilter: CaseModuleFilter;
+  setCaseModuleFilter: (filter: CaseModuleFilter) => void;
   groupView: GroupView;
   setGroupView: (view: GroupView) => void;
   selectedGroup: string;
   setSelectedGroup: (group: string) => void;
+  groups: TestGroup[];
+  newGroupName: string;
+  setNewGroupName: (name: string) => void;
+  createGroup: () => void;
   dataAssignments: Record<string, string>;
   setDataAssignment: (caseId: string, dataId: string) => void;
   dataFilter: DataFilter;
@@ -40,7 +54,7 @@ export const sections: Array<{ key: SectionKey; label: string }> = [
   { key: "overview", label: "版本与趋势" },
   { key: "cases", label: "需求 / 测试用例" },
   { key: "data", label: "测试数据" },
-  { key: "groups", label: "自动化测试设置" },
+  { key: "groups", label: "测试组设置" },
   { key: "results", label: "执行与结果" },
 ];
 
@@ -50,18 +64,33 @@ export const cases = [
     title: "短按录制键，确认开始录制",
     module: "录制功能",
     automation: true,
+    steps: [
+      "确认设备处于待机状态",
+      "短按录制键并观察录制指示",
+      "确认视频与 IMU 数据开始写入",
+    ],
   },
   {
     id: "TC-REC-002",
     title: "录制中断后文件是否完整",
     module: "录制功能",
     automation: true,
+    steps: [
+      "启动视频与 IMU 录制",
+      "模拟录制进程中断",
+      "检查已生成文件是否完整且可读取",
+    ],
   },
   {
     id: "TC-POWER-003",
     title: "设备断电后数据保存状态",
     module: "电源管理",
     automation: false,
+    steps: [
+      "在设备录制过程中断开电源",
+      "恢复供电并重新启动设备",
+      "检查断电前数据是否保存并可恢复",
+    ],
   },
 ];
 export const dataPackages = [
@@ -107,6 +136,16 @@ export function Status({
   );
 }
 
+export function TestSteps({ steps }: { steps: string[] }) {
+  return (
+    <ol className="prototype-test-steps">
+      {steps.map((step) => (
+        <li key={step}>{step}</li>
+      ))}
+    </ol>
+  );
+}
+
 export function CaseTable({
   selected,
   onToggle,
@@ -140,6 +179,7 @@ export function CaseTable({
             <th>用例编号</th>
             <th>标题</th>
             <th>模块</th>
+            <th>测试步骤</th>
             <th>自动化</th>
             {automationView && <th>AI 反馈</th>}
             {showData && <th>数据包</th>}
@@ -168,6 +208,9 @@ export function CaseTable({
               <td>{item.title}</td>
               <td>{item.module}</td>
               <td>
+                <TestSteps steps={item.steps} />
+              </td>
+              <td>
                 <Status tone={item.automation ? "good" : "warn"}>
                   {item.automation ? "可自动化" : "人工"}
                 </Status>
@@ -182,19 +225,21 @@ export function CaseTable({
               )}
               {showData && (
                 <td>
-                  <select
+                  <input
+                    aria-label={`数据包 ${item.id}`}
+                    list={`prototype-data-packages-${item.id}`}
+                    placeholder="输入或选择数据包编号"
                     value={dataAssignments?.[item.id] ?? dataPackages[0]}
                     onChange={(event) =>
                       onDataChange?.(item.id, event.target.value)
                     }
-                  >
-                    <option value="">不使用数据包</option>
+                  />
+                  <datalist id={`prototype-data-packages-${item.id}`}>
+                    <option value="不使用数据包" />
                     {dataPackages.map((dataPackage) => (
-                      <option key={dataPackage} value={dataPackage}>
-                        {dataPackage}
-                      </option>
+                      <option key={dataPackage} value={dataPackage} />
                     ))}
-                  </select>
+                  </datalist>
                 </td>
               )}
             </tr>
