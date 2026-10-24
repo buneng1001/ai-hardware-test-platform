@@ -527,8 +527,10 @@ button:disabled {
 
 /* v0.2.0 前端原型样式：只服务于本地 Demo，不作为正式页面样式。 */
 .prototype-page {
+  width: 100%;
   min-height: 100vh;
   padding: 24px 24px 96px;
+  box-sizing: border-box;
   color: #e9f2f1;
   background: #0b151d;
 }
@@ -553,7 +555,7 @@ button:disabled {
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
   gap: clamp(32px, 8vw, 120px);
   align-items: center;
-  width: min(1280px, 100%);
+  width: 100%;
   min-height: 700px;
   margin: 0 auto;
   padding: clamp(30px, 7vw, 100px);
@@ -628,7 +630,7 @@ button:disabled {
 }
 
 .prototype-projects {
-  width: min(1120px, 100%);
+  width: 100%;
   min-height: 700px;
   margin: 0 auto;
   padding: clamp(30px, 7vw, 90px);
@@ -679,7 +681,7 @@ button:disabled {
 }
 
 .prototype-shell {
-  width: min(1280px, 100%);
+  width: 100%;
   min-height: 700px;
   margin: 0 auto;
   border: 1px solid #264752;
@@ -690,7 +692,7 @@ button:disabled {
 
 .prototype-shell--sidebar {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 16%) minmax(0, 1fr);
 }
 
 .prototype-shell--sidebar aside {
