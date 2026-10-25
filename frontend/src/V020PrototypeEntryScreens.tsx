@@ -8,6 +8,16 @@ export function PrototypeHome({
 }) {
   return (
     <div className="prototype-home">
+      <div
+        className="prototype-home-brand-motion"
+        data-testid="prototype-home-brand-motion"
+        aria-hidden="true"
+      >
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
       <div className="prototype-home-copy">
         <div className="prototype-kicker">INTELLIGENT TEST WORKSPACE</div>
         <h1>

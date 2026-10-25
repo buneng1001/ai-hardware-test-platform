@@ -16,10 +16,17 @@
   }
 }
 
-@keyframes prototype-signal-pulse {
+@keyframes prototype-brand-float {
   50% {
-    opacity: 0.58;
-    transform: scale(1.04);
+    opacity: 0.62;
+    transform: translateY(-12px) rotate(-4deg);
+  }
+}
+
+@keyframes prototype-brand-tile {
+  50% {
+    opacity: 0.72;
+    transform: translateY(-4px) scale(0.96);
   }
 }
 
@@ -57,6 +64,15 @@
   .prototype-ai-card {
     width: 100%;
     justify-self: stretch;
+  }
+
+  .prototype-home-brand-motion {
+    top: 34px;
+    right: 22px;
+    left: auto;
+    grid-template-columns: repeat(2, 44px);
+    gap: 10px;
+    opacity: 0.32;
   }
 
   .prototype-shell--sidebar {
@@ -162,7 +178,8 @@
   .prototype-home-copy,
   .prototype-ai-card,
   .prototype-home::before,
-  .prototype-home::after {
+  .prototype-home-brand-motion,
+  .prototype-home-brand-motion i {
     animation: none !important;
   }
 

@@ -56,3 +56,12 @@ test("窄窗口保留切换项目和返回首页入口", () => {
     /\.prototype-sidebar-toggle,\s*\.prototype-sidebar-exit\s*\{/,
   );
 });
+
+test("主操作按钮统一使用绿色品牌色", () => {
+  expect(declarations(".prototype-page button")).toContain(
+    "background: var(--prototype-color-brand)",
+  );
+  expect(declarations(".prototype-primary")).toContain(
+    "background: var(--prototype-color-brand)",
+  );
+});

@@ -153,7 +153,7 @@
 
 .prototype-primary {
   color: #fff !important;
-  background: var(--prototype-color-ink) !important;
+  background: var(--prototype-color-brand) !important;
 }
 
 .prototype-inline-note {

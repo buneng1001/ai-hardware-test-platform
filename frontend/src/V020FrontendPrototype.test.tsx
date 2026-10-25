@@ -29,6 +29,14 @@ test("首页使用固定两行产品标题和完整测试工作流副标题", ()
   ).toBeVisible();
 });
 
+test("首页动效复用四方块品牌图形", () => {
+  render(<FrontendRoot />);
+
+  expect(
+    screen.getByTestId("prototype-home-brand-motion").children,
+  ).toHaveLength(4);
+});
+
 function renderWorkspace() {
   render(<FrontendRoot />);
   fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
