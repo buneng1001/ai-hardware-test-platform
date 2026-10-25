@@ -1,5 +1,6 @@
 import {
   CaseTable,
+  cases,
   type CaseModuleFilter,
   type WorkspaceProps,
 } from "./V020PrototypeShared";
@@ -28,10 +29,31 @@ export function CasesSection({
   onInvertSelection,
   setSection,
 }: CasesSectionProps) {
+  const automationCaseCount = cases.filter((item) => item.automation).length;
+  const manualCaseCount = cases.length - automationCaseCount;
+
   return (
-    <>
-      <div className="prototype-kicker">第 1 步 / 用例资产</div>
-      <h2>需求 / 测试用例</h2>
+    <section className="prototype-cases-section">
+      <header className="prototype-section-heading">
+        <div>
+          <div className="prototype-kicker">TEST CASE MANAGEMENT</div>
+          <h2>需求 / 测试用例</h2>
+          <p className="prototype-muted">
+            管理当前版本的需求资料、原始测试用例与自动化转换结果。
+          </p>
+        </div>
+        <div className="prototype-case-summary" aria-label="用例概况">
+          <span>
+            <strong>{cases.length}</strong> 全部用例
+          </span>
+          <span>
+            <strong>{automationCaseCount}</strong> 可自动化
+          </span>
+          <span>
+            <strong>{manualCaseCount}</strong> 人工验证
+          </span>
+        </div>
+      </header>
       <div className="prototype-subtabs">
         {(
           [
@@ -68,50 +90,57 @@ export function CasesSection({
       )}
       {caseView !== "requirements" && (
         <>
-          <p className="prototype-muted">
-            先核对导入字段，再生成自动化用例。当前勾选 {selected.length} 条。
-          </p>
-          <div className="prototype-filter-row">
-            <label>
-              用例模块
-              <select
-                aria-label="用例模块"
-                value={caseModuleFilter}
-                onChange={(event) =>
-                  setCaseModuleFilter(event.target.value as CaseModuleFilter)
-                }
+          <div className="prototype-case-toolbar">
+            <p className="prototype-muted">
+              先核对导入字段，再生成自动化用例。当前勾选 {selected.length} 条。
+            </p>
+            <div className="prototype-filter-row">
+              <label>
+                用例模块
+                <select
+                  aria-label="用例模块"
+                  value={caseModuleFilter}
+                  onChange={(event) =>
+                    setCaseModuleFilter(event.target.value as CaseModuleFilter)
+                  }
+                >
+                  <option value="all">全部模块</option>
+                  <option value="录制功能">录制功能</option>
+                  <option value="电源管理">电源管理</option>
+                </select>
+              </label>
+            </div>
+            <div className="prototype-actions">
+              <button>导入 Beta 用例表</button>
+              {caseView === "source" && (
+                <button className="prototype-secondary">生成自动化用例</button>
+              )}
+              {caseView === "automation" && (
+                <>
+                  <button className="prototype-secondary">
+                    提交修改并重新生成
+                  </button>
+                  <button className="prototype-secondary">
+                    校验自动化用例
+                  </button>
+                </>
+              )}
+              <button
+                className="prototype-secondary"
+                onClick={() => setSection("groups")}
               >
-                <option value="all">全部模块</option>
-                <option value="录制功能">录制功能</option>
-                <option value="电源管理">电源管理</option>
-              </select>
-            </label>
-          </div>
-          <div className="prototype-actions">
-            <button>导入 Beta 用例表</button>
-            {caseView === "source" && (
-              <button className="prototype-secondary">生成自动化用例</button>
-            )}
-            {caseView === "automation" && (
-              <>
-                <button className="prototype-secondary">
-                  提交修改并重新生成
-                </button>
-                <button className="prototype-secondary">校验自动化用例</button>
-              </>
-            )}
-            <button
-              className="prototype-secondary"
-              onClick={() => setSection("groups")}
-            >
-              加入测试组
-            </button>
-            <button className="prototype-secondary" onClick={onSelectAll}>
-              全选
-            </button>
-            <button className="prototype-secondary" onClick={onInvertSelection}>
-              反选
-            </button>
+                加入测试组
+              </button>
+              <button className="prototype-secondary" onClick={onSelectAll}>
+                全选
+              </button>
+              <button
+                className="prototype-secondary"
+                onClick={onInvertSelection}
+              >
+                反选
+              </button>
+            </div>
           </div>
           <CaseTable
             selected={selected}
@@ -125,6 +154,6 @@ export function CasesSection({
           </div>
         </>
       )}
-    </>
+    </section>
   );
 }

@@ -1,0 +1,93 @@
+.prototype-kicker {
+  color: var(--prototype-color-brand-strong);
+}
+
+.prototype-shell h1,
+.prototype-shell h2,
+.prototype-shell h3 {
+  color: var(--prototype-color-text);
+}
+
+.prototype-shell h2 {
+  font-size: clamp(1.8rem, 2.4vw, 2.8rem);
+  letter-spacing: -0.035em;
+}
+
+.prototype-conclusion,
+.prototype-report-preview {
+  border: 1px solid var(--prototype-color-line);
+  border-left: 4px solid #e7a646;
+  border-radius: var(--prototype-radius-card);
+  background: var(--prototype-color-surface);
+  box-shadow: 0 4px 16px rgb(20 34 50 / 5%);
+}
+
+.prototype-metric-row,
+.prototype-data-grid,
+.prototype-result-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--prototype-page-gap);
+  max-width: 1440px;
+}
+
+.prototype-metric-row div,
+.prototype-metric-button,
+.prototype-card,
+.prototype-result-card {
+  border: 1px solid var(--prototype-color-line);
+  border-radius: var(--prototype-radius-card);
+  color: var(--prototype-color-text);
+  background: var(--prototype-color-surface);
+  box-shadow: 0 4px 16px rgb(20 34 50 / 5%);
+}
+
+.prototype-metric-button:hover {
+  border-color: rgb(13 148 136 / 30%);
+  background: var(--prototype-color-surface);
+}
+
+.prototype-metric-row strong,
+.prototype-metric-row small,
+.prototype-table a {
+  color: var(--prototype-color-brand-strong);
+}
+
+.prototype-metric-row span,
+.prototype-metric-row small,
+.prototype-result-card p,
+.prototype-report-preview p {
+  color: var(--prototype-color-muted);
+}
+
+.prototype-chart {
+  max-width: 1400px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: var(--prototype-radius-card);
+  background:
+    repeating-linear-gradient(
+      to top,
+      transparent 0 44px,
+      rgb(113 130 150 / 10%) 45px
+    ),
+    var(--prototype-color-surface);
+  box-shadow: 0 4px 16px rgb(20 34 50 / 5%);
+}
+
+.prototype-chart span {
+  background: linear-gradient(#4db8ae, var(--prototype-color-brand));
+}
+
+.prototype-status--good {
+  color: var(--prototype-color-brand-strong);
+  background: var(--prototype-color-brand-soft);
+}
+
+.prototype-status--warn {
+  color: #a65a11;
+  background: #fff0dc;
+}
+
+.prototype-status--normal {
+  color: var(--prototype-color-muted);
+  background: #edf1f4;
+}

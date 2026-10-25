@@ -3,7 +3,6 @@ import { useState } from "react";
 import {
   cases,
   dataPackages,
-  sections,
   type CaseFilter,
   type CaseModuleFilter,
   type CaseView,
@@ -16,6 +15,7 @@ import {
 } from "./V020PrototypeShared";
 import { PrototypeHome, PrototypeProjects } from "./V020PrototypeEntryScreens";
 import { ManualResultsPage } from "./V020PrototypeManualResults";
+import { PrototypeWorkspaceShell } from "./V020PrototypeShell";
 import { WorkspaceContent } from "./V020PrototypeWorkspace";
 
 function VariantA({
@@ -37,102 +37,32 @@ function VariantA({
     );
   if (screen === "manual")
     return (
-      <div className="prototype-shell prototype-shell--sidebar">
-        <aside>
-          <div className="prototype-logo">IRIS TEST</div>
-          <p className="prototype-sidebar-project">
-            项目 / IRIS 头环
-            <br />
-            <small>产品版本 EVT1</small>
-          </p>
-          <div className="prototype-sidebar-navigation">
-            {sections.map((item) => (
-              <button
-                className={
-                  workspaceProps.section === item.key
-                    ? "prototype-nav-active"
-                    : ""
-                }
-                key={item.key}
-                onClick={() => {
-                  workspaceProps.setSection(item.key);
-                  setScreen("workspace");
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
-            <div className="prototype-sidebar-exit">
-              <button
-                className="prototype-back"
-                onClick={() => setScreen("projects")}
-              >
-                切换项目
-              </button>
-              <button
-                className="prototype-back"
-                onClick={() => setScreen("home")}
-              >
-                返回首页
-              </button>
-            </div>
-          </div>
-        </aside>
-        <main>
-          <div className="prototype-topline" />
-          <ManualResultsPage
-            groupName={workspaceProps.selectedGroup}
-            drafts={workspaceProps.manualDrafts}
-            setDraft={workspaceProps.setManualDraft}
-            onBack={() => setScreen("workspace")}
-          />
-        </main>
-      </div>
+      <PrototypeWorkspaceShell
+        section={workspaceProps.section}
+        onSectionChange={(section) => {
+          workspaceProps.setSection(section);
+          setScreen("workspace");
+        }}
+        onOpenProjects={() => setScreen("projects")}
+        onOpenHome={() => setScreen("home")}
+      >
+        <ManualResultsPage
+          groupName={workspaceProps.selectedGroup}
+          drafts={workspaceProps.manualDrafts}
+          setDraft={workspaceProps.setManualDraft}
+          onBack={() => setScreen("workspace")}
+        />
+      </PrototypeWorkspaceShell>
     );
   return (
-    <div className="prototype-shell prototype-shell--sidebar">
-      <aside>
-        <div className="prototype-logo">IRIS TEST</div>
-        <p className="prototype-sidebar-project">
-          项目 / IRIS 头环
-          <br />
-          <small>产品版本 EVT1</small>
-        </p>
-        <div className="prototype-sidebar-navigation">
-          {sections.map((item) => (
-            <button
-              className={
-                workspaceProps.section === item.key
-                  ? "prototype-nav-active"
-                  : ""
-              }
-              key={item.key}
-              onClick={() => workspaceProps.setSection(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-          <div className="prototype-sidebar-exit">
-            <button
-              className="prototype-back"
-              onClick={() => setScreen("projects")}
-            >
-              切换项目
-            </button>
-            <button
-              className="prototype-back"
-              onClick={() => setScreen("home")}
-            >
-              返回首页
-            </button>
-          </div>
-        </div>
-      </aside>
-      <main>
-        <div className="prototype-topline" />
-        <WorkspaceContent {...workspaceProps} />
-      </main>
-    </div>
+    <PrototypeWorkspaceShell
+      section={workspaceProps.section}
+      onSectionChange={workspaceProps.setSection}
+      onOpenProjects={() => setScreen("projects")}
+      onOpenHome={() => setScreen("home")}
+    >
+      <WorkspaceContent {...workspaceProps} />
+    </PrototypeWorkspaceShell>
   );
 }
 

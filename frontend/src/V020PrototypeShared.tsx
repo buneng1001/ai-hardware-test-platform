@@ -172,7 +172,7 @@ export function CaseTable({
   );
   return (
     <div className="prototype-table-wrap">
-      <table className="prototype-table">
+      <table className="prototype-table prototype-case-table">
         <thead>
           <tr>
             <th>选择</th>
@@ -197,6 +197,7 @@ export function CaseTable({
             >
               <td>
                 <input
+                  aria-label={`选择用例 ${item.id}`}
                   type="checkbox"
                   checked={selected.includes(item.id)}
                   onChange={() => onToggle(item.id)}

@@ -1,0 +1,178 @@
+@keyframes prototype-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes prototype-signal-drift {
+  to {
+    background-position: 56px 56px;
+  }
+}
+
+@keyframes prototype-signal-pulse {
+  50% {
+    opacity: 0.58;
+    transform: scale(1.04);
+  }
+}
+
+@media (max-width: 1180px) {
+  .prototype-home {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 0.82fr);
+    gap: 34px;
+    padding: 54px;
+  }
+
+  .prototype-home-copy h1 {
+    font-size: clamp(3rem, 6.8vw, 5rem);
+  }
+
+  .prototype-case-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .prototype-case-toolbar .prototype-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .prototype-page {
+    padding: 10px;
+  }
+
+  .prototype-home {
+    grid-template-columns: 1fr;
+    min-height: calc(100vh - 20px);
+    padding: 42px 28px;
+  }
+
+  .prototype-ai-card {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .prototype-shell--sidebar {
+    display: block;
+  }
+
+  .prototype-shell--sidebar aside {
+    position: relative;
+    top: 0;
+    height: auto;
+    min-height: 0;
+    margin-bottom: 10px;
+    padding: 12px;
+  }
+
+  .prototype-sidebar-brand,
+  .prototype-sidebar-project,
+  .prototype-sidebar-label,
+  .prototype-sidebar-toggle {
+    display: none;
+  }
+
+  .prototype-sidebar-navigation {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .prototype-sidebar-exit {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .prototype-shell--sidebar aside button {
+    flex: 0 0 auto;
+    justify-content: center;
+  }
+
+  .prototype-shell--collapsed .prototype-nav-text {
+    display: inline;
+  }
+
+  .prototype-shell--sidebar main {
+    padding: 24px 16px 52px;
+  }
+
+  .prototype-topline {
+    margin-bottom: 38px;
+  }
+}
+
+@media (max-width: 560px) {
+  .prototype-home-copy h1 {
+    font-size: clamp(2.4rem, 12vw, 3.55rem);
+  }
+
+  .prototype-home-copy h1 span:last-child {
+    white-space: normal;
+  }
+
+  .prototype-home-capabilities {
+    margin: 24px 0;
+  }
+
+  .prototype-projects-head,
+  .prototype-project-card,
+  .prototype-section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .prototype-case-summary {
+    gap: 12px;
+  }
+}
+
+@media (min-width: 2800px) {
+  .prototype-home {
+    grid-template-columns: minmax(0, 1120px) 720px;
+    gap: 160px;
+    justify-content: center;
+  }
+
+  .prototype-home-copy {
+    max-width: 1080px;
+  }
+
+  .prototype-home-copy h1 {
+    max-width: 1080px;
+    font-size: 7rem;
+  }
+
+  .prototype-ai-card {
+    width: 720px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prototype-home-copy,
+  .prototype-ai-card,
+  .prototype-home::before,
+  .prototype-home::after {
+    animation: none !important;
+  }
+
+  .prototype-page *,
+  .prototype-page *::before,
+  .prototype-page *::after {
+    scroll-behavior: auto !important;
+    animation-delay: 0ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

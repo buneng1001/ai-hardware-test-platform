@@ -5,10 +5,28 @@ import { FrontendRoot } from "./FrontendRoot";
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
+  window.localStorage.clear();
   Object.defineProperty(window.navigator, "clipboard", {
     configurable: true,
     value: undefined,
   });
+});
+
+test("首页使用固定两行产品标题和完整测试工作流副标题", () => {
+  render(<FrontendRoot />);
+
+  const heading = screen.getByRole("heading", {
+    name: "智能硬件自动化测试平台",
+  });
+  expect(heading.children).toHaveLength(2);
+  expect(heading.children[0]).toHaveTextContent("智能硬件");
+  expect(heading.children[1]).toHaveTextContent("自动化测试平台");
+  expect(
+    screen.getByText(
+      "覆盖测试用例、数据管理、自动化执行、结果验证与智能诊断的完整测试工作流。",
+    ),
+  ).toBeVisible();
 });
 
 function renderWorkspace() {
@@ -16,6 +34,35 @@ function renderWorkspace() {
   fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
   fireEvent.click(screen.getByRole("button", { name: /IRIS 头环/ }));
 }
+
+test("工作区侧边栏可以折叠并在前端保存状态", () => {
+  renderWorkspace();
+
+  fireEvent.click(screen.getByRole("button", { name: "收起侧边栏" }));
+  expect(screen.getByTestId("prototype-workspace-shell")).toHaveClass(
+    "prototype-shell--collapsed",
+  );
+  expect(window.localStorage.getItem("iris-test-sidebar-collapsed")).toBe(
+    "true",
+  );
+  expect(screen.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
+});
+
+test("浏览器存储不可用时侧边栏仍可进入和折叠", () => {
+  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+    throw new DOMException("storage blocked", "SecurityError");
+  });
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new DOMException("storage blocked", "SecurityError");
+  });
+
+  renderWorkspace();
+  fireEvent.click(screen.getByRole("button", { name: "收起侧边栏" }));
+
+  expect(screen.getByTestId("prototype-workspace-shell")).toHaveClass(
+    "prototype-shell--collapsed",
+  );
+});
 
 test("用例表支持按模块筛选并展示测试步骤和加入测试组入口", () => {
   renderWorkspace();

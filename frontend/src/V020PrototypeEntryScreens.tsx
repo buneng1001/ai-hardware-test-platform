@@ -1,4 +1,5 @@
 import { Status } from "./V020PrototypeShared";
+import { PROTOTYPE_BRAND } from "./V020PrototypeBrand";
 
 export function PrototypeHome({
   onOpenProjects,
@@ -8,14 +9,13 @@ export function PrototypeHome({
   return (
     <div className="prototype-home">
       <div className="prototype-home-copy">
-        <div className="prototype-kicker">AI 辅助测试平台</div>
+        <div className="prototype-kicker">INTELLIGENT TEST WORKSPACE</div>
         <h1>
-          <span>智能硬件</span>
-          <span>自动化用例执行平台</span>
+          {PROTOTYPE_BRAND.titleLines.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
         </h1>
-        <p>
-          面向多传感器采集设备，从测试数据生成与校验，到自动化执行、人工结果汇总和测试报告分析。
-        </p>
+        <p>{PROTOTYPE_BRAND.subtitle}</p>
         <div className="prototype-home-capabilities">
           <span>数据驱动模拟</span>
           <span>自动化测试</span>
@@ -23,7 +23,7 @@ export function PrototypeHome({
           <span>AI 辅助分析</span>
         </div>
         <button className="prototype-primary" onClick={onOpenProjects}>
-          开启平台
+          开启平台 <span aria-hidden="true">→</span>
         </button>
       </div>
       <div className="prototype-ai-card">
