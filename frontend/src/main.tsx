@@ -5,6 +5,7 @@ import { FrontendRoot } from "./FrontendRoot";
 import "./styles.css";
 import "./V020PrototypeEnhancements.css";
 import "./V020PrototypeTheme.css";
+import "./V020PrototypeAi.css";
 import "./V020PrototypeWorkspace.css";
 import "./V020PrototypeComponents.css";
 import "./V020PrototypeCases.css";

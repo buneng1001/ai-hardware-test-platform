@@ -80,6 +80,12 @@
   display: none;
 }
 
+.prototype-screen-transition {
+  width: 100%;
+  min-height: calc(100vh - 32px);
+  animation: prototype-screen-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .prototype-home {
   position: relative;
   isolation: isolate;
@@ -118,13 +124,13 @@
 .prototype-home-brand-motion {
   position: absolute;
   z-index: -1;
-  top: clamp(72px, 10vh, 152px);
-  left: clamp(52%, 58vw, 64%);
+  top: clamp(250px, 31vh, 360px);
+  left: clamp(390px, 32vw, 660px);
   display: grid;
-  grid-template-columns: repeat(2, clamp(58px, 6vw, 108px));
-  gap: clamp(14px, 1.7vw, 28px);
+  grid-template-columns: repeat(2, clamp(52px, 5vw, 92px));
+  gap: clamp(12px, 1.4vw, 22px);
   width: fit-content;
-  opacity: 0.5;
+  opacity: 0.18;
   filter: drop-shadow(0 22px 38px rgb(13 148 136 / 14%));
   transform: rotate(-8deg);
   animation: prototype-brand-float 9s ease-in-out infinite;

@@ -65,3 +65,16 @@ test("主操作按钮统一使用绿色品牌色", () => {
     "background: var(--prototype-color-brand)",
   );
 });
+
+test("报告指标悬停保持可读且测试数据筛选控件留有间距", () => {
+  expect(
+    declarations(".prototype-page button.prototype-metric-button:hover"),
+  ).toContain("background: var(--prototype-color-brand-soft)");
+  expect(declarations(".prototype-data-toolbar")).toContain("gap: 16px");
+});
+
+test("页面切换使用轻量进入动效", () => {
+  expect(declarations(".prototype-screen-transition")).toContain(
+    "animation: prototype-screen-enter",
+  );
+});

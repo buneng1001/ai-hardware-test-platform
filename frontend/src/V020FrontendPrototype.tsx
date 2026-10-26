@@ -200,7 +200,13 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
       >
         {runCount > 0 ? `已模拟执行 ${runCount} 次` : "\u200b"}
       </div>
-      {view}
+      <div
+        className="prototype-screen-transition"
+        data-testid="prototype-screen-transition"
+        key={screen}
+      >
+        {view}
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   Object.defineProperty(window.navigator, "clipboard", {
     configurable: true,
     value: undefined,
@@ -35,6 +36,58 @@ test("首页动效复用四方块品牌图形", () => {
   expect(
     screen.getByTestId("prototype-home-brand-motion").children,
   ).toHaveLength(4);
+});
+
+test("AI 配置支持临时密钥和本地接入方式切换", () => {
+  render(<FrontendRoot />);
+
+  expect(screen.getByRole("combobox", { name: "服务商" })).toHaveValue(
+    "deepseek",
+  );
+  expect(screen.getByRole("combobox", { name: "模型" })).toHaveValue(
+    "DeepSeek-V4.0-Flash",
+  );
+  expect(screen.getByText("本地 API · OpenAI / gpt-4o")).toBeVisible();
+
+  const temporaryKey = screen.getByLabelText("临时 API Key");
+  const temporaryAccess = screen.getByRole("button", {
+    name: "使用临时 API 接入",
+  });
+  expect(temporaryAccess).toBeDisabled();
+  fireEvent.change(temporaryKey, { target: { value: "temporary-secret" } });
+  fireEvent.click(screen.getByRole("button", { name: "清除临时 API" }));
+  expect(temporaryKey).toHaveValue("");
+
+  fireEvent.change(temporaryKey, { target: { value: "temporary-secret" } });
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "本次会话记住临时 API" }),
+  );
+  expect(window.sessionStorage.getItem("iris-test-temporary-ai-key")).toBe(
+    "temporary-secret",
+  );
+  fireEvent.click(temporaryAccess);
+  expect(
+    screen.getByText("临时 API · DeepSeek / DeepSeek-V4.0-Flash"),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "AI 连接测试" }));
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "配置项已校验；连接请求将在 API 能力接入后执行。",
+  );
+});
+
+test("首页和项目列表进入下一页时使用统一页面切换容器", () => {
+  render(<FrontendRoot />);
+
+  expect(screen.getByTestId("prototype-screen-transition")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
+  expect(screen.getByRole("heading", { name: "项目列表" })).toBeVisible();
+  expect(screen.getByTestId("prototype-screen-transition")).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: /IRIS 头环/ }));
+  expect(
+    screen.getByRole("heading", { name: "EVT1 测试工作区" }),
+  ).toBeVisible();
+  expect(screen.getByTestId("prototype-screen-transition")).toBeVisible();
 });
 
 function renderWorkspace() {
@@ -81,6 +134,8 @@ test("用例表支持按模块筛选并展示测试步骤和加入测试组入�
   expect(screen.getByRole("columnheader", { name: "测试步骤" })).toBeVisible();
   expect(screen.getByText("确认设备处于待机状态")).toBeVisible();
   expect(screen.getByRole("button", { name: "加入测试组" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "导入用例表" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: /Beta/i })).toBeNull();
 
   fireEvent.change(screen.getByRole("combobox", { name: "用例模块" }), {
     target: { value: "电源管理" },

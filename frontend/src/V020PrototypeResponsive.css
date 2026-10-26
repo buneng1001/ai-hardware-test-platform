@@ -10,6 +10,18 @@
   }
 }
 
+@keyframes prototype-screen-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes prototype-signal-drift {
   to {
     background-position: 56px 56px;
@@ -67,12 +79,16 @@
   }
 
   .prototype-home-brand-motion {
-    top: 34px;
-    right: 22px;
+    top: 120px;
+    right: 34px;
     left: auto;
     grid-template-columns: repeat(2, 44px);
     gap: 10px;
-    opacity: 0.32;
+    opacity: 0.16;
+  }
+
+  .prototype-data-toolbar {
+    grid-template-columns: minmax(240px, 1fr) 180px auto;
   }
 
   .prototype-shell--sidebar {
@@ -151,6 +167,15 @@
   .prototype-case-summary {
     gap: 12px;
   }
+
+  .prototype-ai-mode-actions,
+  .prototype-data-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .prototype-data-toolbar button {
+    width: fit-content;
+  }
 }
 
 @media (min-width: 2800px) {
@@ -177,6 +202,7 @@
 @media (prefers-reduced-motion: reduce) {
   .prototype-home-copy,
   .prototype-ai-card,
+  .prototype-screen-transition,
   .prototype-home::before,
   .prototype-home-brand-motion,
   .prototype-home-brand-motion i {

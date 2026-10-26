@@ -1,5 +1,6 @@
 import { Status } from "./V020PrototypeShared";
 import { PROTOTYPE_BRAND } from "./V020PrototypeBrand";
+import { PrototypeAiConfiguration } from "./V020PrototypeAiConfiguration";
 
 export function PrototypeHome({
   onOpenProjects,
@@ -36,31 +37,7 @@ export function PrototypeHome({
           开启平台 <span aria-hidden="true">→</span>
         </button>
       </div>
-      <div className="prototype-ai-card">
-        <div className="prototype-kicker">AI 配置</div>
-        <h2>配置你的 AI 模型</h2>
-        <p className="prototype-muted">
-          AI
-          用于自动化用例转换和最终报告分析。你也可以先不配置，之后在平台中补充。
-        </p>
-        <label>
-          模型服务
-          <select defaultValue="siliconflow">
-            <option value="siliconflow">SiliconFlow</option>
-            <option value="local">本地模型</option>
-          </select>
-        </label>
-        <label>
-          模型名称
-          <input defaultValue="Qwen/Qwen2.5-72B-Instruct" />
-        </label>
-        <div className="prototype-actions">
-          <button>测试 AI 连接</button>
-          <button className="prototype-secondary" onClick={onOpenProjects}>
-            暂不配置，进入平台
-          </button>
-        </div>
-      </div>
+      <PrototypeAiConfiguration onSkip={onOpenProjects} />
     </div>
   );
 }

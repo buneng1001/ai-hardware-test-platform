@@ -68,7 +68,7 @@ export function WorkspaceContent(props: WorkspaceProps) {
       <>
         <div className="prototype-kicker">第 2 步 / 数据任务</div>
         <h2>生成或导入测试数据</h2>
-        <div className="prototype-filter-row">
+        <div className="prototype-filter-row prototype-data-toolbar">
           <input placeholder="搜索数据编号或名称" />
           <select
             value={dataFilter}

@@ -76,7 +76,7 @@ export function CasesSection({
       {caseView === "requirements" && (
         <div className="prototype-card prototype-requirements">
           <p className="prototype-muted">
-            导入 Beta 产品需求资料，AI 可根据需求辅助整理测试用例。
+            导入产品需求资料，AI 可根据需求辅助整理测试用例。
           </p>
           <label>
             需求资料
@@ -111,7 +111,7 @@ export function CasesSection({
               </label>
             </div>
             <div className="prototype-actions">
-              <button>导入 Beta 用例表</button>
+              <button>导入用例表</button>
               {caseView === "source" && (
                 <button className="prototype-secondary">生成自动化用例</button>
               )}
