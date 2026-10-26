@@ -63,6 +63,33 @@
   font-size: 1rem;
 }
 
+.prototype-ai-model-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.prototype-page button.prototype-ai-refresh-models {
+  min-height: 28px;
+  padding: 2px 9px;
+  color: var(--prototype-color-brand-strong);
+  border: 1px solid rgb(13 148 136 / 22%);
+  border-radius: 999px;
+  background: var(--prototype-color-brand-soft);
+  box-shadow: none;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.prototype-ai-card .prototype-ai-field small.prototype-ai-catalog-feedback {
+  padding: 8px 10px;
+  border-radius: 9px;
+  color: var(--prototype-color-brand-strong);
+  background: var(--prototype-color-brand-soft);
+  line-height: 1.45;
+}
+
 .prototype-ai-card .prototype-ai-field select,
 .prototype-ai-card .prototype-ai-field input {
   min-height: 30px;

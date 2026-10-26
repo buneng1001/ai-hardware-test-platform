@@ -1,24 +1,8 @@
 import { useState } from "react";
-
-const providers = {
-  deepseek: {
-    label: "DeepSeek",
-    models: ["DeepSeek-V4.0-Flash", "DeepSeek-V3.2"],
-    preset: "已配置预设 API Key，无需填写",
-  },
-  siliconflow: {
-    label: "SiliconFlow",
-    models: ["Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3"],
-    preset: "可使用预设 API Key，也可临时覆盖",
-  },
-  local: {
-    label: "本地服务",
-    models: ["OpenAI / gpt-4o", "Ollama / qwen2.5:72b"],
-    preset: "由本地服务提供连接凭据",
-  },
-} as const;
-
-type ProviderKey = keyof typeof providers;
+import {
+  prototypeAiProviders as providers,
+  type PrototypeAiProviderKey as ProviderKey,
+} from "./V020PrototypeAiModels";
 type AccessMode = "temporary" | "local";
 const TEMPORARY_KEY_SESSION_STORAGE = "iris-test-temporary-ai-key";
 
@@ -43,23 +27,27 @@ function storeTemporaryKey(value: string) {
 
 export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
   const [provider, setProvider] = useState<ProviderKey>("deepseek");
-  const [model, setModel] = useState<string>(providers.deepseek.models[0]);
+  const [model, setModel] = useState<string>(providers.deepseek.models[0].id);
   const [temporaryKey, setTemporaryKey] = useState(readRememberedTemporaryKey);
   const [rememberTemporaryKey, setRememberTemporaryKey] = useState(
     () => readRememberedTemporaryKey().length > 0,
   );
   const [accessMode, setAccessMode] = useState<AccessMode>("local");
   const [connectionMessage, setConnectionMessage] = useState("");
+  const [catalogMessage, setCatalogMessage] = useState("");
   const providerConfig = providers[provider];
+  const modelLabel =
+    providerConfig.models.find((item) => item.id === model)?.label ?? model;
   const currentAccess =
     accessMode === "local"
       ? "本地 API · OpenAI / gpt-4o"
-      : `临时 API · ${providerConfig.label} / ${model}`;
+      : `临时 API · ${providerConfig.label} / ${modelLabel}`;
 
   const changeProvider = (nextProvider: ProviderKey) => {
     setProvider(nextProvider);
-    setModel(providers[nextProvider].models[0]);
+    setModel(providers[nextProvider].models[0].id);
     setConnectionMessage("");
+    setCatalogMessage("");
   };
   const changeTemporaryKey = (value: string) => {
     setTemporaryKey(value);
@@ -82,6 +70,21 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
   };
   const validateConnectionConfiguration = () => {
     setConnectionMessage("配置项已校验；连接请求将在 API 能力接入后执行。");
+  };
+  const refreshModelCatalog = () => {
+    if (provider === "local") {
+      setCatalogMessage(
+        "本地服务的可用模型由本机运行环境提供，请在接入时读取本地目录。",
+      );
+      return;
+    }
+    const verifiedCount = providerConfig.models.filter(
+      (item) => item.availability === "verified",
+    ).length;
+    const candidateCount = providerConfig.models.length - verifiedCount;
+    setCatalogMessage(
+      `已显示 ${providerConfig.label} 的 ${providerConfig.models.length} 个前端候选模型：官方资料已核实 ${verifiedCount} 个${candidateCount ? `，待实时校验 ${candidateCount} 个` : ""}；真实可用性需在 API 接入后通过 GET /models 校验。`,
+    );
   };
   const canUseTemporaryApi = temporaryKey.trim().length > 0;
 
@@ -119,21 +122,41 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           <small>{providerConfig.preset}</small>
         </label>
 
-        <label className="prototype-ai-field">
-          <span className="prototype-ai-field-label">
-            <span aria-hidden="true">▣</span> 模型
-          </span>
+        <div className="prototype-ai-field">
+          <div className="prototype-ai-model-heading">
+            <span className="prototype-ai-field-label">
+              <span aria-hidden="true">▣</span> 模型
+            </span>
+            <button
+              className="prototype-ai-refresh-models"
+              type="button"
+              aria-label="刷新可用模型"
+              onClick={refreshModelCatalog}
+            >
+              ↻ 刷新可用模型
+            </button>
+          </div>
           <select
             aria-label="模型"
             value={model}
             onChange={(event) => setModel(event.target.value)}
           >
-            {providerConfig.models.map((modelName) => (
-              <option key={modelName}>{modelName}</option>
+            {providerConfig.models.map((modelOption) => (
+              <option key={modelOption.id} value={modelOption.id}>
+                {modelOption.label}
+                {modelOption.availability === "candidate"
+                  ? " · 待实时校验"
+                  : ""}
+              </option>
             ))}
           </select>
-          <small>可选模型由上方服务商决定</small>
-        </label>
+          <small>内置目录仅供选择，连接时以服务商实时返回为准</small>
+          {catalogMessage && (
+            <small className="prototype-ai-catalog-feedback" role="status">
+              {catalogMessage}
+            </small>
+          )}
+        </div>
 
         <label className="prototype-ai-field">
           <span className="prototype-ai-field-label">

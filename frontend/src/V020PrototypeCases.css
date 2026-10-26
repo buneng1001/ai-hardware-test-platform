@@ -87,20 +87,78 @@
   width: 100%;
 }
 
-.prototype-case-toolbar .prototype-filter-row label {
+.prototype-module-filter {
+  position: relative;
+  display: grid;
+  gap: 8px;
   width: 100%;
 }
 
-.prototype-case-toolbar select {
+.prototype-module-filter-label {
+  color: var(--prototype-color-muted);
+  font-weight: 750;
+}
+
+.prototype-page button.prototype-module-filter-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
   min-width: 0;
   margin: 0;
-  box-sizing: border-box;
-  padding-inline: 14px 40px;
+  padding: 8px 14px;
+  color: var(--prototype-color-text);
+  border: 1px solid var(--prototype-color-line);
+  background: var(--prototype-color-surface-muted);
+  box-shadow: none;
+  text-align: left;
 }
 
-.prototype-case-toolbar select option {
-  padding-inline: 14px;
+.prototype-page button.prototype-module-filter-trigger[aria-expanded="true"] {
+  border-color: var(--prototype-color-brand);
+  box-shadow: 0 0 0 3px rgb(13 148 136 / 10%);
+}
+
+.prototype-module-filter-chevron {
+  color: var(--prototype-color-brand-strong);
+  font-size: 1rem;
+}
+
+.prototype-module-filter-list {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 6px;
+  box-sizing: border-box;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 12px;
+  background: var(--prototype-color-surface);
+  box-shadow: 0 14px 34px rgb(20 34 50 / 14%);
+}
+
+.prototype-page .prototype-module-filter-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  color: var(--prototype-color-text);
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.prototype-page .prototype-module-filter-list button:hover,
+.prototype-page .prototype-module-filter-list button.is-selected {
+  color: var(--prototype-color-brand-strong);
+  background: var(--prototype-color-brand-soft);
 }
 
 .prototype-case-toolbar .prototype-actions {

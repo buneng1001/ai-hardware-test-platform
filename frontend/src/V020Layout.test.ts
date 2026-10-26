@@ -11,6 +11,7 @@ const styles = [
   "V020PrototypeWorkspace.css",
   "V020PrototypeComponents.css",
   "V020PrototypeCases.css",
+  "V020PrototypeReports.css",
   "V020PrototypeResponsive.css",
 ]
   .map((file) => readFileSync(`${testProcess.cwd()}/src/${file}`, "utf8"))
@@ -91,9 +92,9 @@ test("测试组选择区与用例模块下拉使用统一浅色对齐规则", ()
   expect(
     declarations(".prototype-case-toolbar .prototype-filter-row"),
   ).toContain("width: 100%");
-  expect(declarations(".prototype-case-toolbar select")).toContain(
-    "width: 100%",
-  );
+  expect(
+    declarations(".prototype-page button.prototype-module-filter-trigger"),
+  ).toContain("width: 100%");
   expect(legacyStyles).not.toMatch(/\.prototype-group-selector\s*\{/);
 });
 

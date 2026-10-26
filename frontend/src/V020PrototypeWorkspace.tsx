@@ -6,6 +6,7 @@ import {
 } from "./V020PrototypeShared";
 import { CasesSection } from "./V020PrototypeCases";
 import { GroupSettingsSection } from "./V020PrototypeGroups";
+import { PrototypeReportActions } from "./V020PrototypeReports";
 
 export function WorkspaceContent(props: WorkspaceProps) {
   const {
@@ -204,12 +205,7 @@ export function WorkspaceContent(props: WorkspaceProps) {
             持续跟踪录制中断恢复、低电量采集与 IMU 时间戳漂移相关用例。
           </p>
         </div>
-        <div className="prototype-actions">
-          <button className="prototype-primary">生成最终报告</button>
-          <button className="prototype-secondary">查看报告列表</button>
-          <button className="prototype-secondary">预览最新报告（HTML）</button>
-          <button className="prototype-secondary">下载纯文字</button>
-        </div>
+        <PrototypeReportActions selectedGroup={selectedGroup} />
       </div>
     </>
   );

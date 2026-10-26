@@ -45,7 +45,7 @@ test("AI 配置支持临时密钥和本地接入方式切换", () => {
     "deepseek",
   );
   expect(screen.getByRole("combobox", { name: "模型" })).toHaveValue(
-    "DeepSeek-V4.0-Flash",
+    "deepseek-flash",
   );
   expect(screen.getByText("本地 API · OpenAI / gpt-4o")).toBeVisible();
 
@@ -67,12 +67,39 @@ test("AI 配置支持临时密钥和本地接入方式切换", () => {
   );
   fireEvent.click(temporaryAccess);
   expect(
-    screen.getByText("临时 API · DeepSeek / DeepSeek-V4.0-Flash"),
+    screen.getByText("临时 API · DeepSeek / DeepSeek-V4.1-Flash"),
   ).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "AI 连接测试" }));
   expect(screen.getByRole("status")).toHaveTextContent(
     "配置项已校验；连接请求将在 API 能力接入后执行。",
   );
+});
+
+test("AI 配置展示官方模型目录参考并提供可用模型刷新入口", () => {
+  render(<FrontendRoot />);
+
+  expect(
+    screen.getByRole("option", { name: "DeepSeek-V4.1-Flash" }),
+  ).toHaveValue("deepseek-flash");
+  expect(screen.getByRole("option", { name: "DeepSeek-V4-Pro" })).toHaveValue(
+    "deepseek-v4-pro",
+  );
+
+  fireEvent.change(screen.getByRole("combobox", { name: "服务商" }), {
+    target: { value: "siliconflow" },
+  });
+  expect(
+    screen.getByRole("option", { name: /MiniMax-M3\.1-Flash/ }),
+  ).toBeVisible();
+  expect(screen.getByRole("option", { name: /Kimi-K3/ })).toBeVisible();
+  expect(screen.getByRole("option", { name: "GLM-5.2" })).toBeVisible();
+  expect(screen.getByRole("option", { name: "Qwen3.6-27B" })).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "刷新可用模型" }));
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "真实可用性需在 API 接入后通过 GET /models 校验",
+  );
+  expect(screen.getByRole("status")).toHaveTextContent("待实时校验 8 个");
 });
 
 test("首页和项目列表进入下一页时使用统一页面切换容器", () => {
@@ -137,9 +164,15 @@ test("用例表支持按模块筛选并展示测试步骤和加入测试组入�
   expect(screen.getByRole("button", { name: "导入用例表" })).toBeVisible();
   expect(screen.queryByRole("button", { name: /Beta/i })).toBeNull();
 
-  fireEvent.change(screen.getByRole("combobox", { name: "用例模块" }), {
-    target: { value: "电源管理" },
-  });
+  const moduleFilter = screen.getByRole("combobox", { name: "用例模块" });
+  expect(moduleFilter.tagName).toBe("BUTTON");
+  expect(moduleFilter).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(moduleFilter);
+  expect(screen.getByRole("listbox", { name: "用例模块" })).toBeVisible();
+  expect(screen.getByRole("option", { name: "全部模块" })).toBeVisible();
+  expect(screen.getByRole("option", { name: "录制功能" })).toBeVisible();
+  fireEvent.click(screen.getByRole("option", { name: "电源管理" }));
+  expect(moduleFilter).toHaveAttribute("aria-expanded", "false");
   expect(screen.getByText("设备断电后数据保存状态")).toBeVisible();
   expect(screen.queryByText("短按录制键，确认开始录制")).toBeNull();
 
@@ -234,4 +267,27 @@ test("执行结果使用浅色测试组选择区并展示 AI 回测建议和统�
     screen.getByRole("button", { name: "预览最新报告（HTML）" }),
   ).toBeVisible();
   expect(screen.queryByRole("button", { name: "下载 HTML" })).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "查看报告列表" }));
+  expect(screen.getByRole("dialog", { name: "历史报告列表" })).toBeVisible();
+  expect(screen.getByText("报告 #003")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "预览报告 #003" }));
+  expect(
+    screen.getByRole("dialog", { name: "最新报告 HTML 预览" }),
+  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: /最终测试报告/ })).toBeVisible();
+  expect(screen.getByText("AI 回测建议", { selector: "h3" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "返回报告列表" }));
+  fireEvent.click(screen.getByRole("button", { name: "预览报告 #002" }));
+  expect(
+    screen.getByRole("dialog", { name: "报告 #002 HTML 预览" }),
+  ).toBeVisible();
+  expect(screen.getByText("待回归")).toBeVisible();
+  expect(screen.getByText(/文件索引未正确重建/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "关闭报告预览" }));
+
+  fireEvent.click(screen.getByRole("button", { name: "预览最新报告（HTML）" }));
+  expect(
+    screen.getByRole("dialog", { name: "最新报告 HTML 预览" }),
+  ).toBeVisible();
 });

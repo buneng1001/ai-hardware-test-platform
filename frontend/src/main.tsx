@@ -10,6 +10,7 @@ import "./V020PrototypeAi.css";
 import "./V020PrototypeWorkspace.css";
 import "./V020PrototypeComponents.css";
 import "./V020PrototypeCases.css";
+import "./V020PrototypeReports.css";
 import "./V020PrototypeResponsive.css";
 
 const root = document.getElementById("root");

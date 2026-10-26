@@ -1,9 +1,5 @@
-import {
-  CaseTable,
-  cases,
-  type CaseModuleFilter,
-  type WorkspaceProps,
-} from "./V020PrototypeShared";
+import { CaseTable, cases, type WorkspaceProps } from "./V020PrototypeShared";
+import { PrototypeModuleFilter } from "./V020PrototypeModuleFilter";
 
 type CasesSectionProps = Pick<
   WorkspaceProps,
@@ -95,20 +91,10 @@ export function CasesSection({
               先核对导入字段，再生成自动化用例。当前勾选 {selected.length} 条。
             </p>
             <div className="prototype-filter-row">
-              <label>
-                用例模块
-                <select
-                  aria-label="用例模块"
-                  value={caseModuleFilter}
-                  onChange={(event) =>
-                    setCaseModuleFilter(event.target.value as CaseModuleFilter)
-                  }
-                >
-                  <option value="all">全部模块</option>
-                  <option value="录制功能">录制功能</option>
-                  <option value="电源管理">电源管理</option>
-                </select>
-              </label>
+              <PrototypeModuleFilter
+                value={caseModuleFilter}
+                onChange={setCaseModuleFilter}
+              />
             </div>
             <div className="prototype-actions">
               <button>导入用例表</button>
