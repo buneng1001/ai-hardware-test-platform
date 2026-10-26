@@ -79,12 +79,12 @@
   }
 
   .prototype-home-brand-motion {
-    top: 120px;
-    right: 34px;
+    top: 102px;
+    right: 24px;
     left: auto;
-    grid-template-columns: repeat(2, 44px);
-    gap: 10px;
-    opacity: 0.16;
+    grid-template-columns: repeat(2, 88px);
+    gap: 20px;
+    opacity: 0.11;
   }
 
   .prototype-data-toolbar {
@@ -169,7 +169,8 @@
   }
 
   .prototype-ai-mode-actions,
-  .prototype-data-toolbar {
+  .prototype-data-toolbar,
+  .prototype-group-selector {
     grid-template-columns: 1fr;
   }
 

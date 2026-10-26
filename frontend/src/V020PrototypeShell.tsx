@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 
 import { PROTOTYPE_BRAND } from "./V020PrototypeBrand";
+import { PrototypeBrandGlyph } from "./V020PrototypeBrandGlyph";
 import { sections, type SectionKey } from "./V020PrototypeShared";
 
 const SIDEBAR_STORAGE_KEY = "iris-test-sidebar-collapsed";
@@ -107,12 +108,10 @@ export function PrototypeWorkspaceShell({
           className="prototype-sidebar-brand"
           aria-label={PROTOTYPE_BRAND.name}
         >
-          <span className="prototype-brand-mark" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-            <i />
-          </span>
+          <PrototypeBrandGlyph
+            className="prototype-sidebar-brand-glyph"
+            testId="prototype-sidebar-brand-glyph"
+          />
           <span className="prototype-sidebar-brand-copy">
             <strong>{PROTOTYPE_BRAND.shortName}</strong>
             <small>AUTOMATION TEST PLATFORM</small>

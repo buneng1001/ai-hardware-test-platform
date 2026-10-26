@@ -82,6 +82,27 @@
   margin: 0;
 }
 
+.prototype-case-toolbar .prototype-filter-row {
+  display: grid;
+  width: 100%;
+}
+
+.prototype-case-toolbar .prototype-filter-row label {
+  width: 100%;
+}
+
+.prototype-case-toolbar select {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+  padding-inline: 14px 40px;
+}
+
+.prototype-case-toolbar select option {
+  padding-inline: 14px;
+}
+
 .prototype-case-toolbar .prototype-actions {
   justify-content: flex-end;
 }

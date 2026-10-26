@@ -33,9 +33,9 @@ test("首页使用固定两行产品标题和完整测试工作流副标题", ()
 test("首页动效复用四方块品牌图形", () => {
   render(<FrontendRoot />);
 
-  expect(
-    screen.getByTestId("prototype-home-brand-motion").children,
-  ).toHaveLength(4);
+  const brandMotion = screen.getByTestId("prototype-home-brand-motion");
+  expect(brandMotion.children).toHaveLength(4);
+  expect(brandMotion).toHaveClass("prototype-brand-glyph");
 });
 
 test("AI 配置支持临时密钥和本地接入方式切换", () => {
@@ -219,4 +219,19 @@ test("人工测试结果使用统一表格录入", () => {
   expect(
     screen.getByRole("textbox", { name: "TC-REC-001 测试记录" }),
   ).toBeVisible();
+});
+
+test("执行结果使用浅色测试组选择区并展示 AI 回测建议和统一报告预览入口", () => {
+  renderWorkspace();
+
+  expect(screen.getByTestId("prototype-sidebar-brand-glyph")).toHaveClass(
+    "prototype-brand-glyph",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "执行与结果" }));
+
+  expect(screen.getByText(/AI 回测建议：/)).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "预览最新报告（HTML）" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("button", { name: "下载 HTML" })).toBeNull();
 });

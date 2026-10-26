@@ -7,6 +7,7 @@ const testProcess = (
 ).process;
 const styles = [
   "V020PrototypeTheme.css",
+  "V020PrototypeBrand.css",
   "V020PrototypeWorkspace.css",
   "V020PrototypeComponents.css",
   "V020PrototypeCases.css",
@@ -14,6 +15,10 @@ const styles = [
 ]
   .map((file) => readFileSync(`${testProcess.cwd()}/src/${file}`, "utf8"))
   .join("\n");
+const legacyStyles = readFileSync(
+  `${testProcess.cwd()}/src/styles.css`,
+  "utf8",
+);
 
 function declarations(selector: string) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -76,5 +81,29 @@ test("报告指标悬停保持可读且测试数据筛选控件留有间距", ()
 test("页面切换使用轻量进入动效", () => {
   expect(declarations(".prototype-screen-transition")).toContain(
     "animation: prototype-screen-enter",
+  );
+});
+
+test("测试组选择区与用例模块下拉使用统一浅色对齐规则", () => {
+  expect(declarations(".prototype-group-selector")).toContain(
+    "background: var(--prototype-color-surface)",
+  );
+  expect(
+    declarations(".prototype-case-toolbar .prototype-filter-row"),
+  ).toContain("width: 100%");
+  expect(declarations(".prototype-case-toolbar select")).toContain(
+    "width: 100%",
+  );
+  expect(legacyStyles).not.toMatch(/\.prototype-group-selector\s*\{/);
+});
+
+test("首页与工作区共用带内部细节的放大品牌图形", () => {
+  expect(declarations(".prototype-home-brand-motion")).toContain(
+    "repeat(2, clamp(104px, 10vw, 184px))",
+  );
+  expect(declarations(".prototype-brand-glyph i")).toContain("clip-path:");
+  expect(declarations(".prototype-brand-glyph")).not.toContain("transform:");
+  expect(declarations(".prototype-sidebar-brand-glyph")).toContain(
+    "transform: rotate(-7deg)",
   );
 });

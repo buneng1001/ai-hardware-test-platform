@@ -41,26 +41,6 @@
   padding: 0 6px;
 }
 
-.prototype-brand-mark {
-  display: grid;
-  flex: 0 0 auto;
-  grid-template-columns: repeat(2, 10px);
-  gap: 3px;
-  width: 23px;
-  transform: rotate(-7deg);
-}
-
-.prototype-brand-mark i {
-  height: 10px;
-  border-radius: 3px;
-  background: var(--prototype-color-brand);
-}
-
-.prototype-brand-mark i:nth-child(2),
-.prototype-brand-mark i:nth-child(3) {
-  opacity: 0.45;
-}
-
 .prototype-sidebar-brand-copy,
 .prototype-sidebar-project-copy {
   display: grid;

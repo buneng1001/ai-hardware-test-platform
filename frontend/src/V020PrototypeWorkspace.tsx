@@ -199,11 +199,15 @@ export function WorkspaceContent(props: WorkspaceProps) {
           <p>
             当前报告来源：自动化执行 #003（2026-09-15 10:32）+ 人工记录 2 条。
           </p>
+          <p>
+            <strong>AI 回测建议：</strong>
+            持续跟踪录制中断恢复、低电量采集与 IMU 时间戳漂移相关用例。
+          </p>
         </div>
         <div className="prototype-actions">
           <button className="prototype-primary">生成最终报告</button>
           <button className="prototype-secondary">查看报告列表</button>
-          <button className="prototype-secondary">下载 HTML</button>
+          <button className="prototype-secondary">预览最新报告（HTML）</button>
           <button className="prototype-secondary">下载纯文字</button>
         </div>
       </div>

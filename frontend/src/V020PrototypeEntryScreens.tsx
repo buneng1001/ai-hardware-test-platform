@@ -1,5 +1,6 @@
 import { Status } from "./V020PrototypeShared";
 import { PROTOTYPE_BRAND } from "./V020PrototypeBrand";
+import { PrototypeBrandGlyph } from "./V020PrototypeBrandGlyph";
 import { PrototypeAiConfiguration } from "./V020PrototypeAiConfiguration";
 
 export function PrototypeHome({
@@ -9,16 +10,10 @@ export function PrototypeHome({
 }) {
   return (
     <div className="prototype-home">
-      <div
+      <PrototypeBrandGlyph
         className="prototype-home-brand-motion"
-        data-testid="prototype-home-brand-motion"
-        aria-hidden="true"
-      >
-        <i />
-        <i />
-        <i />
-        <i />
-      </div>
+        testId="prototype-home-brand-motion"
+      />
       <div className="prototype-home-copy">
         <div className="prototype-kicker">INTELLIGENT TEST WORKSPACE</div>
         <h1>

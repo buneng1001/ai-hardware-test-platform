@@ -124,29 +124,24 @@
 .prototype-home-brand-motion {
   position: absolute;
   z-index: -1;
-  top: clamp(250px, 31vh, 360px);
-  left: clamp(390px, 32vw, 660px);
+  top: clamp(210px, 27vh, 320px);
+  left: clamp(330px, 28vw, 560px);
   display: grid;
-  grid-template-columns: repeat(2, clamp(52px, 5vw, 92px));
-  gap: clamp(12px, 1.4vw, 22px);
+  grid-template-columns: repeat(2, clamp(104px, 10vw, 184px));
+  gap: clamp(24px, 2.8vw, 44px);
   width: fit-content;
-  opacity: 0.18;
+  opacity: 0.13;
   filter: drop-shadow(0 22px 38px rgb(13 148 136 / 14%));
   transform: rotate(-8deg);
   animation: prototype-brand-float 9s ease-in-out infinite;
 }
 
 .prototype-home-brand-motion i {
-  aspect-ratio: 1;
-  border-radius: clamp(16px, 1.5vw, 26px);
-  background: linear-gradient(145deg, #38b8aa, var(--prototype-color-brand));
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 38%);
   animation: prototype-brand-tile 5.4s ease-in-out infinite;
 }
 
 .prototype-home-brand-motion i:nth-child(2),
 .prototype-home-brand-motion i:nth-child(3) {
-  background: linear-gradient(145deg, #a9ddd7, #65bdb4);
   animation-delay: -2.7s;
 }
 
