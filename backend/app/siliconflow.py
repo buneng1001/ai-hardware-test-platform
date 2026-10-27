@@ -29,12 +29,18 @@ class SiliconFlowError(RuntimeError):
 
 
 Transport = Callable[[dict[str, object]], tuple[int, str]]
+CatalogTransport = Callable[[dict[str, object]], tuple[int, str]]
 
 
 PROVIDER_ENDPOINTS = {
     "siliconflow": "https://api.siliconflow.cn/v1/chat/completions",
     "deepseek": "https://api.deepseek.com/chat/completions",
     "kimi": "https://api.moonshot.cn/v1/chat/completions",
+}
+PROVIDER_MODEL_ENDPOINTS = {
+    "siliconflow": "https://api.siliconflow.cn/v1/models",
+    "deepseek": "https://api.deepseek.com/models",
+    "kimi": "https://api.moonshot.cn/v1/models",
 }
 
 
@@ -59,6 +65,26 @@ def _default_transport(request_data: dict[str, object]) -> tuple[int, str]:
         is_timeout = isinstance(error.reason, TimeoutError | socket.timeout)
         kind = ModelErrorKind.TIMEOUT if is_timeout else ModelErrorKind.NETWORK
         message = "模型请求超时" if is_timeout else "模型网络请求失败"
+        raise SiliconFlowError(kind, message, is_timeout) from error
+
+
+def _default_catalog_transport(request_data: dict[str, object]) -> tuple[int, str]:
+    request = Request(
+        str(request_data["endpoint"]),
+        headers={"Authorization": f"Bearer {request_data['api_key']}"},
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            return response.status, response.read().decode("utf-8")
+    except HTTPError as error:
+        return error.code, error.read().decode("utf-8", errors="replace")
+    except TimeoutError as error:
+        raise SiliconFlowError(ModelErrorKind.TIMEOUT, "模型目录请求超时", True) from error
+    except URLError as error:
+        is_timeout = isinstance(error.reason, TimeoutError | socket.timeout)
+        kind = ModelErrorKind.TIMEOUT if is_timeout else ModelErrorKind.NETWORK
+        message = "模型目录请求超时" if is_timeout else "模型目录网络请求失败"
         raise SiliconFlowError(kind, message, is_timeout) from error
 
 
@@ -112,12 +138,49 @@ class ProviderAdapter:
         provider: str,
         endpoint: str | None = None,
         transport: Transport = _default_transport,
+        catalog_transport: CatalogTransport = _default_catalog_transport,
+        model_endpoint: str | None = None,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.provider = provider
         self._endpoint = endpoint or PROVIDER_ENDPOINTS[provider]
         self._transport = transport
+        self._catalog_transport = catalog_transport
+        self._model_endpoint = model_endpoint or PROVIDER_MODEL_ENDPOINTS[provider]
         self._sleep = sleep
+
+    def list_models(self, *, api_key: str) -> list[str]:
+        """读取服务商实时模型目录，保留返回顺序并过滤无效或重复 ID。"""
+        if not api_key:
+            raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, f"未配置 {self.provider} API Key", False)
+        request_data = {"api_key": api_key, "endpoint": self._model_endpoint}
+        for attempt in range(3):
+            try:
+                response_status, response_text = self._catalog_transport(request_data)
+                if response_status < 200 or response_status >= 300:
+                    kind, retryable = _classify_status(response_status)
+                    raise SiliconFlowError(kind, _status_message(response_status), retryable)
+                payload = json.loads(response_text)
+                entries = payload["data"]
+                if not isinstance(entries, list):
+                    raise TypeError("data 不是模型列表")
+                models: list[str] = []
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    model_id = entry.get("id")
+                    if isinstance(model_id, str) and model_id and model_id not in models:
+                        models.append(model_id)
+                if not models:
+                    raise TypeError("模型列表为空")
+                return models
+            except SiliconFlowError as error:
+                if not error.retryable or attempt == 2:
+                    raise
+                self._sleep(0.05 * (attempt + 1))
+            except (KeyError, TypeError, json.JSONDecodeError) as error:
+                raise SiliconFlowError(ModelErrorKind.INVALID_RESPONSE, "模型目录响应结构无效", False) from error
+        raise AssertionError("模型目录重试循环未返回")
 
     def generate(
         self,
@@ -243,27 +306,54 @@ class SiliconFlowAdapter(ProviderAdapter):
     def __init__(
         self,
         transport: Transport = _default_transport,
+        catalog_transport: CatalogTransport = _default_catalog_transport,
         sleep: Callable[[float], None] = time.sleep,
         endpoint: str | None = None,
+        model_endpoint: str | None = None,
     ) -> None:
-        super().__init__("siliconflow", endpoint=endpoint, transport=transport, sleep=sleep)
+        super().__init__(
+            "siliconflow",
+            endpoint=endpoint,
+            transport=transport,
+            catalog_transport=catalog_transport,
+            model_endpoint=model_endpoint,
+            sleep=sleep,
+        )
 
 
 class DeepSeekAdapter(ProviderAdapter):
     def __init__(
         self,
         transport: Transport = _default_transport,
+        catalog_transport: CatalogTransport = _default_catalog_transport,
         sleep: Callable[[float], None] = time.sleep,
         endpoint: str | None = None,
+        model_endpoint: str | None = None,
     ) -> None:
-        super().__init__("deepseek", endpoint=endpoint, transport=transport, sleep=sleep)
+        super().__init__(
+            "deepseek",
+            endpoint=endpoint,
+            transport=transport,
+            catalog_transport=catalog_transport,
+            model_endpoint=model_endpoint,
+            sleep=sleep,
+        )
 
 
 class KimiAdapter(ProviderAdapter):
     def __init__(
         self,
         transport: Transport = _default_transport,
+        catalog_transport: CatalogTransport = _default_catalog_transport,
         sleep: Callable[[float], None] = time.sleep,
         endpoint: str | None = None,
+        model_endpoint: str | None = None,
     ) -> None:
-        super().__init__("kimi", endpoint=endpoint, transport=transport, sleep=sleep)
+        super().__init__(
+            "kimi",
+            endpoint=endpoint,
+            transport=transport,
+            catalog_transport=catalog_transport,
+            model_endpoint=model_endpoint,
+            sleep=sleep,
+        )

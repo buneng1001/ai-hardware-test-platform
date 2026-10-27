@@ -4,6 +4,8 @@
 
 当前版本：`v0.1.0`（正式版），版本号记录在根目录 `VERSION`。
 
+`v0.2.0` 正在开发：项目、版本、用例、数据包、测试组、执行、人工结果、事实报告与趋势对比等后端基础接口已经存在；新版前端视觉已确认冻结，当前按业务链路逐步接入这些接口。规划文档中的“目标”不等于已经完成联调。
+
 ## v0.1.0 实际范围
 
 v0.1.0 已完成的是“合成/导入数据测试执行与诊断”基础闭环：任务配置、运行队列、视频/IMU/资源/日志数据、确定性检查、
@@ -117,7 +119,7 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 
 ```dotenv
 SILICONFLOW_API_KEY=
-SILICONFLOW_MODEL=Qwen/Qwen2.5-72B-Instruct
+SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V4.1-Flash
 AI_DIAGNOSIS_MODE=siliconflow
 ```
 

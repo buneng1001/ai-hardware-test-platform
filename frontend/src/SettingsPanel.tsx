@@ -22,16 +22,20 @@ type SettingsPanelProps = {
 const defaultModels: Record<DiagnosisProvider, string[]> = {
   siliconflow: [
     "zai-org/GLM-5.2",
-    "zai-org/GLM-4.5V",
-    "Pro/moonshotai/Kimi-K2.6",
-    "MiniMaxAI/MiniMax-M2.5",
-    "deepseek-ai/DeepSeek-V3.2",
+    "Pro/zai-org/GLM-5.1",
+    "zai-org/GLM-5V-Turbo",
+    "Pro/moonshotai/Kimi-K3",
+    "Pro/moonshotai/Kimi-K2.8-Preview",
+    "Pro/moonshotai/Kimi-K2.7",
+    "MiniMaxAI/MiniMax-M3.1-Flash",
+    "MiniMaxAI/MiniMax-M3",
+    "deepseek-ai/DeepSeek-V4.1-Flash",
+    "deepseek-ai/DeepSeek-V4-Pro",
     "Qwen/Qwen3.6-27B",
     "Qwen/Qwen3.5-27B",
     "Qwen/Qwen3-8B",
-    "Qwen/Qwen2.5-72B-Instruct",
   ],
-  deepseek: ["deepseek-v4-flash", "deepseek-v4-pro"],
+  deepseek: ["deepseek-flash", "deepseek-v4-pro"],
   kimi: ["kimi-k2.6", "kimi-k2.5", "kimi-k2.7-code"],
 };
 
@@ -42,23 +46,34 @@ const providerLabels: Record<DiagnosisProvider, string> = {
   kimi: "Kimi",
 };
 const modelGroups = [
-  { label: "智谱 AI", models: ["zai-org/GLM-5.2", "zai-org/GLM-4.5V"] },
-  { label: "月之暗面", models: ["Pro/moonshotai/Kimi-K2.6"] },
-  { label: "MiniMax", models: ["MiniMaxAI/MiniMax-M2.5"] },
-  { label: "DeepSeek", models: ["deepseek-ai/DeepSeek-V3.2"] },
+  {
+    label: "智谱 AI",
+    models: ["zai-org/GLM-5.2", "Pro/zai-org/GLM-5.1", "zai-org/GLM-5V-Turbo"],
+  },
+  {
+    label: "月之暗面",
+    models: [
+      "Pro/moonshotai/Kimi-K3",
+      "Pro/moonshotai/Kimi-K2.8-Preview",
+      "Pro/moonshotai/Kimi-K2.7",
+    ],
+  },
+  {
+    label: "MiniMax",
+    models: ["MiniMaxAI/MiniMax-M3.1-Flash", "MiniMaxAI/MiniMax-M3"],
+  },
+  {
+    label: "DeepSeek",
+    models: ["deepseek-ai/DeepSeek-V4.1-Flash", "deepseek-ai/DeepSeek-V4-Pro"],
+  },
   {
     label: "通义千问",
-    models: [
-      "Qwen/Qwen3.6-27B",
-      "Qwen/Qwen3.5-27B",
-      "Qwen/Qwen3-8B",
-      "Qwen/Qwen2.5-72B-Instruct",
-    ],
+    models: ["Qwen/Qwen3.6-27B", "Qwen/Qwen3.5-27B", "Qwen/Qwen3-8B"],
   },
 ];
 const defaultModelByProvider: Record<DiagnosisProvider, string> = {
-  siliconflow: "Qwen/Qwen2.5-72B-Instruct",
-  deepseek: "deepseek-v4-flash",
+  siliconflow: "deepseek-ai/DeepSeek-V4.1-Flash",
+  deepseek: "deepseek-flash",
   kimi: "kimi-k2.6",
 };
 

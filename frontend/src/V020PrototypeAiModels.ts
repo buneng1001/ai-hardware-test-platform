@@ -1,3 +1,11 @@
+export type PrototypeAiModelAvailability = "verified" | "candidate" | "local";
+
+export type PrototypeAiModelOption = {
+  id: string;
+  label: string;
+  availability: PrototypeAiModelAvailability;
+};
+
 export const prototypeAiProviders = {
   deepseek: {
     label: "DeepSeek",

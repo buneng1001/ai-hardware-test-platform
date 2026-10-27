@@ -34,19 +34,35 @@ class ConnectionTestResponse(BaseModel):
     message: str
 
 
+class ModelCatalogQuery(BaseModel):
+    provider: Literal["siliconflow", "deepseek", "kimi"]
+    api_key: str = ""
+
+
+class ModelCatalogResponse(BaseModel):
+    provider: Literal["siliconflow", "deepseek", "kimi"]
+    models: list[str]
+    source: Literal["provider", "configured"]
+    warning: str | None = None
+
+
 PROVIDER_MODELS: dict[str, tuple[str, ...]] = {
     "siliconflow": (
         "zai-org/GLM-5.2",
-        "zai-org/GLM-4.5V",
-        "Pro/moonshotai/Kimi-K2.6",
-        "MiniMaxAI/MiniMax-M2.5",
-        "deepseek-ai/DeepSeek-V3.2",
+        "Pro/zai-org/GLM-5.1",
+        "zai-org/GLM-5V-Turbo",
+        "Pro/moonshotai/Kimi-K3",
+        "Pro/moonshotai/Kimi-K2.8-Preview",
+        "Pro/moonshotai/Kimi-K2.7",
+        "MiniMaxAI/MiniMax-M3.1-Flash",
+        "MiniMaxAI/MiniMax-M3",
+        "deepseek-ai/DeepSeek-V4.1-Flash",
+        "deepseek-ai/DeepSeek-V4-Pro",
         "Qwen/Qwen3.6-27B",
         "Qwen/Qwen3.5-27B",
         "Qwen/Qwen3-8B",
-        "Qwen/Qwen2.5-72B-Instruct",
     ),
-    "deepseek": ("deepseek-v4-flash", "deepseek-v4-pro"),
+    "deepseek": ("deepseek-flash", "deepseek-v4-pro"),
     "kimi": ("kimi-k2.6", "kimi-k2.5", "kimi-k2.7-code"),
 }
 LEGACY_MODEL_ALIASES = {
@@ -61,7 +77,7 @@ PROVIDER_ENDPOINT_ENV_KEYS = {
 }
 PROVIDER_ADAPTERS = {"siliconflow": SiliconFlowAdapter, "deepseek": DeepSeekAdapter, "kimi": KimiAdapter}
 DEFAULT_MODELS = {
-    "siliconflow": "Qwen/Qwen2.5-72B-Instruct",
+    "siliconflow": "deepseek-ai/DeepSeek-V4.1-Flash",
     "deepseek": PROVIDER_MODELS["deepseek"][0],
     "kimi": PROVIDER_MODELS["kimi"][0],
 }
@@ -94,7 +110,12 @@ def provider_catalog() -> list[dict[str, object]]:
 def validate_model(provider: str, model: str) -> None:
     """拒绝把一个服务商的推荐模型静默发送到另一家；custom/ 用于明确的自定义模型。"""
     supported_models = (*PROVIDER_MODELS[provider], *LEGACY_MODEL_ALIASES.get(provider, ()))
-    if model not in supported_models and not model.startswith(("custom/", "demo-")):
+    provider_model_shape = {
+        "siliconflow": "/" in model,
+        "deepseek": model.startswith("deepseek-"),
+        "kimi": model.startswith(("kimi-", "moonshot-")),
+    }[provider]
+    if model not in supported_models and not provider_model_shape and not model.startswith(("custom/", "demo-")):
         raise HTTPException(status_code=422, detail=f"{provider} 不支持模型：{model}")
 
 
@@ -118,6 +139,33 @@ def current_settings() -> AiSettings:
 @router.get("/ai", response_model=AiSettings)
 def get_ai_settings() -> AiSettings:
     return current_settings()
+
+
+@router.post("/ai/models/query", response_model=ModelCatalogResponse)
+def query_ai_models(request: ModelCatalogQuery) -> ModelCatalogResponse:
+    api_key = request.api_key or configured_api_key(request.provider)
+    if not api_key:
+        provider_label = {"siliconflow": "SiliconFlow", "deepseek": "DeepSeek", "kimi": "Kimi"}[request.provider]
+        return ModelCatalogResponse(
+            provider=request.provider,
+            models=list(PROVIDER_MODELS[request.provider]),
+            source="configured",
+            warning=f"未配置 {provider_label} API Key，当前显示内置候选目录。",
+        )
+    try:
+        models = get_provider_adapter(request.provider).list_models(api_key=api_key)
+    except SiliconFlowError as error:
+        return ModelCatalogResponse(
+            provider=request.provider,
+            models=list(PROVIDER_MODELS[request.provider]),
+            source="configured",
+            warning=f"实时模型目录查询失败：{error}",
+        )
+    return ModelCatalogResponse(
+        provider=request.provider,
+        models=models,
+        source="provider",
+    )
 
 
 @router.post("/ai/test", response_model=ConnectionTestResponse)

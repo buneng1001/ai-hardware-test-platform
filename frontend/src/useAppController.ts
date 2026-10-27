@@ -66,7 +66,7 @@ export function useAppController() {
   const [diagnosisProvider, setDiagnosisProvider] =
     useState<DiagnosisProvider>("siliconflow");
   const [diagnosisModel, setDiagnosisModel] = useState(
-    "Qwen/Qwen2.5-72B-Instruct",
+    "deepseek-ai/DeepSeek-V4.1-Flash",
   );
   const [temporaryApiKey, setTemporaryApiKey] = useState("");
   const [connectionMessage, setConnectionMessage] = useState<string | null>(

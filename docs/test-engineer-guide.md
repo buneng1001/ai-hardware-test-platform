@@ -67,8 +67,8 @@ AI 配置是首页右侧的第二个模块，用来决定“运行详情中的�
 | 模式 | 是否调用外部模型 | 预设模型 | 用途 |
 | --- | --- | --- | --- |
 | Mock（离线） | 否 | 不需要模型 | 离线演示、回归测试；不产生外部请求 |
-| 硅基流动 | 是 | `Qwen/Qwen2.5-72B-Instruct`（默认）、`zai-org/GLM-5.2`、`zai-org/GLM-4.5V`、`Pro/moonshotai/Kimi-K2.6`、`MiniMaxAI/MiniMax-M2.5`、`deepseek-ai/DeepSeek-V3.2`、`Qwen/Qwen3.6-27B`、`Qwen/Qwen3.5-27B`、`Qwen/Qwen3-8B` | 通过硅基流动调用其模型目录中的模型 |
-| DeepSeek | 是 | `deepseek-v4-flash`（默认）、`deepseek-v4-pro` | 通过 DeepSeek 接口调用 DeepSeek 模型 |
+| 硅基流动 | 是 | 默认 `deepseek-ai/DeepSeek-V4.1-Flash`；页面提供 DeepSeek、GLM、Kimi、MiniMax、Qwen 候选项 | 通过硅基流动调用模型；候选项不代表当前账号一定可用 |
+| DeepSeek | 是 | `deepseek-flash`（默认）、`deepseek-v4-pro` | 通过 DeepSeek 接口调用 DeepSeek 模型；实际可用 ID 以实时目录为准 |
 | Kimi | 是 | `kimi-k2.6`（默认）、`kimi-k2.5`、`kimi-k2.7-code` | 通过 Kimi 接口调用 Kimi 模型 |
 
 除了 Mock（离线）以外，必须选择一个预设模型，或选择“自定义模型”后输入完整模型标识；如果需要其他模型厂商或当前列表之外的模型，
@@ -79,6 +79,8 @@ AI 配置是首页右侧的第二个模块，用来决定“运行详情中的�
 在硅基流动、DeepSeek、Kimi 模式下，模型通过下拉框选择，也可以选择“自定义模型”后输入完整模型 ID。
 如果当前选择的是 Mock（离线），页面不会显示模型下拉框，因为该模式不调用模型；切换到其他三种模式后才会显示。
 模型是否可用以连接测试或诊断请求的返回结果为准。
+
+新版首页的“刷新可用模型”会调用后端 `POST /api/settings/ai/models/query`，由后端使用临时 Key 或本机环境变量向服务商查询实时目录。临时 Key 只存在请求内存，不进入 URL、响应、日志或数据库；没有 Key 或服务商查询失败时，页面会明确提示并回退到内置候选目录。
 
 #### 3.3.3 临时 API Key
 
@@ -103,7 +105,7 @@ D:\0_Project\Work_Case\ai-hardware-test-platform\.env
 “测试 AI 连接”会实际请求当前选择的服务商和模型。结果会显示：
 
 ```text
-当前可用｜来源：临时 API Key｜siliconflow/Qwen/Qwen2.5-72B-Instruct：连接可用
+当前可用｜来源：临时 API Key｜siliconflow/deepseek-ai/DeepSeek-V4.1-Flash：连接可用
 ```
 
 如果临时 Key 为空，结果会明确显示使用本地配置回退。该按钮用于验证当前页面输入的 Key，可能消耗服务商额度；Mock 模式不调用模型。

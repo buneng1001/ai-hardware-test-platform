@@ -6,6 +6,7 @@ import { FrontendRoot } from "./FrontendRoot";
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   window.localStorage.clear();
   window.sessionStorage.clear();
   Object.defineProperty(window.navigator, "clipboard", {
@@ -38,7 +39,21 @@ test("首页动效复用四方块品牌图形", () => {
   expect(brandMotion).toHaveClass("prototype-brand-glyph");
 });
 
-test("AI 配置支持临时密钥和本地接入方式切换", () => {
+test("AI 配置支持临时密钥和本地接入方式切换", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        ok: true,
+        provider: "deepseek",
+        model: "deepseek-flash",
+        error_kind: null,
+        retryable: false,
+        message: "deepseek 连接可用",
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
   render(<FrontendRoot />);
 
   expect(screen.getByRole("combobox", { name: "服务商" })).toHaveValue(
@@ -70,12 +85,39 @@ test("AI 配置支持临时密钥和本地接入方式切换", () => {
     screen.getByText("临时 API · DeepSeek / DeepSeek-V4.1-Flash"),
   ).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "AI 连接测试" }));
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "配置项已校验；连接请求将在 API 能力接入后执行。",
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "DeepSeek / DeepSeek-V4.1-Flash：deepseek 连接可用",
+  );
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/settings/ai/test",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        provider: "deepseek",
+        model: "deepseek-flash",
+        api_key: "temporary-secret",
+      }),
+    }),
   );
 });
 
-test("AI 配置展示官方模型目录参考并提供可用模型刷新入口", () => {
+test("AI 配置可从后端刷新服务商实时模型目录", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        provider: "siliconflow",
+        models: [
+          "deepseek-ai/DeepSeek-V4.1-Flash",
+          "zai-org/GLM-5.2",
+          "new-provider/Latest-Model",
+        ],
+        source: "provider",
+        warning: null,
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
   render(<FrontendRoot />);
 
   expect(
@@ -96,10 +138,22 @@ test("AI 配置展示官方模型目录参考并提供可用模型刷新入口",
   expect(screen.getByRole("option", { name: "Qwen3.6-27B" })).toBeVisible();
 
   fireEvent.click(screen.getByRole("button", { name: "刷新可用模型" }));
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "真实可用性需在 API 接入后通过 GET /models 校验",
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "已从 SiliconFlow 实时获取 3 个可用模型",
   );
-  expect(screen.getByRole("status")).toHaveTextContent("待实时校验 8 个");
+  expect(
+    screen.getByRole("option", { name: "new-provider/Latest-Model" }),
+  ).toBeVisible();
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/settings/ai/models/query",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        provider: "siliconflow",
+        api_key: "",
+      }),
+    }),
+  );
 });
 
 test("首页和项目列表进入下一页时使用统一页面切换容器", () => {

@@ -1,92 +1,32 @@
-import { useState } from "react";
 import {
   prototypeAiProviders as providers,
   type PrototypeAiProviderKey as ProviderKey,
 } from "./V020PrototypeAiModels";
-type AccessMode = "temporary" | "local";
-const TEMPORARY_KEY_SESSION_STORAGE = "iris-test-temporary-ai-key";
-
-function readRememberedTemporaryKey() {
-  try {
-    return window.sessionStorage.getItem(TEMPORARY_KEY_SESSION_STORAGE) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function storeTemporaryKey(value: string) {
-  try {
-    if (value)
-      window.sessionStorage.setItem(TEMPORARY_KEY_SESSION_STORAGE, value);
-    else window.sessionStorage.removeItem(TEMPORARY_KEY_SESSION_STORAGE);
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { usePrototypeAiConfiguration } from "./usePrototypeAiConfiguration";
 
 export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
-  const [provider, setProvider] = useState<ProviderKey>("deepseek");
-  const [model, setModel] = useState<string>(providers.deepseek.models[0].id);
-  const [temporaryKey, setTemporaryKey] = useState(readRememberedTemporaryKey);
-  const [rememberTemporaryKey, setRememberTemporaryKey] = useState(
-    () => readRememberedTemporaryKey().length > 0,
-  );
-  const [accessMode, setAccessMode] = useState<AccessMode>("local");
-  const [connectionMessage, setConnectionMessage] = useState("");
-  const [catalogMessage, setCatalogMessage] = useState("");
-  const providerConfig = providers[provider];
-  const modelLabel =
-    providerConfig.models.find((item) => item.id === model)?.label ?? model;
-  const currentAccess =
-    accessMode === "local"
-      ? "本地 API · OpenAI / gpt-4o"
-      : `临时 API · ${providerConfig.label} / ${modelLabel}`;
-
-  const changeProvider = (nextProvider: ProviderKey) => {
-    setProvider(nextProvider);
-    setModel(providers[nextProvider].models[0].id);
-    setConnectionMessage("");
-    setCatalogMessage("");
-  };
-  const changeTemporaryKey = (value: string) => {
-    setTemporaryKey(value);
-    if (rememberTemporaryKey) storeTemporaryKey(value);
-    setConnectionMessage("");
-  };
-  const changeRememberTemporaryKey = (remember: boolean) => {
-    setRememberTemporaryKey(remember);
-    storeTemporaryKey(remember ? temporaryKey : "");
-  };
-  const clearTemporaryKey = () => {
-    setTemporaryKey("");
-    storeTemporaryKey("");
-    setAccessMode("local");
-    setConnectionMessage("");
-  };
-  const chooseAccessMode = (mode: AccessMode) => {
-    setAccessMode(mode);
-    setConnectionMessage("");
-  };
-  const validateConnectionConfiguration = () => {
-    setConnectionMessage("配置项已校验；连接请求将在 API 能力接入后执行。");
-  };
-  const refreshModelCatalog = () => {
-    if (provider === "local") {
-      setCatalogMessage(
-        "本地服务的可用模型由本机运行环境提供，请在接入时读取本地目录。",
-      );
-      return;
-    }
-    const verifiedCount = providerConfig.models.filter(
-      (item) => item.availability === "verified",
-    ).length;
-    const candidateCount = providerConfig.models.length - verifiedCount;
-    setCatalogMessage(
-      `已显示 ${providerConfig.label} 的 ${providerConfig.models.length} 个前端候选模型：官方资料已核实 ${verifiedCount} 个${candidateCount ? `，待实时校验 ${candidateCount} 个` : ""}；真实可用性需在 API 接入后通过 GET /models 校验。`,
-    );
-  };
-  const canUseTemporaryApi = temporaryKey.trim().length > 0;
+  const {
+    provider,
+    model,
+    setModel,
+    availableModels,
+    temporaryKey,
+    rememberTemporaryKey,
+    accessMode,
+    connectionMessage,
+    catalogMessage,
+    loadingAction,
+    providerConfig,
+    currentAccess,
+    canUseTemporaryApi,
+    changeProvider,
+    changeTemporaryKey,
+    changeRememberTemporaryKey,
+    clearTemporaryKey,
+    chooseAccessMode,
+    validateConnectionConfiguration,
+    refreshModelCatalog,
+  } = usePrototypeAiConfiguration();
 
   return (
     <section className="prototype-ai-card" aria-labelledby="prototype-ai-title">
@@ -132,8 +72,9 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
               type="button"
               aria-label="刷新可用模型"
               onClick={refreshModelCatalog}
+              disabled={loadingAction !== null}
             >
-              ↻ 刷新可用模型
+              ↻ {loadingAction === "catalog" ? "正在刷新…" : "刷新可用模型"}
             </button>
           </div>
           <select
@@ -141,7 +82,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
             value={model}
             onChange={(event) => setModel(event.target.value)}
           >
-            {providerConfig.models.map((modelOption) => (
+            {availableModels.map((modelOption) => (
               <option key={modelOption.id} value={modelOption.id}>
                 {modelOption.label}
                 {modelOption.availability === "candidate"
@@ -229,8 +170,9 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
         className="prototype-ai-test"
         type="button"
         onClick={validateConnectionConfiguration}
+        disabled={loadingAction !== null}
       >
-        AI 连接测试
+        {loadingAction === "test" ? "正在测试…" : "AI 连接测试"}
       </button>
       {connectionMessage && (
         <p className="prototype-ai-feedback" role="status">

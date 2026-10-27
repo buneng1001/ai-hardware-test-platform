@@ -240,7 +240,7 @@ test("设置页切换服务商并在连接请求中防止重复提交", async ()
   );
   await waitFor(() => {
     expect(screen.getByRole("combobox", { name: "模型" })).toHaveValue(
-      "deepseek-v4-flash",
+      "deepseek-flash",
     );
   });
   const button = screen.getByRole("button", { name: "测试 AI 连接" });
@@ -251,7 +251,7 @@ test("设置页切换服务商并在连接请求中防止重复提交", async ()
     "/api/settings/ai/test",
     expect.objectContaining({
       body: JSON.stringify({
-        model: "deepseek-v4-flash",
+        model: "deepseek-flash",
         api_key: "",
         provider: "deepseek",
       }),
@@ -262,14 +262,14 @@ test("设置页切换服务商并在连接请求中防止重复提交", async ()
       JSON.stringify({
         ok: true,
         provider: "deepseek",
-        model: "deepseek-v4-flash",
+        model: "deepseek-flash",
         error_kind: null,
         message: "deepseek 连接可用",
       }),
     ),
   );
   await screen.findByText(
-    "当前可用｜来源：本地配置（临时 Key 为空时回退）｜deepseek/deepseek-v4-flash：deepseek 连接可用",
+    "当前可用｜来源：本地配置（临时 Key 为空时回退）｜deepseek/deepseek-flash：deepseek 连接可用",
   );
   expect(button).not.toBeDisabled();
 });
