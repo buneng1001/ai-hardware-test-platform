@@ -62,7 +62,9 @@ test("AI 配置支持临时密钥和本地接入方式切换", async () => {
   expect(screen.getByRole("combobox", { name: "模型" })).toHaveValue(
     "deepseek-flash",
   );
-  expect(screen.getByText("本地 API · OpenAI / gpt-4o")).toBeVisible();
+  expect(
+    screen.getByText("后端配置 · DeepSeek / DeepSeek-V4.1-Flash"),
+  ).toBeVisible();
 
   const temporaryKey = screen.getByLabelText("临时 API Key");
   const temporaryAccess = screen.getByRole("button", {
@@ -86,7 +88,7 @@ test("AI 配置支持临时密钥和本地接入方式切换", async () => {
   ).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "AI 连接测试" }));
   expect(await screen.findByRole("status")).toHaveTextContent(
-    "DeepSeek / DeepSeek-V4.1-Flash：deepseek 连接可用",
+    "连接成功：DeepSeek / DeepSeek-V4.1-Flash：deepseek 连接可用",
   );
   expect(fetchMock).toHaveBeenCalledWith(
     "/api/settings/ai/test",
@@ -99,6 +101,34 @@ test("AI 配置支持临时密钥和本地接入方式切换", async () => {
       }),
     }),
   );
+});
+
+test("AI 连接失败时明确显示失败状态", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          provider: "deepseek",
+          model: "deepseek-flash",
+          error_kind: "authentication",
+          retryable: false,
+          message: "模型服务鉴权失败，请检查 API Key",
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      ),
+    ),
+  );
+  render(<FrontendRoot />);
+
+  fireEvent.click(screen.getByRole("button", { name: "AI 连接测试" }));
+
+  const feedback = await screen.findByRole("alert");
+  expect(feedback).toHaveTextContent(
+    "连接失败：DeepSeek / DeepSeek-V4.1-Flash：模型服务鉴权失败，请检查 API Key",
+  );
+  expect(feedback).toHaveClass("prototype-ai-feedback-error");
 });
 
 test("AI 配置可从后端刷新服务商实时模型目录", async () => {

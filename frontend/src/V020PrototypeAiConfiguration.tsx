@@ -14,6 +14,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
     rememberTemporaryKey,
     accessMode,
     connectionMessage,
+    connectionSucceeded,
     catalogMessage,
     loadingAction,
     providerConfig,
@@ -163,7 +164,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           aria-pressed={accessMode === "local"}
           onClick={() => chooseAccessMode("local")}
         >
-          使用本地 API 接入
+          使用后端配置接入
         </button>
       </div>
       <button
@@ -175,7 +176,10 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
         {loadingAction === "test" ? "正在测试…" : "AI 连接测试"}
       </button>
       {connectionMessage && (
-        <p className="prototype-ai-feedback" role="status">
+        <p
+          className={`prototype-ai-feedback${connectionSucceeded === false ? " prototype-ai-feedback-error" : ""}`}
+          role={connectionSucceeded === false ? "alert" : "status"}
+        >
           {connectionMessage}
         </p>
       )}

@@ -53,6 +53,9 @@ export function usePrototypeAiConfiguration() {
   );
   const [accessMode, setAccessMode] = useState<AccessMode>("local");
   const [connectionMessage, setConnectionMessage] = useState("");
+  const [connectionSucceeded, setConnectionSucceeded] = useState<
+    boolean | null
+  >(null);
   const [catalogMessage, setCatalogMessage] = useState("");
   const [loadingAction, setLoadingAction] = useState<"catalog" | "test" | null>(
     null,
@@ -61,9 +64,9 @@ export function usePrototypeAiConfiguration() {
   const modelLabel =
     availableModels.find((item) => item.id === model)?.label ?? model;
   const currentAccess =
-    accessMode === "local"
-      ? "本地 API · OpenAI / gpt-4o"
-      : `临时 API · ${providerConfig.label} / ${modelLabel}`;
+    provider === "local"
+      ? `本地服务 · ${modelLabel}`
+      : `${accessMode === "local" ? "后端配置" : "临时 API"} · ${providerConfig.label} / ${modelLabel}`;
 
   const changeProvider = (nextProvider: ProviderKey) => {
     const nextModels = initialModels(nextProvider);
@@ -71,6 +74,7 @@ export function usePrototypeAiConfiguration() {
     setAvailableModels(nextModels);
     setModel(nextModels[0].id);
     setConnectionMessage("");
+    setConnectionSucceeded(null);
     setCatalogMessage("");
   };
 
@@ -78,6 +82,7 @@ export function usePrototypeAiConfiguration() {
     setTemporaryKey(value);
     if (rememberTemporaryKey) storeTemporaryKey(value);
     setConnectionMessage("");
+    setConnectionSucceeded(null);
   };
 
   const changeRememberTemporaryKey = (remember: boolean) => {
@@ -90,16 +95,19 @@ export function usePrototypeAiConfiguration() {
     storeTemporaryKey("");
     setAccessMode("local");
     setConnectionMessage("");
+    setConnectionSucceeded(null);
   };
 
   const chooseAccessMode = (mode: AccessMode) => {
     setAccessMode(mode);
     setConnectionMessage("");
+    setConnectionSucceeded(null);
   };
 
   const validateConnectionConfiguration = async () => {
     if (!isRemoteProvider(provider)) {
       setConnectionMessage("本地服务连接测试将在本机模型服务接入后执行。");
+      setConnectionSucceeded(null);
       return;
     }
     setLoadingAction("test");
@@ -111,11 +119,13 @@ export function usePrototypeAiConfiguration() {
         accessMode === "temporary" ? temporaryKey.trim() : "",
       );
       setConnectionMessage(
-        `${providerConfig.label} / ${modelLabel}：${result.message}`,
+        `${result.ok ? "连接成功" : "连接失败"}：${providerConfig.label} / ${modelLabel}：${result.message}`,
       );
+      setConnectionSucceeded(result.ok);
     } catch (error) {
       const message = error instanceof Error ? error.message : "请求失败";
       setConnectionMessage(`连接测试失败：${message}`);
+      setConnectionSucceeded(false);
     } finally {
       setLoadingAction(null);
     }
@@ -165,6 +175,7 @@ export function usePrototypeAiConfiguration() {
     rememberTemporaryKey,
     accessMode,
     connectionMessage,
+    connectionSucceeded,
     catalogMessage,
     loadingAction,
     providerConfig,
