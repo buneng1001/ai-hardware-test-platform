@@ -2,6 +2,14 @@
 
 Status: ready-for-agent
 Version: v0.2.0
+Implementation status: in-progress — 后端领域基础接口与固定样例验收已建立；冻结版 V020 前端仍需按业务链路接入真实 API。
+
+## 2026-10-28 状态校准
+
+- 前端视觉以 `codex/v0.2.0-demo-productization` 当前实现为冻结基线；后续只补真实数据、加载、空状态、错误与重试，不重新设计页面。
+- 后端已具备项目/版本、源用例、自动化用例、数据包、测试组、自动化执行、人工结果、事实报告、报告分析、生命周期、趋势与版本对比等基础接口和自动化测试。
+- `frontend/src/FrontendRoot.tsx` 当前仍直接渲染 `V020FrontendPrototype`；冻结版工作区的大部分业务数据仍是本地状态，不能把“后端接口存在”记为“前后端流程已完成”。
+- 下列 01～14 Issue 保留原始验收清单；只有完整用户流程接入并有证据后才勾选，状态校准段用于区分已存在的后端能力与剩余联调工作。
 
 ## Problem Statement
 
