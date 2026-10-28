@@ -174,7 +174,7 @@ Implementation status: in-progress — 后端领域基础接口与固定样例�
 
 ## Further Notes
 
-- 正式实现前，应以本规格、[v0.2.0 设计重启审阅稿](../../docs/plans/v0.2.0-design-restart-review.md)、[前端页面与操作流程](../../docs/v0.2.0-frontend-flow.md)、[前端信息架构](../../docs/v0.2.0-frontend-information-architecture.md)和[最终报告设计](../../docs/plans/v0.2.0-report-design.md)为联合依据。
+- 正式实现前，应以本规格、[前端页面与操作流程](../../docs/v0.2.0-frontend-flow.md)、[前端信息架构](../../docs/v0.2.0-frontend-information-architecture.md)和[最终报告设计](../../docs/plans/v0.2.0-report-design.md)为联合依据。
 - 旧分支 `codex/v0.2.0-report-and-governance` 中的 CONTEXT.md 只作为冲突历史记录，不作为本规格的设计来源。
 - 目前仓库中已有的 v0.1.0 数据任务、运行记录、人工检查和基础报告能力需要通过新的 v0.2.0 领域关系逐步接入，不能简单改名后直接复用。
 - v0.2.0 的首个开发阶段应优先建立项目/版本、用例资产、数据包和测试组之间的最小可运行链路，再接入自动化执行、人工结果和报告。
