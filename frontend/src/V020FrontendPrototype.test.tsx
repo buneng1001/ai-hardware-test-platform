@@ -71,6 +71,35 @@ const prototypeSourceCases = [
   },
 ];
 
+/** 冻结版“测试数据”页读取的真实数据包样例。 */
+const prototypeDataPackage = {
+  id: 7,
+  package_number: "DP-000007",
+  source_task_id: 3,
+  source_task_name: "EVT1 录制采集",
+  source_run_id: 12,
+  source_run_execution_number: 2,
+  source_type: "generated",
+  data_kind: "normal",
+  fault_type: null,
+  version_fingerprint: "abc123def456789",
+  generated_at: "2026-10-03T08:00:00Z",
+  validation_status: "passed",
+  validation_message: "数据包文件、视频和 IMU 通道已通过完整性校验",
+  channels: ["camera_1", "camera_2"],
+  timestamps: { first_raw_device_timestamp_ns: 1700000000000000000 },
+  integrity: {
+    status: "passed",
+    checked_file_count: 3,
+    missing_files: [],
+    size_mismatches: [],
+  },
+  eligible_for_test_group: true,
+  has_newer_source_result: false,
+  recommended_source_run_id: null,
+  files: [],
+};
+
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
@@ -111,6 +140,8 @@ function stubProjectApi() {
       }
       if (url === "/api/product-versions/11/source-test-case-imports")
         return jsonResponse([]);
+      if (url === "/api/data-packages")
+        return jsonResponse({ items: [prototypeDataPackage] });
       return jsonResponse({ detail: "未模拟的接口" }, 404);
     }),
   );
@@ -387,12 +418,12 @@ test("测试数据支持复制编号且测试组数据包可输入或下拉选�
   await renderWorkspace();
 
   fireEvent.click(screen.getByRole("button", { name: "测试数据" }));
-  const copyButton = screen.getByRole("button", {
-    name: "复制数据编号 DP-REC-001",
+  const copyButton = await screen.findByRole("button", {
+    name: "复制数据编号 DP-000007",
   });
   expect(copyButton).toHaveAttribute("title", "复制编号");
   fireEvent.click(copyButton);
-  expect(writeText).toHaveBeenCalledWith("DP-REC-001");
+  expect(writeText).toHaveBeenCalledWith("DP-000007");
 
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
   fireEvent.click(screen.getAllByRole("button", { name: "编辑设置" })[0]);
