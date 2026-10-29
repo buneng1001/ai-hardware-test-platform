@@ -87,3 +87,9 @@
   font-style: normal;
   font-size: 0.78rem;
 }
+
+.prototype-table tbody tr.prototype-row-highlight,
+.prototype-table tbody tr.prototype-row-highlight:hover {
+  background: #ecfdf5;
+  box-shadow: inset 3px 0 0 var(--prototype-color-brand, #0d9488);
+}

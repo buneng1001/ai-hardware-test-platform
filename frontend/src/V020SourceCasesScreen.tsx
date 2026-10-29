@@ -1,5 +1,6 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
+import { convertSourceTestCasesWithRules } from "./automationTestCasesApi";
 import { V020SourceCaseImportPanel } from "./V020SourceCaseImportPanel";
 import { V020SourceCaseRecords } from "./V020SourceCaseRecords";
 import { V020SourceCaseTable } from "./V020SourceCaseTable";
@@ -20,13 +21,20 @@ const filterControls: Array<[keyof SourceCaseFilters, string, string]> = [
  */
 export function V020SourceCasesScreen({
   versionId,
+  focusCaseId,
   onOpenGroups,
+  onOpenAutomation,
 }: {
   versionId: number | null;
+  focusCaseId: number | null;
   onOpenGroups: () => void;
+  onOpenAutomation: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const source = useV020SourceTestCases(versionId);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generateNotice, setGenerateNotice] = useState<string | null>(null);
 
   if (versionId === null) {
     return (
@@ -60,6 +68,27 @@ export function V020SourceCasesScreen({
   }
 
   const pickFile = () => fileInputRef.current?.click();
+
+  /** 规则转换使用既有服务边界，成功后切到自动化用例表查看候选。 */
+  const generateAutomationCases = async () => {
+    if (versionId === null) return;
+    setGenerating(true);
+    setGenerateError(null);
+    setGenerateNotice(null);
+    try {
+      const result = await convertSourceTestCasesWithRules(versionId);
+      if (result.created_count > 0) onOpenAutomation();
+      else setGenerateNotice("没有新的原始用例需要转换；已有候选不会被覆盖。");
+    } catch (caught) {
+      setGenerateError(
+        caught instanceof Error && caught.message
+          ? caught.message
+          : "规则转换失败",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <>
@@ -105,6 +134,13 @@ export function V020SourceCasesScreen({
             }}
           />
           <button
+            disabled={source.busy || generating}
+            onClick={() => void generateAutomationCases()}
+            type="button"
+          >
+            生成自动化用例
+          </button>
+          <button
             className="prototype-secondary"
             onClick={source.selectAllFiltered}
             type="button"
@@ -133,6 +169,16 @@ export function V020SourceCasesScreen({
           {source.actionError}
         </div>
       )}
+      {generateError && (
+        <div className="prototype-inline-note" role="alert">
+          {generateError}
+        </div>
+      )}
+      {generateNotice && (
+        <p className="prototype-muted" role="status">
+          {generateNotice}
+        </p>
+      )}
 
       {source.draft && (
         <V020SourceCaseImportPanel
@@ -149,6 +195,7 @@ export function V020SourceCasesScreen({
         selectedIds={source.selectedIds}
         busy={source.busy}
         hasCases={source.totalCount > 0}
+        focusCaseId={focusCaseId}
         onToggle={source.toggleSelect}
       />
 

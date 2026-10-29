@@ -1,40 +1,26 @@
-import {
-  CaseTable,
-  Status,
-  cases,
-  type WorkspaceProps,
-} from "./V020PrototypeShared";
-import { PrototypeModuleFilter } from "./V020PrototypeModuleFilter";
+import { useState } from "react";
+
+import { Status, cases, type WorkspaceProps } from "./V020PrototypeShared";
+import { V020AutomationCasesScreen } from "./V020AutomationCasesScreen";
 import { V020SourceCasesScreen } from "./V020SourceCasesScreen";
 
 type CasesSectionProps = Pick<
   WorkspaceProps,
-  | "projectWorkspace"
-  | "caseView"
-  | "setCaseView"
-  | "caseModuleFilter"
-  | "setCaseModuleFilter"
-  | "selected"
-  | "onToggle"
-  | "onSelectAll"
-  | "onInvertSelection"
-  | "setSection"
+  "projectWorkspace" | "caseView" | "setCaseView" | "setSection"
 >;
 
 export function CasesSection({
   projectWorkspace,
   caseView,
   setCaseView,
-  caseModuleFilter,
-  setCaseModuleFilter,
-  selected,
-  onToggle,
-  onSelectAll,
-  onInvertSelection,
   setSection,
 }: CasesSectionProps) {
   const automationCaseCount = cases.filter((item) => item.automation).length;
   const manualCaseCount = cases.length - automationCaseCount;
+  const [focusedSourceCaseId, setFocusedSourceCaseId] = useState<number | null>(
+    null,
+  );
+  const versionId = projectWorkspace.openedVersion?.id ?? null;
 
   return (
     <section className="prototype-cases-section">
@@ -71,7 +57,10 @@ export function CasesSection({
             className={
               caseView === key ? "prototype-nav-active" : "prototype-secondary"
             }
-            onClick={() => setCaseView(key)}
+            onClick={() => {
+              setCaseView(key);
+              if (key === "source") setFocusedSourceCaseId(null);
+            }}
           >
             {label}
           </button>
@@ -97,56 +86,21 @@ export function CasesSection({
       )}
       {caseView === "source" && (
         <V020SourceCasesScreen
-          versionId={projectWorkspace.openedVersion?.id ?? null}
+          versionId={versionId}
+          focusCaseId={focusedSourceCaseId}
           onOpenGroups={() => setSection("groups")}
+          onOpenAutomation={() => setCaseView("automation")}
         />
       )}
       {caseView === "automation" && (
-        <>
-          <div className="prototype-case-toolbar">
-            <p className="prototype-muted">
-              先核对导入字段，再生成自动化用例。当前勾选 {selected.length} 条。
-            </p>
-            <div className="prototype-filter-row">
-              <PrototypeModuleFilter
-                value={caseModuleFilter}
-                onChange={setCaseModuleFilter}
-              />
-            </div>
-            <div className="prototype-actions">
-              <button>导入用例表</button>
-              <button className="prototype-secondary">
-                提交修改并重新生成
-              </button>
-              <button className="prototype-secondary">校验自动化用例</button>
-              <button
-                className="prototype-secondary"
-                onClick={() => setSection("groups")}
-              >
-                加入测试组
-              </button>
-              <button className="prototype-secondary" onClick={onSelectAll}>
-                全选
-              </button>
-              <button
-                className="prototype-secondary"
-                onClick={onInvertSelection}
-              >
-                反选
-              </button>
-            </div>
-          </div>
-          <CaseTable
-            selected={selected}
-            onToggle={onToggle}
-            automationView
-            caseFilter={caseModuleFilter}
-          />
-          <div className="prototype-inline-note">
-            原始用例和自动化用例分开保存；自动化表的每行可填写给 AI
-            的修改意见，提交后再点击校验。
-          </div>
-        </>
+        <V020AutomationCasesScreen
+          versionId={versionId}
+          onOpenGroups={() => setSection("groups")}
+          onOpenSource={(sourceTestCaseId) => {
+            setFocusedSourceCaseId(sourceTestCaseId);
+            setCaseView("source");
+          }}
+        />
       )}
     </section>
   );
