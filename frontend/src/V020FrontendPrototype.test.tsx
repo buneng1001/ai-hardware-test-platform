@@ -23,6 +23,54 @@ const prototypeVersion = {
   updated_at: "2026-10-01T08:10:00Z",
 };
 
+/** 冻结版“测试用例表”页读取的真实原始用例样例。 */
+const prototypeSourceCases = [
+  {
+    id: 1,
+    import_record_id: 1,
+    source_import_status: "active",
+    case_number: "TC-REC-001",
+    title: "短按录制键，确认开始录制",
+    priority: "高",
+    preconditions: "",
+    input: "",
+    steps: "确认设备处于待机状态\n短按录制键并观察录制指示",
+    expected_result: "",
+    test_type: "",
+    module: "录制功能",
+    test_item: "录制启动",
+    test_result: "",
+    test_record: "",
+    pre_test_notes: "",
+    planned_execution_time: "",
+    attachment: "",
+    software_version: "EVT1-0.2.0",
+    selected: false,
+  },
+  {
+    id: 2,
+    import_record_id: 1,
+    source_import_status: "active",
+    case_number: "TC-POWER-003",
+    title: "设备断电后数据保存状态",
+    priority: "中",
+    preconditions: "",
+    input: "",
+    steps: "在设备录制过程中断开电源",
+    expected_result: "",
+    test_type: "",
+    module: "电源管理",
+    test_item: "断电恢复",
+    test_result: "",
+    test_record: "",
+    pre_test_notes: "",
+    planned_execution_time: "",
+    attachment: "",
+    software_version: "EVT1-0.2.0",
+    selected: false,
+  },
+];
+
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
@@ -50,6 +98,19 @@ function stubProjectApi() {
           message: "尚无最终报告",
           points: [],
         });
+      if (url.startsWith("/api/product-versions/11/source-test-cases")) {
+        const query = new URL(url, "http://local").searchParams;
+        const moduleFilter = query.get("module");
+        return jsonResponse({
+          items: moduleFilter
+            ? prototypeSourceCases.filter(
+                (item) => item.module === moduleFilter,
+              )
+            : prototypeSourceCases,
+        });
+      }
+      if (url === "/api/product-versions/11/source-test-case-imports")
+        return jsonResponse([]);
       return jsonResponse({ detail: "未模拟的接口" }, 404);
     }),
   );
@@ -292,28 +353,24 @@ test("浏览器存储不可用时侧边栏仍可进入和折叠", async () => {
     "prototype-shell--collapsed",
   );
 });
-test("用例表支持按模块筛选并展示测试步骤和加入测试组入口", async () => {
+test("测试用例表读取真实原始用例并支持模块筛选与加入测试组", async () => {
   await renderWorkspace();
 
   fireEvent.click(screen.getByRole("button", { name: "需求 / 测试用例" }));
   fireEvent.click(screen.getByRole("button", { name: "测试用例表" }));
 
-  expect(screen.getByRole("columnheader", { name: "测试步骤" })).toBeVisible();
+  expect(
+    await screen.findByRole("columnheader", { name: "测试步骤" }),
+  ).toBeVisible();
   expect(screen.getByText("确认设备处于待机状态")).toBeVisible();
+  expect(screen.getByText("短按录制键，确认开始录制")).toBeVisible();
   expect(screen.getByRole("button", { name: "加入测试组" })).toBeVisible();
   expect(screen.getByRole("button", { name: "导入用例表" })).toBeVisible();
   expect(screen.queryByRole("button", { name: /Beta/i })).toBeNull();
 
-  const moduleFilter = screen.getByRole("combobox", { name: "用例模块" });
-  expect(moduleFilter.tagName).toBe("BUTTON");
-  expect(moduleFilter).toHaveAttribute("aria-expanded", "false");
-  fireEvent.click(moduleFilter);
-  expect(screen.getByRole("listbox", { name: "用例模块" })).toBeVisible();
-  expect(screen.getByRole("option", { name: "全部模块" })).toBeVisible();
-  expect(screen.getByRole("option", { name: "录制功能" })).toBeVisible();
-  fireEvent.click(screen.getByRole("option", { name: "电源管理" }));
-  expect(moduleFilter).toHaveAttribute("aria-expanded", "false");
-  expect(screen.getByText("设备断电后数据保存状态")).toBeVisible();
+  const moduleFilter = screen.getByRole("combobox", { name: "模块筛选" });
+  fireEvent.change(moduleFilter, { target: { value: "电源管理" } });
+  expect(await screen.findByText("设备断电后数据保存状态")).toBeVisible();
   expect(screen.queryByText("短按录制键，确认开始录制")).toBeNull();
 
   fireEvent.click(screen.getByRole("button", { name: "加入测试组" }));
