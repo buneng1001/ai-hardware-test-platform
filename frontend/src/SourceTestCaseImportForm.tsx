@@ -111,7 +111,7 @@ function FieldMappingConfirmation({
   );
 }
 
-const importOptionFields: Array<[keyof ImportOptions, string]> = [
+export const importOptionFields: Array<[keyof ImportOptions, string]> = [
   ["include_historical_results", "导入历史测试结果"],
   ["include_test_records", "导入测试记录"],
   ["include_pre_test_notes", "导入测试前备注"],

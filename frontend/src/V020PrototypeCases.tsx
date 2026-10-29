@@ -1,8 +1,15 @@
-import { CaseTable, cases, type WorkspaceProps } from "./V020PrototypeShared";
+import {
+  CaseTable,
+  Status,
+  cases,
+  type WorkspaceProps,
+} from "./V020PrototypeShared";
 import { PrototypeModuleFilter } from "./V020PrototypeModuleFilter";
+import { V020SourceCasesScreen } from "./V020SourceCasesScreen";
 
 type CasesSectionProps = Pick<
   WorkspaceProps,
+  | "projectWorkspace"
   | "caseView"
   | "setCaseView"
   | "caseModuleFilter"
@@ -15,6 +22,7 @@ type CasesSectionProps = Pick<
 >;
 
 export function CasesSection({
+  projectWorkspace,
   caseView,
   setCaseView,
   caseModuleFilter,
@@ -71,20 +79,29 @@ export function CasesSection({
       </div>
       {caseView === "requirements" && (
         <div className="prototype-card prototype-requirements">
+          <Status tone="warn">未启用</Status>
           <p className="prototype-muted">
-            导入产品需求资料，AI 可根据需求辅助整理测试用例。
+            需求点拆解与需求到用例生成在 v0.2.0
+            未启用，平台不会伪造需求点或测试用例。
           </p>
-          <label>
-            需求资料
-            <textarea defaultValue="本版本重点验证录制、数据完整性和断电恢复。" />
-          </label>
+          <p className="prototype-muted">
+            需要导入 Beta
+            产品需求或测试用例资料时，请进入“测试用例表”核对字段映射后导入；资料导入不依赖上述能力。
+          </p>
           <div className="prototype-actions">
-            <button>导入需求文件</button>
-            <button className="prototype-secondary">保存需求</button>
+            <button onClick={() => setCaseView("source")} type="button">
+              前往导入测试用例资料
+            </button>
           </div>
         </div>
       )}
-      {caseView !== "requirements" && (
+      {caseView === "source" && (
+        <V020SourceCasesScreen
+          versionId={projectWorkspace.openedVersion?.id ?? null}
+          onOpenGroups={() => setSection("groups")}
+        />
+      )}
+      {caseView === "automation" && (
         <>
           <div className="prototype-case-toolbar">
             <p className="prototype-muted">
@@ -98,19 +115,10 @@ export function CasesSection({
             </div>
             <div className="prototype-actions">
               <button>导入用例表</button>
-              {caseView === "source" && (
-                <button className="prototype-secondary">生成自动化用例</button>
-              )}
-              {caseView === "automation" && (
-                <>
-                  <button className="prototype-secondary">
-                    提交修改并重新生成
-                  </button>
-                  <button className="prototype-secondary">
-                    校验自动化用例
-                  </button>
-                </>
-              )}
+              <button className="prototype-secondary">
+                提交修改并重新生成
+              </button>
+              <button className="prototype-secondary">校验自动化用例</button>
               <button
                 className="prototype-secondary"
                 onClick={() => setSection("groups")}
@@ -131,7 +139,7 @@ export function CasesSection({
           <CaseTable
             selected={selected}
             onToggle={onToggle}
-            automationView={caseView === "automation"}
+            automationView
             caseFilter={caseModuleFilter}
           />
           <div className="prototype-inline-note">

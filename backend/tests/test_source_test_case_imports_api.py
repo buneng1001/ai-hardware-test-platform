@@ -117,6 +117,68 @@ def test_import_record_keeps_duplicate_file_history_but_rejects_duplicate_case_n
     assert "同一导入记录" in duplicate.json()["detail"][0]["msg"]
 
 
+def test_import_options_control_optional_fields_but_keep_input(client):
+    version_id = create_version(client)
+    field_mapping = {
+        "case_number": "编号",
+        "title": "标题",
+        "input": "输入",
+        "test_result": "结果",
+        "test_record": "记录",
+        "pre_test_notes": "备注",
+        "planned_execution_time": "计划",
+        "attachment": "附件",
+    }
+    row = {
+        "编号": "REC-010",
+        "标题": "历史字段导入",
+        "输入": "12V",
+        "结果": "通过",
+        "记录": "已录屏",
+        "备注": "测试前校准",
+        "计划": "2026-10-30",
+        "附件": "recording.mp4",
+    }
+    payload = {"source_filename": "beta.csv", "field_mapping": field_mapping, "rows": [row]}
+
+    excluded = client.post(f"/api/product-versions/{version_id}/source-test-case-imports", json=payload)
+    assert excluded.status_code == 201
+    assert excluded.json()["import_options"] == {
+        "include_historical_results": False,
+        "include_test_records": False,
+        "include_pre_test_notes": False,
+        "include_planned_execution_time": False,
+        "include_attachments": False,
+    }
+    excluded_case = client.get(f"/api/product-versions/{version_id}/source-test-cases").json()["items"][0]
+    assert excluded_case["input"] == "12V"
+    for optional_field in ("test_result", "test_record", "pre_test_notes", "planned_execution_time", "attachment"):
+        assert excluded_case[optional_field] == ""
+
+    included_payload = {
+        **payload,
+        "source_filename": "beta-all.csv",
+        "import_options": {
+            "include_historical_results": True,
+            "include_test_records": True,
+            "include_pre_test_notes": True,
+            "include_planned_execution_time": True,
+            "include_attachments": True,
+        },
+    }
+    included = client.post(f"/api/product-versions/{version_id}/source-test-case-imports", json=included_payload)
+    assert included.status_code == 201
+    assert included.json()["import_options"]["include_attachments"] is True
+    items = client.get(f"/api/product-versions/{version_id}/source-test-cases").json()["items"]
+    imported_case = next(item for item in items if item["import_record_id"] == included.json()["id"])
+    assert imported_case["test_result"] == "通过"
+    assert imported_case["test_record"] == "已录屏"
+    assert imported_case["pre_test_notes"] == "测试前校准"
+    assert imported_case["planned_execution_time"] == "2026-10-30"
+    assert imported_case["attachment"] == "recording.mp4"
+    assert imported_case["input"] == "12V"
+
+
 def test_xlsx_preview_and_import_record_deletion_explain_affected_source_cases(client):
     version_id = create_version(client)
     workbook = Workbook()
