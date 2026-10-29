@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { FrontendRoot } from "../FrontendRoot";
-import type { AutomationTestCase } from "../automationTestCasesApi";
 import type {
   ImportDeletionImpact,
   ImportOptions,
@@ -10,26 +9,21 @@ import type {
   SourceTestCaseImportDraft,
   SourceTestCaseImportRecord,
 } from "../sourceTestCasesApi";
+import {
+  handleAutomationRequest,
+  type AutomationStubState,
+} from "./automationCasesStub";
 import { importRecord, projectSummary, productVersion } from "./casesFixtures";
+import { jsonResponse } from "./testHttp";
 
 export { automationCase, importRecord, sourceCase } from "./casesFixtures";
 
-function jsonResponse(value: unknown, status = 200) {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-export type StubState = {
+export type StubState = AutomationStubState & {
   cases: SourceTestCase[];
   records: SourceTestCaseImportRecord[];
   preview?: SourceTestCaseImportDraft;
   impact?: ImportDeletionImpact;
   failSourceTimes?: number;
-  automationCases?: AutomationTestCase[];
-  automationConversion?: { created_count: number; items: AutomationTestCase[] };
-  failAutomationTimes?: number;
 };
 
 function importOptionsOf(draft: SourceTestCaseImportDraft): ImportOptions {
@@ -45,7 +39,7 @@ function importOptionsOf(draft: SourceTestCaseImportDraft): ImportOptions {
   };
 }
 
-/** 模拟项目、趋势、原始用例和自动化用例接口，测试不访问真实后端。 */
+/** 模拟项目、趋势和原始用例接口，测试不访问真实后端。 */
 export function stubApi(state: StubState) {
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -125,28 +119,13 @@ export function stubApi(state: StubState) {
           source_test_case_ids: body.source_test_case_ids,
         });
       }
-      if (
-        url === "/api/product-versions/11/automation-test-cases" &&
-        method === "GET"
-      ) {
-        if ((state.failAutomationTimes ?? 0) > 0) {
-          state.failAutomationTimes = (state.failAutomationTimes ?? 0) - 1;
-          return jsonResponse({ detail: "自动化用例服务暂时不可用" }, 500);
-        }
-        return jsonResponse({ items: state.automationCases ?? [] });
-      }
-      if (
-        url ===
-          "/api/product-versions/11/automation-test-case-conversions/rules" &&
-        method === "POST"
-      ) {
-        const result = state.automationConversion ?? {
-          created_count: 0,
-          items: state.automationCases ?? [],
-        };
-        state.automationCases = result.items;
-        return jsonResponse(result, 201);
-      }
+      const automationResponse = handleAutomationRequest(
+        url,
+        method,
+        init,
+        state,
+      );
+      if (automationResponse) return automationResponse;
       if (url.endsWith("/deletion-impact") && method === "GET")
         return jsonResponse(state.impact);
       if (

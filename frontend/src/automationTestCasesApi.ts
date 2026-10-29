@@ -45,6 +45,10 @@ export type AutomationTestCaseDraft = Pick<
   "title" | "input" | "steps" | "expected_result"
 >;
 
+export type AutomationCaseCreateCommand = AutomationTestCaseDraft & {
+  source_case_number: string;
+};
+
 export type AutomationCaseHistory = {
   source: Record<string, string>;
   items: Array<{
@@ -57,7 +61,7 @@ export type AutomationCaseHistory = {
 
 export function createAutomationTestCase(
   versionId: number,
-  command: AutomationTestCaseDraft & { source_case_number: string },
+  command: AutomationCaseCreateCommand,
 ) {
   return request<AutomationTestCase>(
     `/api/product-versions/${versionId}/automation-test-cases`,

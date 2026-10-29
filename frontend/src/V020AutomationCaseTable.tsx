@@ -1,22 +1,35 @@
-import { Status, TestSteps } from "./V020PrototypeShared";
-import type { AutomationTestCase } from "./automationTestCasesApi";
+import { V020AutomationCaseRow } from "./V020AutomationCaseRow";
+import type {
+  AutomationTestCase,
+  AutomationTestCaseDraft,
+} from "./automationTestCasesApi";
 
-function stepsOf(steps: string): string[] {
-  return steps
-    .split(/\r?\n/)
-    .map((step) => step.trim())
-    .filter(Boolean);
-}
-
-const emptyCell = <span className="prototype-muted">未生成</span>;
-
-/** 冻结版自动化用例表：真实展示规则候选、来源和失败行原因。 */
+/** 冻结版自动化用例表：真实字段、行内编辑、反馈和历史。 */
 export function V020AutomationCaseTable({
   items,
+  productVersionId,
+  busy,
   onOpenSource,
+  onSave,
+  onFeedback,
+  onRegenerate,
+  onDelete,
+  onDirtyChange,
+  onRegisterSubmit,
 }: {
   items: AutomationTestCase[];
+  productVersionId: number;
+  busy: boolean;
   onOpenSource: (sourceTestCaseId: number) => void;
+  onSave: (caseId: number, draft: AutomationTestCaseDraft) => Promise<boolean>;
+  onFeedback: (caseId: number, feedback: string) => Promise<boolean>;
+  onRegenerate: (caseId: number) => Promise<boolean>;
+  onDelete: (caseId: number) => Promise<boolean>;
+  onDirtyChange: (caseId: number, dirty: boolean) => void;
+  onRegisterSubmit: (
+    caseId: number,
+    submit: (() => Promise<boolean>) | null,
+  ) => void;
 }) {
   return (
     <div className="prototype-table-wrap">
@@ -29,58 +42,26 @@ export function V020AutomationCaseTable({
             <th>输入</th>
             <th>操作步骤</th>
             <th>预期结果</th>
-            <th>转换状态</th>
+            <th>状态</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => {
-            const failed = item.conversion_status === "failed";
-            return (
-              <tr
-                className={failed ? "prototype-row-warning" : undefined}
-                key={item.id}
-              >
-                <td>{item.case_number}</td>
-                <td>{item.title || emptyCell}</td>
-                <td>
-                  <a
-                    href={`#source-test-case-${item.source_test_case_id}`}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      onOpenSource(item.source_test_case_id);
-                    }}
-                  >
-                    {item.source_case_number}
-                  </a>
-                </td>
-                <td>{item.input || emptyCell}</td>
-                <td>
-                  {stepsOf(item.steps).length > 0 ? (
-                    <TestSteps steps={stepsOf(item.steps)} />
-                  ) : (
-                    emptyCell
-                  )}
-                </td>
-                <td>{item.expected_result || emptyCell}</td>
-                <td>
-                  <Status tone={failed ? "warn" : "good"}>
-                    {failed ? "转换失败" : "规则候选"}
-                  </Status>
-                  <p
-                    className={
-                      failed
-                        ? "prototype-row-note prototype-row-note--warning"
-                        : "prototype-row-note"
-                    }
-                  >
-                    {failed
-                      ? item.review_note
-                      : `低可信度 · ${item.review_note}`}
-                  </p>
-                </td>
-              </tr>
-            );
-          })}
+          {items.map((item) => (
+            <V020AutomationCaseRow
+              busy={busy}
+              item={item}
+              key={item.id}
+              productVersionId={productVersionId}
+              onDelete={onDelete}
+              onDirtyChange={onDirtyChange}
+              onFeedback={onFeedback}
+              onOpenSource={onOpenSource}
+              onRegisterSubmit={onRegisterSubmit}
+              onRegenerate={onRegenerate}
+              onSave={onSave}
+            />
+          ))}
         </tbody>
       </table>
     </div>
