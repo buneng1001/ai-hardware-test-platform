@@ -114,15 +114,22 @@ export function setTestGroupHidden(groupId: number, hidden: boolean) {
   );
 }
 
+export type TestGroupDeletionImpact = {
+  test_group_id: number;
+  name: string;
+  source_test_cases: number;
+  automation_test_cases: number;
+  data_package_assignments: number;
+  manual_test_result_batches: number;
+  manual_test_results: number;
+  manual_test_result_attachments: number;
+  message: string;
+};
+
 export function getTestGroupDeletionImpact(groupId: number) {
-  return request<{
-    source_test_cases: number;
-    automation_test_cases: number;
-    data_package_assignments: number;
-    manual_test_result_batches: number;
-    manual_test_results: number;
-    manual_test_result_attachments: number;
-  }>(`/api/test-groups/${groupId}/deletion-impact`);
+  return request<TestGroupDeletionImpact>(
+    `/api/test-groups/${groupId}/deletion-impact`,
+  );
 }
 
 export function deleteTestGroup(groupId: number) {
