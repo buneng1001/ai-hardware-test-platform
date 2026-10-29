@@ -6,7 +6,6 @@ import {
   type CaseFilter,
   type CaseModuleFilter,
   type CaseView,
-  type DataFilter,
   type GroupView,
   type PrototypeProps,
   type ScreenKey,
@@ -106,7 +105,6 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
     },
   ]);
   const [newGroupName, setNewGroupName] = useState("");
-  const [dataFilter, setDataFilter] = useState<DataFilter>("all");
   const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
   const [manualDrafts, setManualDrafts] = useState<
     Record<string, { result: string; note: string }>
@@ -193,8 +191,6 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
     createGroup,
     dataAssignments,
     setDataAssignment,
-    dataFilter,
-    setDataFilter,
     caseFilter,
     setCaseFilter,
     manualDrafts,

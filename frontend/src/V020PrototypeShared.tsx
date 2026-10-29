@@ -1,11 +1,12 @@
 import type { V020ProjectWorkspace } from "./useV020ProjectWorkspace";
 
-export type PrototypeProps = { onNavigate: (page: "dashboard") => void };
+export type PrototypeProps = {
+  onNavigate: (page: "dashboard" | "new-task" | "import" | "saved") => void;
+};
 export type SectionKey = "overview" | "cases" | "data" | "groups" | "results";
 export type ScreenKey = "home" | "projects" | "workspace" | "manual";
 export type CaseView = "requirements" | "source" | "automation";
 export type GroupView = "list" | "create" | "detail";
-export type DataFilter = "all" | "normal" | "fault" | "generated" | "imported";
 export type CaseModuleFilter = "all" | "录制功能" | "电源管理";
 export type CaseFilter =
   "all" | "录制功能" | "电源管理" | "automation" | "manual";
@@ -37,10 +38,9 @@ export type WorkspaceProps = {
   newGroupName: string;
   setNewGroupName: (name: string) => void;
   createGroup: () => void;
+  onNavigate: PrototypeProps["onNavigate"];
   dataAssignments: Record<string, string>;
   setDataAssignment: (caseId: string, dataId: string) => void;
-  dataFilter: DataFilter;
-  setDataFilter: (filter: DataFilter) => void;
   caseFilter: CaseFilter;
   setCaseFilter: (filter: CaseFilter) => void;
   manualDrafts: Record<string, { result: string; note: string }>;
@@ -100,29 +100,6 @@ export const dataPackages = [
   "DP-REC-001 正常录制数据",
   "DP-FAULT-002 缺失 IMU 数据",
   "DP-FAULT-003 时间戳偏移",
-];
-export const dataAssets = [
-  {
-    id: "DP-REC-001",
-    name: "正常录制数据",
-    kind: "normal",
-    source: "generated",
-    detail: "视频 MP4 · IMU CSV · 128 MB",
-  },
-  {
-    id: "DP-FAULT-002",
-    name: "缺失 IMU 数据",
-    kind: "fault",
-    source: "generated",
-    detail: "视频存在 · IMU 缺失 · 64 MB",
-  },
-  {
-    id: "DP-FAULT-003",
-    name: "时间戳偏移数据",
-    kind: "fault",
-    source: "imported",
-    detail: "视频/IMU · 偏移 120 ms · 96 MB",
-  },
 ];
 
 export function Status({

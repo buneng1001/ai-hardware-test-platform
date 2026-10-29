@@ -1,10 +1,6 @@
-import {
-  Status,
-  dataAssets,
-  type DataFilter,
-  type WorkspaceProps,
-} from "./V020PrototypeShared";
+import { Status, type WorkspaceProps } from "./V020PrototypeShared";
 import { CasesSection } from "./V020PrototypeCases";
+import { V020DataPackagesScreen } from "./V020DataPackagesScreen";
 import { GroupSettingsSection } from "./V020PrototypeGroups";
 import { PrototypeReportActions } from "./V020PrototypeReports";
 import { V020VersionOverview } from "./V020VersionOverview";
@@ -16,97 +12,13 @@ export function WorkspaceContent(props: WorkspaceProps) {
     selectedGroup,
     setSelectedGroup,
     groups,
-    dataFilter,
-    setDataFilter,
     onOpenManual,
   } = props;
-  const copyDataId = (dataId: string) => {
-    if (!navigator.clipboard) return;
-    void navigator.clipboard.writeText(dataId).catch(() => undefined);
-  };
   if (section === "overview")
     return <V020VersionOverview workspace={props.projectWorkspace} />;
   if (section === "cases") return <CasesSection {...props} />;
   if (section === "data")
-    return (
-      <>
-        <div className="prototype-kicker">第 2 步 / 数据任务</div>
-        <h2>生成或导入测试数据</h2>
-        <div className="prototype-filter-row prototype-data-toolbar">
-          <input placeholder="搜索数据编号或名称" />
-          <select
-            value={dataFilter}
-            onChange={(event) =>
-              setDataFilter(event.target.value as DataFilter)
-            }
-          >
-            <option value="all">全部数据</option>
-            <option value="normal">正常数据</option>
-            <option value="fault">故障数据</option>
-            <option value="generated">平台生成</option>
-            <option value="imported">用户导入</option>
-          </select>
-          <button className="prototype-secondary">筛选</button>
-        </div>
-        <div className="prototype-data-grid">
-          {dataAssets
-            .filter(
-              (asset) =>
-                dataFilter === "all" ||
-                dataFilter === asset.kind ||
-                dataFilter === asset.source,
-            )
-            .map((asset) => (
-              <div className="prototype-card" key={asset.id}>
-                <Status tone={asset.kind === "fault" ? "warn" : "good"}>
-                  {asset.kind === "fault" ? "故障数据" : "已校验"}
-                </Status>
-                <div className="prototype-data-title">
-                  <h3>
-                    {asset.id} · {asset.name}
-                  </h3>
-                  <button
-                    className="prototype-copy-button"
-                    type="button"
-                    title="复制编号"
-                    aria-label={`复制数据编号 ${asset.id}`}
-                    onClick={() => copyDataId(asset.id)}
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      width="18"
-                      height="18"
-                    >
-                      <path d="M8 8h11v11H8z" />
-                      <path d="M5 16H3V3h13v2" />
-                    </svg>
-                  </button>
-                </div>
-                <p>
-                  {asset.detail} ·{" "}
-                  {asset.source === "generated" ? "平台生成" : "用户导入"}
-                </p>
-                <button className="prototype-secondary">查看数据详情</button>
-              </div>
-            ))}
-        </div>
-        <div className="prototype-actions">
-          <button>生成新的数据包</button>
-          <button className="prototype-secondary">导入数据并校验</button>
-          <button className="prototype-secondary">执行/刷新数据任务</button>
-        </div>
-        <div className="prototype-legacy-tools">
-          <strong>v0.1.0 数据能力</strong>
-          <span>
-            新建任务、根据导入生成、已保存任务和运行详情继续作为本模块内部能力接入。
-          </span>
-        </div>
-        <div className="prototype-inline-note">
-          测试组只能选择这里已经校验过的数据包。
-        </div>
-      </>
-    );
+    return <V020DataPackagesScreen onNavigate={props.onNavigate} />;
   if (section === "groups") return <GroupSettingsSection {...props} />;
   return (
     <>
