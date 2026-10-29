@@ -7,6 +7,7 @@ import {
 import { CasesSection } from "./V020PrototypeCases";
 import { GroupSettingsSection } from "./V020PrototypeGroups";
 import { PrototypeReportActions } from "./V020PrototypeReports";
+import { V020VersionOverview } from "./V020VersionOverview";
 
 export function WorkspaceContent(props: WorkspaceProps) {
   const {
@@ -15,7 +16,6 @@ export function WorkspaceContent(props: WorkspaceProps) {
     selectedGroup,
     setSelectedGroup,
     groups,
-    setSection,
     dataFilter,
     setDataFilter,
     onOpenManual,
@@ -25,44 +25,7 @@ export function WorkspaceContent(props: WorkspaceProps) {
     void navigator.clipboard.writeText(dataId).catch(() => undefined);
   };
   if (section === "overview")
-    return (
-      <>
-        <div className="prototype-kicker">项目 / IRIS 头环</div>
-        <h2>EVT1 测试工作区</h2>
-        <div className="prototype-conclusion">
-          当前结论：最近一轮录制模块需要补充验证
-        </div>
-        <div className="prototype-metric-row">
-          <button
-            className="prototype-metric-button"
-            onClick={() => setSection("results")}
-          >
-            <strong>3</strong>
-            <span>最终报告</span>
-            <small>查看报告列表</small>
-          </button>
-          <div>
-            <strong>82%</strong>
-            <span>自动化通过率</span>
-            <small>共 12 条自动化用例</small>
-          </div>
-          <div>
-            <strong>2</strong>
-            <span>待回归项</span>
-          </div>
-        </div>
-        <div className="prototype-chart">
-          <span style={{ height: "42%" }} />
-          <span style={{ height: "65%" }} />
-          <span style={{ height: "52%" }} />
-          <span style={{ height: "78%" }} />
-          <span style={{ height: "70%" }} />
-        </div>
-        <p className="prototype-muted">
-          趋势图只统计最终报告，可按版本、模块、测试组和用例筛选。
-        </p>
-      </>
-    );
+    return <V020VersionOverview workspace={props.projectWorkspace} />;
   if (section === "cases") return <CasesSection {...props} />;
   if (section === "data")
     return (

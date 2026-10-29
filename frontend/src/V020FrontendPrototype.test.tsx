@@ -1,7 +1,63 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { FrontendRoot } from "./FrontendRoot";
+
+const prototypeProject = {
+  id: 1,
+  name: "IRIS 头环",
+  product_name: "多传感器记录设备",
+  description: "Beta 测试项目",
+  product_version_count: 1,
+  created_at: "2026-10-01T08:00:00Z",
+  updated_at: "2026-10-02T08:00:00Z",
+};
+
+const prototypeVersion = {
+  id: 11,
+  project_id: 1,
+  version: "EVT1",
+  name: "",
+  description: "",
+  created_at: "2026-10-01T08:10:00Z",
+  updated_at: "2026-10-01T08:10:00Z",
+};
+
+function jsonResponse(value: unknown, status = 200) {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** 冻结页面进入项目后需要的最小项目、版本与趋势数据。 */
+function stubProjectApi() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("/api/projects?"))
+        return jsonResponse([prototypeProject]);
+      if (url === "/api/projects/1")
+        return jsonResponse({
+          ...prototypeProject,
+          product_versions: [prototypeVersion],
+        });
+      if (url === "/api/projects/1/trends")
+        return jsonResponse({
+          project_id: 1,
+          status: "empty",
+          message: "尚无最终报告",
+          points: [],
+        });
+      return jsonResponse({ detail: "未模拟的接口" }, 404);
+    }),
+  );
+}
+
+beforeEach(() => {
+  stubProjectApi();
+});
 
 afterEach(() => {
   cleanup();
@@ -186,7 +242,7 @@ test("AI 配置可从后端刷新服务商实时模型目录", async () => {
   );
 });
 
-test("首页和项目列表进入下一页时使用统一页面切换容器", () => {
+test("首页和项目列表进入下一页时使用统一页面切换容器", async () => {
   render(<FrontendRoot />);
 
   expect(screen.getByTestId("prototype-screen-transition")).toBeVisible();
@@ -194,21 +250,22 @@ test("首页和项目列表进入下一页时使用统一页面切换容器", ()
   expect(screen.getByRole("heading", { name: "项目列表" })).toBeVisible();
   expect(screen.getByTestId("prototype-screen-transition")).toBeVisible();
 
-  fireEvent.click(screen.getByRole("button", { name: /IRIS 头环/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /IRIS 头环/ }));
   expect(
-    screen.getByRole("heading", { name: "EVT1 测试工作区" }),
+    await screen.findByRole("heading", { name: "EVT1 测试工作区" }),
   ).toBeVisible();
   expect(screen.getByTestId("prototype-screen-transition")).toBeVisible();
 });
 
-function renderWorkspace() {
+async function renderWorkspace() {
   render(<FrontendRoot />);
   fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
-  fireEvent.click(screen.getByRole("button", { name: /IRIS 头环/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /IRIS 头环/ }));
+  await screen.findByTestId("prototype-workspace-shell");
 }
 
-test("工作区侧边栏可以折叠并在前端保存状态", () => {
-  renderWorkspace();
+test("工作区侧边栏可以折叠并在前端保存状态", async () => {
+  await renderWorkspace();
 
   fireEvent.click(screen.getByRole("button", { name: "收起侧边栏" }));
   expect(screen.getByTestId("prototype-workspace-shell")).toHaveClass(
@@ -220,7 +277,7 @@ test("工作区侧边栏可以折叠并在前端保存状态", () => {
   expect(screen.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
 });
 
-test("浏览器存储不可用时侧边栏仍可进入和折叠", () => {
+test("浏览器存储不可用时侧边栏仍可进入和折叠", async () => {
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
     throw new DOMException("storage blocked", "SecurityError");
   });
@@ -228,16 +285,15 @@ test("浏览器存储不可用时侧边栏仍可进入和折叠", () => {
     throw new DOMException("storage blocked", "SecurityError");
   });
 
-  renderWorkspace();
+  await renderWorkspace();
   fireEvent.click(screen.getByRole("button", { name: "收起侧边栏" }));
 
   expect(screen.getByTestId("prototype-workspace-shell")).toHaveClass(
     "prototype-shell--collapsed",
   );
 });
-
-test("用例表支持按模块筛选并展示测试步骤和加入测试组入口", () => {
-  renderWorkspace();
+test("用例表支持按模块筛选并展示测试步骤和加入测试组入口", async () => {
+  await renderWorkspace();
 
   fireEvent.click(screen.getByRole("button", { name: "需求 / 测试用例" }));
   fireEvent.click(screen.getByRole("button", { name: "测试用例表" }));
@@ -265,13 +321,13 @@ test("用例表支持按模块筛选并展示测试步骤和加入测试组入�
   expect(screen.getByRole("button", { name: "＋ 新建测试组" })).toBeVisible();
 });
 
-test("测试数据支持复制编号且测试组数据包可输入或下拉选择", () => {
+test("测试数据支持复制编号且测试组数据包可输入或下拉选择", async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.defineProperty(window.navigator, "clipboard", {
     configurable: true,
     value: { writeText },
   });
-  renderWorkspace();
+  await renderWorkspace();
 
   fireEvent.click(screen.getByRole("button", { name: "测试数据" }));
   const copyButton = screen.getByRole("button", {
@@ -296,8 +352,8 @@ test("测试数据支持复制编号且测试组数据包可输入或下拉选�
   expect(dataPackageInput).toHaveValue("DP-CUSTOM-009 自定义录制数据");
 });
 
-test("测试组名称仅在创建时填写且重新进入页签回到列表", () => {
-  renderWorkspace();
+test("测试组名称仅在创建时填写且重新进入页签回到列表", async () => {
+  await renderWorkspace();
 
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
   fireEvent.click(screen.getAllByRole("button", { name: "编辑设置" })[0]);
@@ -321,8 +377,8 @@ test("测试组名称仅在创建时填写且重新进入页签回到列表", ()
   expect(screen.getByText("测试组名称创建后不可修改")).toBeVisible();
 });
 
-test("人工测试结果使用统一表格录入", () => {
-  renderWorkspace();
+test("人工测试结果使用统一表格录入", async () => {
+  await renderWorkspace();
 
   fireEvent.click(screen.getByRole("button", { name: "执行与结果" }));
   fireEvent.click(screen.getByRole("button", { name: "进入人工结果录入" }));
@@ -338,8 +394,8 @@ test("人工测试结果使用统一表格录入", () => {
   ).toBeVisible();
 });
 
-test("执行结果使用浅色测试组选择区并展示 AI 回测建议和统一报告预览入口", () => {
-  renderWorkspace();
+test("执行结果使用浅色测试组选择区并展示 AI 回测建议和统一报告预览入口", async () => {
+  await renderWorkspace();
 
   expect(screen.getByTestId("prototype-sidebar-brand-glyph")).toHaveClass(
     "prototype-brand-glyph",

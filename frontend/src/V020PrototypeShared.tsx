@@ -1,3 +1,5 @@
+import type { V020ProjectWorkspace } from "./useV020ProjectWorkspace";
+
 export type PrototypeProps = { onNavigate: (page: "dashboard") => void };
 export type SectionKey = "overview" | "cases" | "data" | "groups" | "results";
 export type ScreenKey = "home" | "projects" | "workspace" | "manual";
@@ -15,6 +17,7 @@ export type TestGroup = {
   recentRunCount: number;
 };
 export type WorkspaceProps = {
+  projectWorkspace: V020ProjectWorkspace;
   section: SectionKey;
   setSection: (section: SectionKey) => void;
   selected: string[];
