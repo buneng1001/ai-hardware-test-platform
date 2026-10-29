@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { FrontendRoot } from "../FrontendRoot";
+import type { AutomationTestCase } from "../automationTestCasesApi";
 import type {
   ImportDeletionImpact,
   ImportOptions,
@@ -9,34 +10,9 @@ import type {
   SourceTestCaseImportDraft,
   SourceTestCaseImportRecord,
 } from "../sourceTestCasesApi";
+import { importRecord, projectSummary, productVersion } from "./casesFixtures";
 
-const projectSummary = {
-  id: 1,
-  name: "IRIS 头环",
-  product_name: "多传感器记录设备",
-  description: "Beta 测试项目",
-  product_version_count: 1,
-  created_at: "2026-10-01T08:00:00Z",
-  updated_at: "2026-10-02T08:00:00Z",
-};
-
-const productVersion = {
-  id: 11,
-  project_id: 1,
-  version: "EVT1",
-  name: "",
-  description: "",
-  created_at: "2026-10-01T08:10:00Z",
-  updated_at: "2026-10-01T08:10:00Z",
-};
-
-const defaultImportOptions: ImportOptions = {
-  include_historical_results: false,
-  include_test_records: false,
-  include_pre_test_notes: false,
-  include_planned_execution_time: false,
-  include_attachments: false,
-};
+export { automationCase, importRecord, sourceCase } from "./casesFixtures";
 
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
@@ -45,53 +21,15 @@ function jsonResponse(value: unknown, status = 200) {
   });
 }
 
-/** 构造一条完整原始用例，测试只覆盖当前断言需要的字段差异。 */
-export function sourceCase(overrides: Partial<SourceTestCase>): SourceTestCase {
-  return {
-    id: 1,
-    import_record_id: 1,
-    source_import_status: "active",
-    case_number: "REC-001",
-    title: "录制文件完整",
-    priority: "高",
-    preconditions: "",
-    input: "",
-    steps: "确认设备处于待机状态",
-    expected_result: "",
-    test_type: "",
-    module: "录制功能",
-    test_item: "文件完整性",
-    test_result: "",
-    test_record: "",
-    pre_test_notes: "",
-    planned_execution_time: "",
-    attachment: "",
-    software_version: "EVT1-0.2.0",
-    selected: false,
-    ...overrides,
-  };
-}
-
-export function importRecord(
-  overrides: Partial<SourceTestCaseImportRecord> = {},
-): SourceTestCaseImportRecord {
-  return {
-    id: 7,
-    product_version_id: 11,
-    source_filename: "beta.csv",
-    field_mapping: { case_number: "用例编号", title: "测试用例标题" },
-    import_options: defaultImportOptions,
-    imported_at: "2026-10-29T10:00:00+00:00",
-    ...overrides,
-  };
-}
-
 export type StubState = {
   cases: SourceTestCase[];
   records: SourceTestCaseImportRecord[];
   preview?: SourceTestCaseImportDraft;
   impact?: ImportDeletionImpact;
   failSourceTimes?: number;
+  automationCases?: AutomationTestCase[];
+  automationConversion?: { created_count: number; items: AutomationTestCase[] };
+  failAutomationTimes?: number;
 };
 
 function importOptionsOf(draft: SourceTestCaseImportDraft): ImportOptions {
@@ -107,7 +45,7 @@ function importOptionsOf(draft: SourceTestCaseImportDraft): ImportOptions {
   };
 }
 
-/** 模拟项目、趋势和原始用例接口，测试不访问真实后端。 */
+/** 模拟项目、趋势、原始用例和自动化用例接口，测试不访问真实后端。 */
 export function stubApi(state: StubState) {
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -187,6 +125,28 @@ export function stubApi(state: StubState) {
           source_test_case_ids: body.source_test_case_ids,
         });
       }
+      if (
+        url === "/api/product-versions/11/automation-test-cases" &&
+        method === "GET"
+      ) {
+        if ((state.failAutomationTimes ?? 0) > 0) {
+          state.failAutomationTimes = (state.failAutomationTimes ?? 0) - 1;
+          return jsonResponse({ detail: "自动化用例服务暂时不可用" }, 500);
+        }
+        return jsonResponse({ items: state.automationCases ?? [] });
+      }
+      if (
+        url ===
+          "/api/product-versions/11/automation-test-case-conversions/rules" &&
+        method === "POST"
+      ) {
+        const result = state.automationConversion ?? {
+          created_count: 0,
+          items: state.automationCases ?? [],
+        };
+        state.automationCases = result.items;
+        return jsonResponse(result, 201);
+      }
       if (url.endsWith("/deletion-impact") && method === "GET")
         return jsonResponse(state.impact);
       if (
@@ -209,13 +169,17 @@ export function stubApi(state: StubState) {
 }
 
 /** 进入冻结版工作区的“需求 / 测试用例”页签。 */
-export async function openCasesTab() {
+export async function enterCasesSection() {
   render(<FrontendRoot />);
   fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
   fireEvent.click(await screen.findByRole("button", { name: /IRIS 头环/ }));
   fireEvent.click(
     await screen.findByRole("button", { name: "需求 / 测试用例" }),
   );
+}
+
+export async function openCasesTab() {
+  await enterCasesSection();
   fireEvent.click(screen.getByRole("button", { name: "测试用例表" }));
 }
 
@@ -223,6 +187,17 @@ export async function openCasesTab() {
 export async function openSourceView() {
   await openCasesTab();
   await screen.findByRole("button", { name: "导入用例表" });
+}
+
+export async function openAutomationTab() {
+  await enterCasesSection();
+  fireEvent.click(screen.getByRole("button", { name: "自动化用例表" }));
+}
+
+/** 进入“自动化用例表”并等待真实数据加载完成。 */
+export async function openAutomationView() {
+  await openAutomationTab();
+  await screen.findByRole("button", { name: "生成自动化用例" });
 }
 
 export function callsOf(

@@ -14,12 +14,14 @@ export function V020SourceCaseTable({
   selectedIds,
   busy,
   hasCases,
+  focusCaseId,
   onToggle,
 }: {
   items: SourceTestCase[];
   selectedIds: number[];
   busy: boolean;
   hasCases: boolean;
+  focusCaseId: number | null;
   onToggle: (itemId: number) => void;
 }) {
   if (items.length === 0) {
@@ -56,7 +58,15 @@ export function V020SourceCaseTable({
           {items.map((item) => {
             const checked = selectedIds.includes(item.id);
             return (
-              <tr key={item.id}>
+              <tr
+                className={
+                  focusCaseId === item.id
+                    ? "prototype-row-highlight"
+                    : undefined
+                }
+                id={`source-test-case-${item.id}`}
+                key={item.id}
+              >
                 <td>
                   <input
                     aria-label={`选择用例 ${item.case_number}`}

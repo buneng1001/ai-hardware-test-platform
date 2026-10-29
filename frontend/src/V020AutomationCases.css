@@ -1,0 +1,26 @@
+.prototype-automation-toolbar {
+  grid-template-columns: 1fr;
+}
+
+.prototype-table tbody tr.prototype-row-warning {
+  background: #fff7ed;
+}
+
+.prototype-table tbody tr.prototype-row-warning:hover {
+  background: #ffedd5;
+}
+
+.prototype-row-warning td:first-child {
+  box-shadow: inset 3px 0 0 var(--prototype-color-warning, #d98620);
+}
+
+.prototype-row-note {
+  margin: 6px 0 0;
+  color: var(--prototype-color-muted);
+  font-size: 0.8rem;
+}
+
+.prototype-row-note--warning {
+  color: var(--prototype-color-warning, #d98620);
+  font-weight: 700;
+}
