@@ -4,7 +4,7 @@
 
 **Blocked by:** 16 — 模型调用错误分类与分层超时
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 **当前前端 Demo 对应页面：** 报告 AI 区域的失败原因与重试入口。
 

@@ -147,7 +147,7 @@ Implementation status: in-progress — 后端领域基础接口与固定样例�
 
 ## AI 接入护栏
 
-强制要求，详细条目见 [AI 接入护栏](../../docs/ai-integration-guardrails.md) 与 [ADR 0008](../../docs/adr/0008-ai-integration-guardrails.md)。15～19 号任务覆盖实现。
+强制要求，详细条目见 [AI 接入护栏](../../docs/ai-integration-guardrails.md) 与 [ADR 0008](../../docs/adr/0008-ai-integration-guardrails.md)。15～19 号任务覆盖实现。超时、分批、调用上限等默认参数集中在护栏文档第 4、6 节；这些默认值属于 v0.2.0 交付范围，不是待定项。
 
 - AI 能力分三级验收：已发现、已验证、业务流程已验收；三者分别持久化和展示，前端不得把"已发现"显示成"可用"。
 - 每次 AI 运行绑定不可变配置快照（provider、Endpoint、模型、密钥来源、网络模式、Prompt 版本）；任一字段变化使旧验证状态立即失效。

@@ -4,7 +4,7 @@
 
 **Blocked by:** 15 — AI 配置快照与验证状态失效
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 **当前前端 Demo 对应页面：** 首页连接测试结果、报告 AI 区域的失败提示。
 

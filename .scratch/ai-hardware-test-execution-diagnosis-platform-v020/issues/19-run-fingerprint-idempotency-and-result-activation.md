@@ -4,7 +4,7 @@
 
 **Blocked by:** 11 — 接入可选报告分析适配器并提供失败降级；15 — AI 配置快照与验证状态失效
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 **当前前端 Demo 对应页面：** 最终报告 AI 分析区域、报告 AI 重试入口。
 
