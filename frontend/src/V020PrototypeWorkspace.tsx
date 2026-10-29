@@ -1,7 +1,7 @@
 import { Status, type WorkspaceProps } from "./V020PrototypeShared";
 import { CasesSection } from "./V020PrototypeCases";
 import { V020DataPackagesScreen } from "./V020DataPackagesScreen";
-import { GroupSettingsSection } from "./V020PrototypeGroups";
+import { V020TestGroupsScreen } from "./V020TestGroupsScreen";
 import { PrototypeReportActions } from "./V020PrototypeReports";
 import { V020VersionOverview } from "./V020VersionOverview";
 
@@ -19,7 +19,12 @@ export function WorkspaceContent(props: WorkspaceProps) {
   if (section === "cases") return <CasesSection {...props} />;
   if (section === "data")
     return <V020DataPackagesScreen onNavigate={props.onNavigate} />;
-  if (section === "groups") return <GroupSettingsSection {...props} />;
+  if (section === "groups")
+    return (
+      <V020TestGroupsScreen
+        versionId={props.projectWorkspace.openedVersion?.id ?? null}
+      />
+    );
   return (
     <>
       <div className="prototype-kicker">第 4 步 / 执行与汇总</div>

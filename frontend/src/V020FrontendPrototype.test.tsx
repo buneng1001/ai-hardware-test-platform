@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { FrontendRoot } from "./FrontendRoot";
@@ -100,6 +106,77 @@ const prototypeDataPackage = {
   files: [],
 };
 
+/** 冻结版“测试组设置”页读取的真实测试组样例。 */
+const prototypeAutomationCase = {
+  id: 1,
+  product_version_id: 11,
+  source_test_case_id: 1,
+  source_case_number: "TC-REC-001",
+  case_number: "AUTO-000001",
+  title: "短按录制键，确认开始录制",
+  input: "",
+  steps: "确认设备处于待机状态",
+  expected_result: "开始录制",
+  conversion_status: "candidate",
+  confidence: "low",
+  review_note: "规则转换候选，低可信度，需人工审核。",
+  validation_status: "passed",
+  validation_message: "",
+  feedback_input: "",
+  feedback_status: "not_requested",
+  feedback_response: "",
+  created_at: "2026-10-03T08:00:00Z",
+  updated_at: "2026-10-03T08:00:00Z",
+};
+
+const prototypeGroupSourceCase = {
+  id: 1,
+  case_number: "TC-REC-001",
+  title: "短按录制键，确认开始录制",
+  test_type: "功能",
+  software_version: "EVT1",
+  position: 1,
+};
+
+const prototypeGroupDetail = {
+  id: 21,
+  product_version_id: 11,
+  name: "EVT1 基础录制回归",
+  description: "基础覆盖",
+  hidden: false,
+  source_test_case_count: 1,
+  automation_test_case_count: 1,
+  data_package_assignment_count: 0,
+  created_at: "2026-10-03T08:00:00Z",
+  updated_at: "2026-10-03T08:00:00Z",
+  source_test_cases: [prototypeGroupSourceCase],
+  automation_test_cases: [
+    {
+      id: 1,
+      case_number: "AUTO-000001",
+      source_case_number: "TC-REC-001",
+      title: "短按录制键，确认开始录制",
+      validation_status: "passed",
+      source_software_version: "EVT1",
+      position: 1,
+      data_packages: [],
+    },
+  ],
+};
+
+const prototypeGroupSummary = {
+  id: 21,
+  product_version_id: 11,
+  name: "EVT1 基础录制回归",
+  description: "基础覆盖",
+  hidden: false,
+  source_test_case_count: 1,
+  automation_test_case_count: 1,
+  data_package_assignment_count: 0,
+  created_at: "2026-10-03T08:00:00Z",
+  updated_at: "2026-10-03T08:00:00Z",
+};
+
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
@@ -111,8 +188,9 @@ function jsonResponse(value: unknown, status = 200) {
 function stubProjectApi() {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      const method = init?.method ?? "GET";
       if (url.startsWith("/api/projects?"))
         return jsonResponse([prototypeProject]);
       if (url === "/api/projects/1")
@@ -140,6 +218,32 @@ function stubProjectApi() {
       }
       if (url === "/api/product-versions/11/source-test-case-imports")
         return jsonResponse([]);
+      if (url.startsWith("/api/product-versions/11/test-groups")) {
+        if (method === "POST") {
+          const body = JSON.parse(String(init?.body)) as {
+            name: string;
+            description: string;
+          };
+          return jsonResponse(
+            {
+              ...prototypeGroupDetail,
+              name: body.name,
+              description: body.description,
+            },
+            201,
+          );
+        }
+        return jsonResponse({
+          items: [prototypeGroupSummary],
+          page: 1,
+          page_size: 20,
+          total: 1,
+        });
+      }
+      if (url === "/api/test-groups/21")
+        return jsonResponse(prototypeGroupDetail);
+      if (url === "/api/product-versions/11/automation-test-cases")
+        return jsonResponse({ items: [prototypeAutomationCase] });
       if (url === "/api/data-packages")
         return jsonResponse({ items: [prototypeDataPackage] });
       return jsonResponse({ detail: "未模拟的接口" }, 404);
@@ -426,31 +530,27 @@ test("测试数据支持复制编号且测试组数据包可输入或下拉选�
   expect(writeText).toHaveBeenCalledWith("DP-000007");
 
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
-  fireEvent.click(screen.getAllByRole("button", { name: "编辑设置" })[0]);
-  const dataPackageInput = screen.getByRole("combobox", {
-    name: "数据包 TC-REC-001",
-  });
-  expect(dataPackageInput).toHaveAttribute(
-    "list",
-    "prototype-data-packages-TC-REC-001",
-  );
-  fireEvent.change(dataPackageInput, {
-    target: { value: "DP-CUSTOM-009 自定义录制数据" },
-  });
-  expect(dataPackageInput).toHaveValue("DP-CUSTOM-009 自定义录制数据");
+  fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
+  const packageSelect = await screen.findByLabelText("AUTO-000001 数据包");
+  expect(packageSelect).toHaveAttribute("multiple");
+  expect(
+    await within(packageSelect).findByRole("option", { name: "DP-000007" }),
+  ).toBeInTheDocument();
 });
 
 test("测试组名称仅在创建时填写且重新进入页签回到列表", async () => {
   await renderWorkspace();
 
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
-  fireEvent.click(screen.getAllByRole("button", { name: "编辑设置" })[0]);
-  expect(screen.getByText("测试组名称创建后不可修改")).toBeVisible();
+  fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
+  expect(await screen.findByText("测试组名称创建后不可修改")).toBeVisible();
 
   fireEvent.click(screen.getByRole("button", { name: "测试数据" }));
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
   expect(screen.queryByText("测试组名称创建后不可修改")).toBeNull();
-  expect(screen.getByRole("button", { name: "＋ 新建测试组" })).toBeVisible();
+  expect(
+    await screen.findByRole("button", { name: "＋ 新建测试组" }),
+  ).toBeVisible();
 
   fireEvent.click(screen.getByRole("button", { name: "＋ 新建测试组" }));
   expect(
@@ -460,7 +560,7 @@ test("测试组名称仅在创建时填写且重新进入页签回到列表", as
   fireEvent.change(nameInput, { target: { value: "EVT1 综合回归" } });
   fireEvent.click(screen.getByRole("button", { name: "创建测试组" }));
 
-  expect(screen.getByText("EVT1 综合回归")).toBeVisible();
+  expect(await screen.findByText("EVT1 综合回归")).toBeVisible();
   expect(screen.queryByRole("textbox", { name: "测试组名称" })).toBeNull();
   expect(screen.getByText("测试组名称创建后不可修改")).toBeVisible();
 });
