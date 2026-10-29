@@ -1,10 +1,14 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { V020AutomationCaseCreateForm } from "./V020AutomationCaseCreateForm";
 import { V020AutomationCaseTable } from "./V020AutomationCaseTable";
+import type { AutomationCaseCreateCommand } from "./automationTestCasesApi";
 import { useV020AutomationTestCases } from "./useV020AutomationTestCases";
 import "./V020AutomationCases.css";
 
 /**
- * 冻结版“自动化用例表”页：读取当前产品版本的真实规则候选，
- * 补齐生成、加载、空、失败和重试状态。
+ * 冻结版“自动化用例表”页：读取真实规则候选，支持编辑、新增、删除、
+ * 反馈、校验和历史，并补齐加载、空、失败与重试状态。
  */
 export function V020AutomationCasesScreen({
   versionId,
@@ -16,6 +20,56 @@ export function V020AutomationCasesScreen({
   onOpenSource: (sourceTestCaseId: number) => void;
 }) {
   const automation = useV020AutomationTestCases(versionId);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createDirty, setCreateDirty] = useState(false);
+  const [dirtyCaseIds, setDirtyCaseIds] = useState<number[]>([]);
+  const [batchMessage, setBatchMessage] = useState<string | null>(null);
+  const submitHandlers = useRef(new Map<number, () => Promise<boolean>>());
+
+  const registerSubmit = useCallback(
+    (caseId: number, submit: (() => Promise<boolean>) | null) => {
+      if (submit) submitHandlers.current.set(caseId, submit);
+      else submitHandlers.current.delete(caseId);
+    },
+    [],
+  );
+
+  /** 一次保存所有已修改行；没有修改时明确提示，不发送空请求。 */
+  const submitAll = async () => {
+    const handlers = [...submitHandlers.current.values()];
+    if (handlers.length === 0) {
+      setBatchMessage("没有需要提交的修改。");
+      return;
+    }
+    setBatchMessage(null);
+    let submitted = 0;
+    for (const submit of handlers) {
+      if (!(await submit())) return;
+      submitted += 1;
+    }
+    setBatchMessage(`已提交 ${submitted} 条修改。`);
+  };
+
+  const handleDirtyChange = useCallback((caseId: number, dirty: boolean) => {
+    setDirtyCaseIds((current) => {
+      const exists = current.includes(caseId);
+      if (dirty === exists) return current;
+      return dirty
+        ? [...current, caseId]
+        : current.filter((id) => id !== caseId);
+    });
+  }, []);
+
+  const hasUnsavedChanges = dirtyCaseIds.length > 0 || createDirty;
+  useEffect(() => {
+    const warnBeforeLeave = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = "自动化用例存在未保存修改";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeave);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeave);
+  }, [hasUnsavedChanges]);
 
   if (versionId === null) {
     return (
@@ -51,6 +105,23 @@ export function V020AutomationCasesScreen({
   const failedCount = automation.items.filter(
     (item) => item.conversion_status === "failed",
   ).length;
+  const allValidated =
+    automation.items.length > 0 &&
+    automation.items.every((item) => item.validation_status === "passed");
+
+  const createCase = async (command: AutomationCaseCreateCommand) => {
+    const created = await automation.createCase(command);
+    if (created) setShowCreate(false);
+    return created;
+  };
+
+  const deleteCase = async (caseId: number) => {
+    const removed = await automation.deleteCase(caseId);
+    if (removed) {
+      setDirtyCaseIds((current) => current.filter((id) => id !== caseId));
+    }
+    return removed;
+  };
 
   return (
     <>
@@ -70,6 +141,30 @@ export function V020AutomationCasesScreen({
           <button
             className="prototype-secondary"
             disabled={automation.busy}
+            onClick={() => setShowCreate((current) => !current)}
+            type="button"
+          >
+            {showCreate ? "收起新增" : "新增自动化用例"}
+          </button>
+          <button
+            className="prototype-secondary"
+            disabled={automation.busy || automation.items.length === 0}
+            onClick={() => void automation.validateCases()}
+            type="button"
+          >
+            校验自动化用例
+          </button>
+          <button
+            className="prototype-secondary"
+            disabled={automation.busy || dirtyCaseIds.length === 0}
+            onClick={() => void submitAll()}
+            type="button"
+          >
+            批量保存修改
+          </button>
+          <button
+            className="prototype-secondary"
+            disabled={automation.busy}
             onClick={automation.retry}
             type="button"
           >
@@ -77,7 +172,11 @@ export function V020AutomationCasesScreen({
           </button>
           <button
             className="prototype-secondary"
+            disabled={!allValidated}
             onClick={onOpenGroups}
+            title={
+              allValidated ? undefined : "请先校验全部自动化用例再加入测试组"
+            }
             type="button"
           >
             加入测试组
@@ -95,6 +194,20 @@ export function V020AutomationCasesScreen({
           {automation.message}
         </p>
       )}
+      {batchMessage && (
+        <p className="prototype-muted" role="status">
+          {batchMessage}
+        </p>
+      )}
+
+      {showCreate && (
+        <V020AutomationCaseCreateForm
+          busy={automation.busy}
+          onCancel={() => setShowCreate(false)}
+          onDirtyChange={setCreateDirty}
+          onSubmit={createCase}
+        />
+      )}
 
       {automation.items.length === 0 ? (
         <div className="prototype-card">
@@ -106,13 +219,21 @@ export function V020AutomationCasesScreen({
         </div>
       ) : (
         <V020AutomationCaseTable
+          busy={automation.busy}
           items={automation.items}
+          productVersionId={versionId}
+          onDelete={deleteCase}
+          onDirtyChange={handleDirtyChange}
+          onFeedback={automation.submitFeedback}
           onOpenSource={onOpenSource}
+          onRegisterSubmit={registerSubmit}
+          onRegenerate={automation.regenerateCase}
+          onSave={automation.updateCase}
         />
       )}
 
       <div className="prototype-inline-note">
-        自动化用例与原始用例分开保存；生成候选不会修改或覆盖原始内容。
+        修改、新增、删除或重新生成后，用例立即变为未校验；未校验用例不能加入测试组或执行。删除资产不会删除历史快照。
       </div>
     </>
   );
