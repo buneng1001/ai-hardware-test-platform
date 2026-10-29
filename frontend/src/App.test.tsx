@@ -10,6 +10,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./App";
 import { FrontendRoot } from "./FrontendRoot";
 import { MANIFEST_TEMPLATE } from "./manifestTemplate";
+import { jsonResponse, v020Project, v020Version } from "./v020ProjectFixtures";
 
 afterEach(() => {
   cleanup();
@@ -18,6 +19,26 @@ afterEach(() => {
 });
 
 test("前端入口按 Demo 原流程进入首页、项目列表和工作台", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("/api/projects?")) return jsonResponse([v020Project]);
+      if (url === "/api/projects/1")
+        return jsonResponse({
+          ...v020Project,
+          product_versions: [v020Version],
+        });
+      if (url === "/api/projects/1/trends")
+        return jsonResponse({
+          project_id: 1,
+          status: "empty",
+          message: "尚无最终报告",
+          points: [],
+        });
+      return jsonResponse({ detail: "未模拟的接口" }, 404);
+    }),
+  );
   render(<FrontendRoot />);
 
   expect(
@@ -28,9 +49,9 @@ test("前端入口按 Demo 原流程进入首页、项目列表和工作台", as
   fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
   expect(screen.getByRole("heading", { name: "项目列表" })).toBeVisible();
 
-  fireEvent.click(screen.getByRole("button", { name: /IRIS 头环/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /IRIS 头环/ }));
   expect(
-    screen.getByRole("heading", { name: "EVT1 测试工作区" }),
+    await screen.findByRole("heading", { name: "EVT1 测试工作区" }),
   ).toBeVisible();
 
   for (const copy of [

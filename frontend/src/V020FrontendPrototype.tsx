@@ -13,10 +13,12 @@ import {
   type SectionKey,
   type VariantProps,
 } from "./V020PrototypeShared";
-import { PrototypeHome, PrototypeProjects } from "./V020PrototypeEntryScreens";
+import { PrototypeHome } from "./V020PrototypeEntryScreens";
 import { ManualResultsPage } from "./V020PrototypeManualResults";
 import { PrototypeWorkspaceShell } from "./V020PrototypeShell";
 import { WorkspaceContent } from "./V020PrototypeWorkspace";
+import { V020ProjectsScreen } from "./V020ProjectsScreen";
+import { useV020ProjectWorkspace } from "./useV020ProjectWorkspace";
 
 function VariantA({
   screen,
@@ -26,13 +28,23 @@ function VariantA({
   screen: ScreenKey;
   setScreen: (screen: ScreenKey) => void;
 }) {
-  if (screen === "home")
-    return <PrototypeHome onOpenProjects={() => setScreen("projects")} />;
+  const openProjects = () => {
+    void workspaceProps.projectWorkspace.refreshProjects();
+    setScreen("projects");
+  };
+  if (screen === "home") return <PrototypeHome onOpenProjects={openProjects} />;
   if (screen === "projects")
     return (
-      <PrototypeProjects
-        onOpenWorkspace={() => setScreen("workspace")}
+      <V020ProjectsScreen
         onBack={() => setScreen("home")}
+        onOpen={(projectId) => {
+          void workspaceProps.projectWorkspace
+            .openProject(projectId)
+            .then((opened) => {
+              if (opened) setScreen("workspace");
+            });
+        }}
+        workspace={workspaceProps.projectWorkspace}
       />
     );
   if (screen === "manual")
@@ -43,7 +55,7 @@ function VariantA({
           workspaceProps.setSection(section);
           setScreen("workspace");
         }}
-        onOpenProjects={() => setScreen("projects")}
+        onOpenProjects={openProjects}
         onOpenHome={() => setScreen("home")}
       >
         <ManualResultsPage
@@ -58,7 +70,7 @@ function VariantA({
     <PrototypeWorkspaceShell
       section={workspaceProps.section}
       onSectionChange={workspaceProps.setSection}
-      onOpenProjects={() => setScreen("projects")}
+      onOpenProjects={openProjects}
       onOpenHome={() => setScreen("home")}
     >
       <WorkspaceContent {...workspaceProps} />
@@ -67,6 +79,7 @@ function VariantA({
 }
 
 export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
+  const projectWorkspace = useV020ProjectWorkspace();
   const [screen, setScreen] = useState<ScreenKey>("home");
   const [section, setSection] = useState<SectionKey>("overview");
   const [selected, setSelected] = useState<string[]>(["TC-REC-001"]);
@@ -157,6 +170,7 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
       },
     }));
   const contentProps: VariantProps = {
+    projectWorkspace,
     section,
     setSection: navigateSection,
     selected,
