@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 30
+LATEST_SCHEMA_VERSION = 31
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -899,6 +899,31 @@ def migrate_database(connection: sqlite3.Connection) -> None:
                 ON ai_request_logs(created_at DESC);
             INSERT OR IGNORE INTO schema_migrations (version) VALUES (30);
             PRAGMA user_version = 30;
+            """
+        )
+
+    if current_version < 31:
+        # 报告分析按语义批次保存检查点；恢复时只复用同一输入指纹下已完成的批次。
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS report_analysis_batches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_id INTEGER NOT NULL,
+                input_fingerprint TEXT NOT NULL,
+                batch_key TEXT NOT NULL,
+                status TEXT NOT NULL,
+                output TEXT,
+                error TEXT,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE (report_id, input_fingerprint, batch_key),
+                FOREIGN KEY (report_id) REFERENCES online_reports(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_report_analysis_batches_lookup
+                ON report_analysis_batches(report_id, input_fingerprint, batch_key);
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (31);
+            PRAGMA user_version = 31;
             """
         )
 

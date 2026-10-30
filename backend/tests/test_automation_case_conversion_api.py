@@ -113,3 +113,12 @@ def test_rule_conversion_is_idempotent_and_generated_numbers_are_not_reused_afte
     assert replacement.status_code == 201
     assert replacement.json()["created_count"] == 2
     assert replacement.json()["items"][-1]["case_number"] not in {item["case_number"] for item in first_batch["items"]}
+
+
+def test_rule_conversion_respects_case_batch_size(client, monkeypatch):
+    monkeypatch.setenv("AI_BATCH_CASES_PER_BATCH", "1")
+    version_id = create_version_with_source_cases(client)
+    converted = client.post(f"/api/product-versions/{version_id}/automation-test-case-conversions/rules")
+    assert converted.status_code == 201
+    assert converted.json()["created_count"] == 3
+    assert len(converted.json()["items"]) == 3
