@@ -43,13 +43,7 @@ export type WorkspaceProps = {
   setDataAssignment: (caseId: string, dataId: string) => void;
   caseFilter: CaseFilter;
   setCaseFilter: (filter: CaseFilter) => void;
-  manualDrafts: Record<string, { result: string; note: string }>;
-  setManualDraft: (
-    caseId: string,
-    field: "result" | "note",
-    value: string,
-  ) => void;
-  onOpenManual: () => void;
+  onOpenManual: (group: { id: number; name: string }) => void;
 };
 export type VariantProps = WorkspaceProps & PrototypeProps;
 

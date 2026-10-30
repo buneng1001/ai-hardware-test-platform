@@ -200,6 +200,21 @@ const prototypeExecution = {
     },
   ],
 };
+const prototypeManualPage = {
+  test_group_id: 21,
+  product_version_id: 11,
+  cases: [
+    {
+      id: 4,
+      case_number: "SRC-001",
+      title: "按键检查",
+      test_type: "manual",
+      position: 1,
+    },
+  ],
+  batches: [],
+};
+
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
@@ -271,6 +286,11 @@ function stubProjectApi() {
         return jsonResponse({ items: [prototypeDataPackage] });
       if (url === "/api/test-groups/21/automation-executions")
         return jsonResponse({ items: [prototypeExecution] });
+      if (
+        url === "/api/test-groups/21/manual-test-result-batches" &&
+        method === "GET"
+      )
+        return jsonResponse(prototypeManualPage);
       return jsonResponse({ detail: "未模拟的接口" }, 404);
     }),
   );
@@ -598,14 +618,16 @@ test("人工测试结果使用统一表格录入", async () => {
     await screen.findByRole("button", { name: "进入人工结果录入" }),
   );
 
-  expect(screen.getByRole("table")).toHaveClass("prototype-manual-table");
+  expect(await screen.findByRole("table")).toHaveClass(
+    "prototype-manual-table",
+  );
   expect(screen.getByRole("columnheader", { name: "用例编号" })).toBeVisible();
-  expect(screen.getByRole("columnheader", { name: "测试步骤" })).toBeVisible();
+  expect(screen.getByRole("columnheader", { name: "测试结果" })).toBeVisible();
   expect(
-    screen.getByRole("combobox", { name: "TC-REC-001 测试结果" }),
+    await screen.findByRole("combobox", { name: "SRC-001 测试结果" }),
   ).toBeVisible();
   expect(
-    screen.getByRole("textbox", { name: "TC-REC-001 测试记录" }),
+    screen.getByRole("textbox", { name: "SRC-001 实际结果" }),
   ).toBeVisible();
 });
 
