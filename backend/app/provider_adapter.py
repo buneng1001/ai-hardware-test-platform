@@ -18,6 +18,20 @@ from app.ai_provider_core import (
 from app.ai_request_runner import RequestRunner
 
 
+def _extract_json_object(content: str | dict[str, object]) -> dict[str, object]:
+    """报告分析等通用结构化任务只要求 JSON 对象，不套用诊断字段约束。"""
+    if isinstance(content, dict):
+        return content
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.removeprefix("```").removeprefix("json")
+        cleaned = cleaned.removesuffix("```").strip()
+    value = json.loads(cleaned)
+    if not isinstance(value, dict):
+        raise TypeError("模型 JSON 顶层必须是对象")
+    return value
+
+
 class ProviderAdapter(RequestRunner):
     """调用 OpenAI 兼容接口，并对可恢复错误执行有界重试。"""
 
@@ -241,7 +255,7 @@ class ProviderAdapter(RequestRunner):
                 return content
             if not isinstance(content, str):
                 raise TypeError("content 不是允许的结构化内容")
-            return _extract_json(content)
+            return _extract_json_object(content)
 
         result = self._execute(self._transport, request_data, stage=stage, model=model, parse=parse)
         if not isinstance(result, dict):

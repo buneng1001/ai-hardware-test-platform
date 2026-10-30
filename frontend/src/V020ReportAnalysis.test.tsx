@@ -54,6 +54,41 @@ test("AI 分析未启用时展示未启用状态且事实报告仍可查看", as
   ).toBeEnabled();
 });
 
+test("输出截断时明确提示截断而不是格式不兼容", async () => {
+  stubReportApi({
+    ...baseState(),
+    history: [reportHistoryItem(5)],
+    reports: {
+      5: factReport({
+        analysis: {
+          status: "failed",
+          message: "分析未完成：模型输出被截断（finish_reason=length）",
+          output: null,
+          error: {
+            stage: "report_analysis",
+            kind: "output_truncated",
+            action: "缩小单批范围或提高输出上限后重试",
+          },
+        },
+      }),
+    },
+  });
+  await openReportView();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "预览最新报告（HTML）" }),
+  );
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "报告 #5 HTML 预览",
+  });
+  expect(
+    within(dialog).getByText(/模型输出被截断（finish_reason=length）/),
+  ).toBeVisible();
+  expect(
+    within(dialog).getByText("下一步：缩小单批范围或提高输出上限后重试"),
+  ).toBeVisible();
+});
+
 test("AI 分析失败时展示接口原因，并支持单独重试成功", async () => {
   const fetchMock = stubReportApi({
     ...baseState(),

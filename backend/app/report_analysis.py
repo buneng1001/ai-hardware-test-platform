@@ -13,6 +13,7 @@ from app.database import open_database
 from app.fact_report_models import ReportAnalysis, ReportAnalysisItem, ReportAnalysisOutput, ReportStageRecommendation
 from app.settings import configured_api_key, current_settings, get_provider_adapter
 from app.siliconflow import ModelErrorKind, SiliconFlowError
+from app.structured_repair import RepairBudget, normalize_refs, run_repair_ladder
 
 router = APIRouter(prefix="/api/fact-reports/{report_id}/analysis", tags=["report analysis"])
 
@@ -232,11 +233,43 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
             prompt_version="report-analysis-v1",
             stage="report_analysis",
         )
-        output = _validate_output(raw_output, valid_refs)
+
+        def repair(prompt: str) -> str:
+            repaired = adapter.generate_json(
+                api_key=api_key,
+                model=model,
+                evidence_json=json.dumps(
+                    {
+                        "repair_instruction": prompt,
+                        "report_input": analysis_input,
+                    },
+                    ensure_ascii=False,
+                ),
+                system_prompt=("按修复指令只返回报告分析 JSON；不得新增、删除或改写业务事实。"),
+                prompt_version="report-analysis-repair-v1",
+                stage="report_analysis_repair",
+            )
+            return json.dumps(repaired, ensure_ascii=False)
+
+        output, _steps = run_repair_ladder(
+            raw_output,
+            validate=lambda data: _validate_output(data, valid_refs),
+            normalize=lambda data: normalize_refs(data, "stage_progress"),
+            repair=repair,
+            budget=RepairBudget(getattr(adapter, "max_calls", 40) - getattr(adapter, "call_count", 0)),
+            fallback_ref="stage_progress",
+            fields=[
+                "risks",
+                "additional_verifications",
+                "regression_recommendations",
+                "stage_recommendation",
+            ],
+            allowed_refs=sorted(valid_refs),
+        )
     except (SiliconFlowError, ValidationError, ValueError) as error:
         if isinstance(error, SiliconFlowError):
             detail = error.to_dict()
-            message = str(error)
+            message = "模型分析结构无效" if error.kind == ModelErrorKind.SCHEMA_VALIDATION else str(error)
         else:
             detail = SiliconFlowError(
                 ModelErrorKind.SCHEMA_VALIDATION,
