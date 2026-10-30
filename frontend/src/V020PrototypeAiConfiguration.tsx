@@ -15,6 +15,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
     accessMode,
     networkMode,
     connectionMessage,
+    connectionAction,
     connectionSucceeded,
     verificationStatus,
     verificationMessage,
@@ -220,6 +221,11 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           {connectionMessage}
         </p>
       )}
+      {connectionAction && (
+        <p className="prototype-ai-catalog-feedback" role="status">
+          下一步：{connectionAction}
+        </p>
+      )}
       {verificationStatus !== "untested" && (
         <p
           className={`prototype-ai-feedback${verificationStatus === "failed" ? " prototype-ai-feedback-error" : ""}`}
@@ -240,6 +246,9 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           {savedMessage}
         </p>
       )}
+      <p className="prototype-muted">
+        连接测试只验证最小请求，不代表报告分析或用例转换能力。
+      </p>
       <button
         className="prototype-secondary"
         type="button"

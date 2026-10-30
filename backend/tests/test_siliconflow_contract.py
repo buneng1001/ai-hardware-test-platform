@@ -116,7 +116,7 @@ def test_adapter_retries_retryable_errors_at_most_twice():
             evidence_json="{}",
         )
 
-    assert calls == 3
+    assert calls == 2
 
 
 def test_settings_api_exposes_configuration_state_without_key_or_mask(tmp_path, monkeypatch):

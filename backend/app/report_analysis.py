@@ -8,11 +8,11 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import ValidationError
 
-from app.ai_config import selected_snapshot_payload
+from app.ai_config import save_request_logs, selected_snapshot_payload
 from app.database import open_database
 from app.fact_report_models import ReportAnalysis, ReportAnalysisItem, ReportAnalysisOutput, ReportStageRecommendation
 from app.settings import configured_api_key, current_settings, get_provider_adapter
-from app.siliconflow import SiliconFlowError
+from app.siliconflow import ModelErrorKind, SiliconFlowError
 
 router = APIRouter(prefix="/api/fact-reports/{report_id}/analysis", tags=["report analysis"])
 
@@ -48,7 +48,12 @@ def _from_row(row: sqlite3.Row) -> ReportAnalysis:
         return ReportAnalysis(
             status="completed", message="AI 分析已完成", output=ReportAnalysisOutput.model_validate_json(row["output"])
         )
-    return ReportAnalysis(status=row["status"], message=f"分析未完成：{row['error']}", output=None)
+    return ReportAnalysis(
+        status=row["status"],
+        message=f"分析未完成：{row['error']}",
+        output=None,
+        error=(json.loads(row["error_detail"]) if "error_detail" in row.keys() and row["error_detail"] else None),
+    )
 
 
 def latest_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalysis:
@@ -165,12 +170,13 @@ def _save(
     is_mock: bool,
     output: ReportAnalysisOutput | None,
     error: str | None,
+    error_detail: dict[str, object] | None = None,
 ) -> ReportAnalysis:
     connection.execute(
         """INSERT INTO report_analysis_runs
            (report_id, status, provider, model, is_mock, input_snapshot, output, error,
-            created_at, completed_at, config_snapshot)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            created_at, completed_at, config_snapshot, error_detail)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             report_id,
             "completed" if output else "failed",
@@ -183,6 +189,7 @@ def _save(
             _now(),
             _now(),
             json.dumps(selected_snapshot_payload(), ensure_ascii=False),
+            json.dumps(error_detail or {}, ensure_ascii=False),
         ),
     )
     return latest_analysis(connection, report_id)
@@ -197,6 +204,7 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
         return _not_enabled()
     analysis_input, valid_refs = _analysis_input(json.loads(row["snapshot"]))
     provider, model, api_key, is_mock = configuration
+    config_snapshot = selected_snapshot_payload()
     if is_mock:
         return _save(
             connection,
@@ -208,8 +216,11 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
             output=build_mock_analysis(analysis_input),
             error=None,
         )
+    adapter = get_provider_adapter(provider)
+    if hasattr(adapter, "network_mode"):
+        adapter.network_mode = str(config_snapshot.get("network_mode", "auto"))
     try:
-        raw_output = get_provider_adapter(provider).generate_json(
+        raw_output = adapter.generate_json(
             api_key=api_key,
             model=model,
             evidence_json=json.dumps(analysis_input, ensure_ascii=False),
@@ -218,9 +229,25 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
                 "stage_recommendation。"
                 "每项都必须附现有 evidence_refs；只能给建议，不能补充阈值、修改事实或实施质量门禁。"
             ),
+            prompt_version="report-analysis-v1",
+            stage="report_analysis",
         )
         output = _validate_output(raw_output, valid_refs)
     except (SiliconFlowError, ValidationError, ValueError) as error:
+        if isinstance(error, SiliconFlowError):
+            detail = error.to_dict()
+            message = str(error)
+        else:
+            detail = SiliconFlowError(
+                ModelErrorKind.SCHEMA_VALIDATION,
+                "模型分析结构无效",
+                False,
+                stage="report_analysis",
+                provider=provider,
+                model=model,
+            ).to_dict()
+            message = "模型分析结构无效"
+        save_request_logs(getattr(adapter, "request_logs", []))
         return _save(
             connection,
             report_id,
@@ -229,9 +256,19 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
             model=model,
             is_mock=False,
             output=None,
-            error="模型分析结构无效" if isinstance(error, ValidationError | ValueError) else str(error),
+            error=message,
+            error_detail=detail,
         )
     except Exception:
+        detail = SiliconFlowError(
+            ModelErrorKind.TEMPORARY_SERVICE,
+            "模型服务不可用",
+            False,
+            stage="report_analysis",
+            provider=provider,
+            model=model,
+        ).to_dict()
+        save_request_logs(getattr(adapter, "request_logs", []))
         return _save(
             connection,
             report_id,
@@ -241,7 +278,9 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
             is_mock=False,
             output=None,
             error="模型服务不可用",
+            error_detail=detail,
         )
+    save_request_logs(getattr(adapter, "request_logs", []))
     return _save(
         connection,
         report_id,

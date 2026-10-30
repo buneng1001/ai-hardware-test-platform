@@ -83,6 +83,7 @@ export async function testConnection(params: {
     setLoadingAction: (action: "catalog" | "test" | null) => void;
     setConnectionMessage: (message: string) => void;
     setConnectionSucceeded: (value: boolean | null) => void;
+    setConnectionAction: (message: string) => void;
     setVerificationStatus: (
       status: "verified" | "failed" | "invalidated" | "untested",
     ) => void;
@@ -111,6 +112,7 @@ export async function testConnection(params: {
       `${result.ok ? "连接成功" : "连接失败"}：${params.providerLabel} / ${params.modelLabel}：${result.message}${networkNote}`,
     );
     setters.setConnectionSucceeded(result.ok);
+    setters.setConnectionAction(result.ok ? "" : (result.error?.action ?? ""));
     setters.setVerificationStatus(result.ok ? "verified" : "failed");
     setters.setVerificationMessage(result.message);
     setters.setModelWarning("");
@@ -118,6 +120,7 @@ export async function testConnection(params: {
     const message = error instanceof Error ? error.message : "请求失败";
     setters.setConnectionMessage(`连接测试失败：${message}`);
     setters.setConnectionSucceeded(false);
+    setters.setConnectionAction("");
     setters.setVerificationStatus("failed");
     setters.setVerificationMessage(message);
   } finally {

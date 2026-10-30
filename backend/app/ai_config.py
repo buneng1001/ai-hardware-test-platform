@@ -57,6 +57,7 @@ class AiVerificationState(BaseModel):
     retryable: bool = False
     network_diagnostic: str | None = None
     verified_at: str | None = None
+    error: dict[str, object] | None = None
 
 
 class AiConfigState(BaseModel):
@@ -159,12 +160,13 @@ def save_verification(
     error_kind: str | None,
     retryable: bool,
     network_diagnostic: str | None,
+    error_detail: dict[str, object] | None = None,
 ) -> None:
     connection.execute(
         """INSERT INTO ai_verification_runs
            (snapshot_id, status, message, error_kind, retryable,
-            network_diagnostic, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            network_diagnostic, created_at, error_detail)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             snapshot_id,
             status,
@@ -173,6 +175,7 @@ def save_verification(
             int(retryable),
             network_diagnostic,
             _now(),
+            json.dumps(error_detail or {}, ensure_ascii=False),
         ),
     )
 
@@ -238,6 +241,11 @@ def get_config_state(connection: sqlite3.Connection) -> AiConfigState:
             retryable=bool(latest["retryable"]),
             network_diagnostic=latest["network_diagnostic"],
             verified_at=latest["created_at"],
+            error=(
+                json.loads(latest["error_detail"])
+                if "error_detail" in latest.keys() and latest["error_detail"]
+                else None
+            ),
         )
     return AiConfigState(
         snapshot=snapshot,
@@ -245,6 +253,40 @@ def get_config_state(connection: sqlite3.Connection) -> AiConfigState:
         verification=verification,
         network_modes=NETWORK_MODES,
     )
+
+
+def save_request_logs(logs: list[dict[str, object]]) -> None:
+    """请求日志只记录脱敏元数据，不含密钥、Authorization 或请求体。"""
+    if not logs:
+        return
+    rows = [
+        (
+            str(item.get("provider", "")),
+            str(item.get("model", "")),
+            str(item.get("endpoint_host", "")),
+            str(item.get("network_mode", "")),
+            str(item.get("prompt_version", "")),
+            str(item.get("stage", "")),
+            item.get("elapsed_ms"),
+            int(item.get("attempt", 1)),
+            item.get("http_status"),
+            item.get("finish_reason"),
+            item.get("response_chars"),
+            json.dumps(item.get("token_usage"), ensure_ascii=False) if item.get("token_usage") is not None else None,
+            item.get("error_kind"),
+            _now(),
+        )
+        for item in logs
+    ]
+    with open_database() as connection:
+        connection.executemany(
+            """INSERT INTO ai_request_logs
+               (provider, model, endpoint_host, network_mode, prompt_version,
+                stage, elapsed_ms, attempt, http_status, finish_reason,
+                response_chars, token_usage, error_kind, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
 
 
 def selected_snapshot_payload() -> dict[str, object]:

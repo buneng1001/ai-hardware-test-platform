@@ -152,7 +152,9 @@ def test_v020_fixed_sample_covers_migrations_api_fallbacks_reports_and_trends(tm
         )
         assert report.status_code == 201, report.text
         report_body = report.json()
-        assert report_body["analysis"] == {"status": "not_enabled", "message": "AI 分析未启用", "output": None}
+        assert report_body["analysis"]["status"] == "not_enabled"
+        assert report_body["analysis"]["message"] == "AI 分析未启用"
+        assert report_body["analysis"]["output"] is None
         counts = report_body["snapshot"]["scope_overview"]["counts"]
         assert counts == {"passed": 2, "failed": 1, "blocked": 0, "not_executed": 1}
         for suffix in ("txt", "html"):
@@ -171,7 +173,11 @@ def test_v020_fixed_sample_covers_migrations_api_fallbacks_reports_and_trends(tm
         monkeypatch.setattr("app.report_analysis.get_provider_adapter", lambda _provider: UnavailableAdapter())
         failed_analysis = client.post(f"/api/fact-reports/{report_body['id']}/analysis")
         assert failed_analysis.status_code == 201
-        assert failed_analysis.json() == {"status": "failed", "message": "分析未完成：模型服务不可用", "output": None}
+        failed_body = failed_analysis.json()
+        assert failed_body["status"] == "failed"
+        assert failed_body["message"] == "分析未完成：模型服务不可用"
+        assert failed_body["output"] is None
+        assert failed_body["error"]["kind"] == "temporary_service"
         assert client.get(f"/api/fact-reports/{report_body['id']}").json()["snapshot"] == report_body["snapshot"]
 
         # 仅清理报告已使用附件，随后人工结果更新使报告过期；趋势仍从该最终报告读取。
