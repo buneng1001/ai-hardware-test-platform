@@ -109,6 +109,11 @@ export type ReportAnalysis = {
     };
   } | null;
   error?: AiErrorDetail | null;
+  run_id?: number | null;
+  fingerprint?: string | null;
+  stage?: string | null;
+  elapsed_ms?: number | null;
+  reused?: boolean;
 };
 
 export function createFactReport(
@@ -122,14 +127,18 @@ export function createFactReport(
   });
 }
 
-export function retryFactReportAnalysis(reportId: number) {
-  return request<ReportAnalysis>(`/api/fact-reports/${reportId}/analysis`, {
-    method: "POST",
-  });
+export function retryFactReportAnalysis(reportId: number, force = false) {
+  const suffix = force ? "?force=true" : "";
+  return request<ReportAnalysis>(
+    `/api/fact-reports/${reportId}/analysis${suffix}`,
+    { method: "POST" },
+  );
 }
 
 export function getFactReport(reportId: number) {
-  return request<FactReport>(`/api/fact-reports/${reportId}`);
+  return request<FactReport>(`/api/fact-reports/${reportId}`, {
+    cache: "no-store",
+  });
 }
 
 export function getReportHistory(groupId: number, query = "") {

@@ -13,6 +13,7 @@ from app.ai_batching import (
     batch_config,
     input_fingerprint,
     preflight_budget,
+    run_fingerprint,
     semantic_batches,
 )
 from app.ai_config import save_request_logs, selected_snapshot_payload
@@ -62,25 +63,62 @@ def analysis_is_enabled() -> bool:
 
 
 def _from_row(row: sqlite3.Row) -> ReportAnalysis:
+    keys = set(row.keys())
+
+    def value(name: str, default=None):
+        return row[name] if name in keys else default
+
+    common = {
+        "run_id": value("id"),
+        "fingerprint": value("fingerprint") or None,
+        "stage": value("stage") or None,
+        "elapsed_ms": value("elapsed_ms"),
+    }
     if row["status"] == "pending":
-        return ReportAnalysis(status="pending", message="AI 分析正在运行", output=None)
+        return ReportAnalysis(status="pending", message="AI 分析正在运行", output=None, **common)
     if row["status"] == "completed":
         return ReportAnalysis(
-            status="completed", message="AI 分析已完成", output=ReportAnalysisOutput.model_validate_json(row["output"])
+            status="completed",
+            message="AI 分析已完成",
+            output=ReportAnalysisOutput.model_validate_json(row["output"]),
+            **common,
         )
     return ReportAnalysis(
         status=row["status"],
         message=f"分析未完成：{row['error']}",
         output=None,
-        error=(json.loads(row["error_detail"]) if "error_detail" in row.keys() and row["error_detail"] else None),
+        error=(json.loads(row["error_detail"]) if "error_detail" in keys and row["error_detail"] else None),
+        **common,
     )
 
 
 def latest_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalysis:
     row = connection.execute(
-        "SELECT * FROM report_analysis_runs WHERE report_id = ? ORDER BY id DESC LIMIT 1", (report_id,)
+        """SELECT * FROM report_analysis_runs WHERE report_id = ?
+           ORDER BY is_active DESC, id DESC LIMIT 1""",
+        (report_id,),
     ).fetchone()
     return _from_row(row) if row else _not_enabled()
+
+
+def find_reusable_analysis(connection: sqlite3.Connection, report_id: int, fingerprint: str) -> sqlite3.Row | None:
+    """相同指纹已有成功结果时才允许复用；失败运行不参与。"""
+    return connection.execute(
+        """SELECT * FROM report_analysis_runs
+           WHERE report_id = ? AND fingerprint = ? AND status = 'completed'
+           ORDER BY id DESC LIMIT 1""",
+        (report_id, fingerprint),
+    ).fetchone()
+
+
+def analysis_history(connection: sqlite3.Connection, report_id: int) -> list[dict[str, object]]:
+    """历史运行与当前活动视图分开；按时间倒序返回摘要。"""
+    rows = connection.execute(
+        """SELECT id, status, fingerprint, stage, elapsed_ms, is_active, created_at
+           FROM report_analysis_runs WHERE report_id = ? ORDER BY id DESC""",
+        (report_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def enqueue_analysis(connection: sqlite3.Connection, report_id: int) -> None:
@@ -116,12 +154,22 @@ def _save(
     output: ReportAnalysisOutput | None,
     error: str | None,
     error_detail: dict[str, object] | None = None,
+    stage: str = "report_analysis",
+    elapsed_ms: int | None = None,
+    reused_from_id: int | None = None,
 ) -> ReportAnalysis:
+    snapshot = selected_snapshot_payload()
+    fingerprint = run_fingerprint(analysis_input, snapshot, model, "report-analysis-v1")
+    connection.execute(
+        "UPDATE report_analysis_runs SET is_active = 0 WHERE report_id = ?",
+        (report_id,),
+    )
     connection.execute(
         """INSERT INTO report_analysis_runs
            (report_id, status, provider, model, is_mock, input_snapshot, output, error,
-            created_at, completed_at, config_snapshot, error_detail)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            created_at, completed_at, config_snapshot, error_detail, fingerprint,
+            stage, elapsed_ms, reused_from_id, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
         (
             report_id,
             "completed" if output else "failed",
@@ -133,8 +181,12 @@ def _save(
             error,
             _now(),
             _now(),
-            json.dumps(selected_snapshot_payload(), ensure_ascii=False),
+            json.dumps(snapshot, ensure_ascii=False),
             json.dumps(error_detail or {}, ensure_ascii=False),
+            fingerprint,
+            stage,
+            elapsed_ms,
+            reused_from_id,
         ),
     )
     return latest_analysis(connection, report_id)
@@ -179,7 +231,7 @@ def _run_batched_analysis(
     )
 
 
-def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalysis:
+def run_analysis(connection: sqlite3.Connection, report_id: int, *, force: bool = False) -> ReportAnalysis:
     row = connection.execute("SELECT snapshot FROM online_reports WHERE id = ?", (report_id,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="事实报告不存在")
@@ -189,6 +241,17 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
     analysis_input, valid_refs = _analysis_input(json.loads(row["snapshot"]))
     provider, model, api_key, is_mock = configuration
     config_snapshot = selected_snapshot_payload()
+    fingerprint = run_fingerprint(analysis_input, config_snapshot, model, "report-analysis-v1")
+    if not force:
+        reusable = find_reusable_analysis(connection, report_id, fingerprint)
+        if reusable is not None:
+            reused = _from_row(reusable)
+            return reused.model_copy(
+                update={
+                    "reused": True,
+                    "message": f"复用运行 #{reusable['id']}，未重复调用模型",
+                }
+            )
     if is_mock:
         return _save(
             connection,
@@ -362,9 +425,9 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
 
 
 @router.post("", response_model=ReportAnalysis, status_code=status.HTTP_201_CREATED)
-def retry_report_analysis(report_id: int) -> ReportAnalysis:
+def retry_report_analysis(report_id: int, force: bool = False) -> ReportAnalysis:
     with open_database() as connection:
-        return run_analysis(connection, report_id)
+        return run_analysis(connection, report_id, force=force)
 
 
 @router.post("/cancel")
@@ -372,6 +435,13 @@ def cancel_report_analysis(report_id: int) -> dict[str, bool]:
     """在下一批次边界取消；已完成批次检查点保留。"""
     request_cancel(report_id)
     return {"cancel_requested": True}
+
+
+@router.get("/runs")
+def get_analysis_history(report_id: int) -> list[dict[str, object]]:
+    """运行历史与当前活动结果是两个视图。"""
+    with open_database() as connection:
+        return analysis_history(connection, report_id)
 
 
 def run_analysis_in_background(report_id: int) -> None:

@@ -202,6 +202,7 @@ export function V020ReportPanel({
           onConfirmCleanup={() => void reports.confirmCleanup()}
           onPrepareCleanup={() => void reports.prepareCleanup()}
           onRefreshAnalysis={() => void reports.refreshAnalysis()}
+          onRerunAnalysis={() => void reports.retryAnalysis(true)}
           onRetryAnalysis={() => void reports.retryAnalysis()}
           report={report}
         />

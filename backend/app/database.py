@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 31
+LATEST_SCHEMA_VERSION = 32
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -926,6 +926,40 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             PRAGMA user_version = 31;
             """
         )
+
+    if current_version < 32:
+        # 运行指纹幂等与活动结果指针；历史运行全部保留，只有一条处于 active。
+        available_tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        if "report_analysis_runs" not in available_tables:
+            connection.executescript(
+                "INSERT OR IGNORE INTO schema_migrations (version) VALUES (32); PRAGMA user_version = 32;"
+            )
+        else:
+            analysis_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(report_analysis_runs)").fetchall()
+            }
+            for name, definition in (
+                ("fingerprint", "TEXT NOT NULL DEFAULT ''"),
+                ("stage", "TEXT NOT NULL DEFAULT ''"),
+                ("elapsed_ms", "INTEGER"),
+                ("reused_from_id", "INTEGER"),
+                ("is_active", "INTEGER NOT NULL DEFAULT 0"),
+            ):
+                if name not in analysis_columns:
+                    connection.execute(f"ALTER TABLE report_analysis_runs ADD COLUMN {name} {definition}")
+            connection.executescript(
+                """
+                UPDATE report_analysis_runs
+                SET is_active = 1
+                WHERE id IN (
+                    SELECT MAX(id) FROM report_analysis_runs GROUP BY report_id
+                ) AND is_active = 0;
+                CREATE INDEX IF NOT EXISTS idx_report_analysis_runs_fingerprint
+                    ON report_analysis_runs(report_id, fingerprint);
+                INSERT OR IGNORE INTO schema_migrations (version) VALUES (32);
+                PRAGMA user_version = 32;
+                """
+            )
 
 
 def get_data_dir() -> Path:

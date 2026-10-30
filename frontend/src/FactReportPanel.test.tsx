@@ -67,7 +67,7 @@ test("测试工程师可以选择记录生成并下载事实报告", async () =>
         ),
       );
     }
-    if (url === "/api/fact-reports/12" && !init) {
+    if (url === "/api/fact-reports/12") {
       return Promise.resolve(
         new Response(
           JSON.stringify({
