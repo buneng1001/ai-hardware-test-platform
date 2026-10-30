@@ -201,3 +201,31 @@ def test_output_truncation_is_classified_without_retry():
         _adapter(transport).generate(api_key="secret", model="demo-model", evidence_json="{}")
     assert captured.value.kind == ModelErrorKind.OUTPUT_TRUNCATED
     assert calls == 1
+
+
+def test_request_logs_capture_finish_reason_and_tokens():
+    def transport(_request):
+        return 200, json.dumps(
+            {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": json.dumps({"diagnosis_status": "completed"})},
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            }
+        )
+
+    adapter = _adapter(transport)
+    adapter.generate(api_key="secret", model="demo-model", evidence_json="{}")
+    log = adapter.request_logs[0]
+    assert log["finish_reason"] == "stop"
+    assert log["token_usage"] == {
+        "prompt_tokens": 10,
+        "completion_tokens": 5,
+        "total_tokens": 15,
+    }
+    assert log["response_chars"] > 0
+    assert log["stage"] == "business"
+    assert "secret" not in json.dumps(log)
