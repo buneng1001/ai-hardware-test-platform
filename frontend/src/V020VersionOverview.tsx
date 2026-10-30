@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Status } from "./V020PrototypeShared";
 import type { ProductVersion } from "./projectsApi";
 import { V020DeletionImpactPanel } from "./V020DeletionImpactPanel";
+import { V020TrendPanel } from "./V020TrendPanel";
 import type { V020ProjectWorkspace } from "./useV020ProjectWorkspace";
 
 /** 版本与趋势页：项目下的产品版本管理和趋势空状态，不包含趋势图本身。 */
@@ -274,36 +275,12 @@ export function V020VersionOverview({
 
       <V020DeletionImpactPanel workspace={workspace} />
 
-      <h3>版本趋势</h3>
-      {workspace.trendError ? (
-        <div className="prototype-inline-note" role="alert">
-          趋势数据加载失败：{workspace.trendError}
-          <button
-            className="prototype-secondary"
-            onClick={() => void workspace.retryTrend()}
-            type="button"
-          >
-            重试
-          </button>
-        </div>
-      ) : !workspace.trend ? (
-        <p className="prototype-muted">正在加载趋势数据…</p>
-      ) : workspace.trend.status === "empty" ? (
-        <div className="prototype-card">
-          <h3>尚无最终报告，暂无趋势数据</h3>
-          <p className="prototype-muted">
-            趋势只统计已生成的最终报告。完成一次执行并生成报告后，这里会按版本、模块、测试组和用例展示结果变化。
-          </p>
-        </div>
-      ) : (
-        <div className="prototype-card">
-          <h3>已有 {workspace.trend.points.length} 份最终报告</h3>
-          <p className="prototype-muted">
-            {workspace.trend.message ||
-              "可以按版本、模块、测试组和用例查看结果变化。"}
-          </p>
-        </div>
-      )}
+      <V020TrendPanel
+        onRetry={() => void workspace.retryTrend()}
+        project={detail}
+        trend={workspace.trend}
+        trendError={workspace.trendError}
+      />
     </>
   );
 }
