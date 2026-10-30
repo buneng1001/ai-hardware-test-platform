@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
+import { V020ReportDeleteDialog } from "./V020ReportDeleteDialog";
 import { V020ReportGenerateForm } from "./V020ReportGenerateForm";
 import { V020ReportHistoryDialog } from "./V020ReportHistoryDialog";
 import { V020ReportPreviewDialog } from "./V020ReportPreviewDialog";
@@ -25,6 +26,7 @@ export function V020ReportPanel({
 }) {
   const reports = useV020FactReports(groupId);
   const [view, setView] = useState<ReportView>("closed");
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const report = reports.report;
 
   if (reports.status === "loading" || reports.status === "idle") {
@@ -136,6 +138,16 @@ export function V020ReportPanel({
               下载纯文字
             </button>
           )}
+          {report && (
+            <button
+              className="prototype-secondary"
+              disabled={reports.busy}
+              onClick={() => setDeleteConfirm(true)}
+              type="button"
+            >
+              删除在线报告
+            </button>
+          )}
         </div>
       </div>
 
@@ -167,24 +179,46 @@ export function V020ReportPanel({
         <V020ReportHistoryDialog
           busy={reports.busy}
           groupName={groupName}
+          items={reports.history}
           onClose={() => setView("closed")}
           onPreview={(reportId) => {
             void reports.openReport(reportId).then((opened) => {
               if (opened) setView("preview");
             });
           }}
-          reports={reports.reports}
+          onQueryChange={reports.setHistoryQuery}
+          onSearch={() => void reports.searchHistory()}
+          query={reports.historyQuery}
         />
       )}
       {view === "preview" && report && (
         <V020ReportPreviewDialog
           busy={reports.busy}
+          cleanupImpact={reports.cleanupImpact}
           groupName={groupName}
           onBack={() => setView("history")}
+          onCancelCleanup={reports.cancelCleanup}
           onClose={() => setView("closed")}
+          onConfirmCleanup={() => void reports.confirmCleanup()}
+          onPrepareCleanup={() => void reports.prepareCleanup()}
           onRefreshAnalysis={() => void reports.refreshAnalysis()}
           onRetryAnalysis={() => void reports.retryAnalysis()}
           report={report}
+        />
+      )}
+      {deleteConfirm && report && (
+        <V020ReportDeleteDialog
+          busy={reports.busy}
+          onCancel={() => setDeleteConfirm(false)}
+          onConfirm={() => {
+            void reports.deleteReport().then((deleted) => {
+              if (deleted) {
+                setDeleteConfirm(false);
+                setView("closed");
+              }
+            });
+          }}
+          reportLabel={`#${report.id}`}
         />
       )}
     </>

@@ -93,3 +93,9 @@
   margin-left: 6px;
   color: var(--prototype-color-muted);
 }
+
+.prototype-report-cleanup,
+.prototype-report-delete {
+  max-width: 760px;
+  margin: 12px 0;
+}
