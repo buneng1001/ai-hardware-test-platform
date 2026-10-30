@@ -178,9 +178,12 @@ export function V020ReportPanel({
       )}
       {view === "preview" && report && (
         <V020ReportPreviewDialog
+          busy={reports.busy}
           groupName={groupName}
           onBack={() => setView("history")}
           onClose={() => setView("closed")}
+          onRefreshAnalysis={() => void reports.refreshAnalysis()}
+          onRetryAnalysis={() => void reports.retryAnalysis()}
           report={report}
         />
       )}

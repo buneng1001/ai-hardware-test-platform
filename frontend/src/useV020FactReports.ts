@@ -8,6 +8,7 @@ import {
   createFactReport,
   getFactReport,
   getReportHistory,
+  retryFactReportAnalysis,
   type FactReport,
   type ReportHistoryItem,
 } from "./factReportsApi";
@@ -123,6 +124,34 @@ export function useV020FactReports(groupId: number | null) {
     }
   };
 
+  /** 只重试报告分析，不重新生成事实报告或重新执行自动化。 */
+  const retryAnalysis = async (): Promise<boolean> => {
+    if (!report) return false;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const analysis = await retryFactReportAnalysis(report.id);
+      setReport({ ...report, analysis });
+      setMessage("报告分析已单独重试，事实报告未重新生成。");
+      return true;
+    } catch (caught) {
+      setActionError(errorMessage(caught, "报告分析重试失败"));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const refreshAnalysis = async () => {
+    if (!report) return;
+    setActionError(null);
+    try {
+      setReport(await getFactReport(report.id));
+    } catch (caught) {
+      setActionError(errorMessage(caught, "报告分析状态刷新失败"));
+    }
+  };
+
   const reports = history.filter((item) => item.record_type === "fact_report");
   const latestReportId = reportIdOf(history);
 
@@ -139,6 +168,8 @@ export function useV020FactReports(groupId: number | null) {
     message,
     generate,
     openReport,
+    retryAnalysis,
+    refreshAnalysis,
     retry: () => (groupId !== null ? void load(groupId) : undefined),
   };
 }

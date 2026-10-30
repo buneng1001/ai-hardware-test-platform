@@ -3,7 +3,11 @@ import { vi } from "vitest";
 
 import { FrontendRoot } from "../FrontendRoot";
 import type { AutomationExecution } from "../automationExecutionsApi";
-import type { FactReport, ReportHistoryItem } from "../factReportsApi";
+import type {
+  FactReport,
+  ReportAnalysis,
+  ReportHistoryItem,
+} from "../factReportsApi";
 import type {
   ManualTestResultBatch,
   ManualTestResultPage,
@@ -106,6 +110,38 @@ export function reportHistoryItem(
   };
 }
 
+export function completedAnalysis(): ReportAnalysis {
+  return {
+    status: "completed",
+    message: "AI 分析已完成",
+    output: {
+      risks: [
+        {
+          content: "优先人工复核失败与结果不一致项。",
+          evidence_refs: ["stage_progress"],
+        },
+      ],
+      additional_verifications: [
+        {
+          content: "补充验证录制中断后的文件完整性。",
+          evidence_refs: ["module:0"],
+        },
+      ],
+      regression_recommendations: [
+        {
+          content: "下一版本回归录制恢复用例。",
+          evidence_refs: ["record:0:0"],
+        },
+      ],
+      stage_recommendation: {
+        suggestion: "请依据已保存事实报告补充验证后，再决定是否推进阶段。",
+        content: "阶段建议仅作为参考，不构成强制质量门禁。",
+        evidence_refs: ["stage_progress"],
+      },
+    },
+  };
+}
+
 export type ReportStubState = {
   groups: ReturnType<typeof testGroupDetail>[];
   executions: AutomationExecution[];
@@ -114,6 +150,7 @@ export type ReportStubState = {
   history: ReportHistoryItem[];
   reports: Record<number, FactReport>;
   createdReport?: FactReport;
+  analysisResult?: ReportAnalysis;
   failHistoryTimes?: number;
 };
 
@@ -188,6 +225,16 @@ export function stubReportApi(state: ReportStubState) {
         return report
           ? jsonResponse(report)
           : jsonResponse({ detail: "事实报告不存在" }, 404);
+      }
+      const analysisMatch = url.match(/^\/api\/fact-reports\/(\d+)\/analysis$/);
+      if (analysisMatch && method === "POST") {
+        const reportId = Number(analysisMatch[1]);
+        const analysis = state.analysisResult ?? completedAnalysis();
+        const current = state.reports[reportId];
+        if (current) {
+          state.reports[reportId] = { ...current, analysis };
+        }
+        return jsonResponse(analysis, 201);
       }
       return jsonResponse({ detail: "未模拟的接口" }, 404);
     },

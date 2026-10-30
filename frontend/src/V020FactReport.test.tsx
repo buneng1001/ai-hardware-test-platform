@@ -1,10 +1,4 @@
-import {
-  cleanup,
-  fireEvent,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { executionRecord } from "./test/automationExecutionHarness";
