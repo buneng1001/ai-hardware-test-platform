@@ -8,9 +8,28 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import ValidationError
 
+from app.ai_batching import (
+    DatabaseCheckpoints,
+    batch_config,
+    input_fingerprint,
+    preflight_budget,
+    semantic_batches,
+)
 from app.ai_config import save_request_logs, selected_snapshot_payload
 from app.database import open_database
-from app.fact_report_models import ReportAnalysis, ReportAnalysisItem, ReportAnalysisOutput, ReportStageRecommendation
+from app.fact_report_models import ReportAnalysis, ReportAnalysisOutput
+from app.report_analysis_batching import (
+    cancel_requested,
+    request_cancel,
+    run_batches,
+    validate_report_output,
+)
+from app.report_analysis_inputs import (
+    analysis_input as _analysis_input,
+)
+from app.report_analysis_inputs import (
+    build_mock_analysis,
+)
 from app.settings import configured_api_key, current_settings, get_provider_adapter
 from app.siliconflow import ModelErrorKind, SiliconFlowError
 from app.structured_repair import RepairBudget, normalize_refs, run_repair_ladder
@@ -86,81 +105,6 @@ def enqueue_analysis(connection: sqlite3.Connection, report_id: int) -> None:
     )
 
 
-def _analysis_input(snapshot: dict[str, object]) -> tuple[dict[str, object], set[str]]:
-    """只选择持久化事实报告内的有限字段，避免把日志或可变资产交给模型。"""
-    modules = []
-    refs = {"stage_progress"}
-    for module_index, module in enumerate(snapshot["modules"]):
-        module_ref = f"module:{module_index}"
-        refs.add(module_ref)
-        records = []
-        for record_index, record in enumerate(module["records"]):
-            record_ref = f"record:{module_index}:{record_index}"
-            refs.add(record_ref)
-            records.append(
-                {
-                    "ref": record_ref,
-                    "case_number": record["case_number"],
-                    "title": record["title"],
-                    "source": record["source"],
-                    "status": record["status"],
-                    "message": record["message"],
-                }
-            )
-        modules.append(
-            {
-                "ref": module_ref,
-                "name": module["name"],
-                "conclusion": module["conclusion"],
-                "counts": module["counts"],
-                "records": records,
-            }
-        )
-    issues = []
-    for index, issue in enumerate(snapshot["cross_module_issues"]):
-        ref = f"cross_issue:{index}"
-        refs.add(ref)
-        issues.append({"ref": ref, **issue})
-    return {
-        "stage_progress": snapshot["stage_progress"],
-        "scope_overview": snapshot["scope_overview"],
-        "modules": modules,
-        "cross_module_issues": issues,
-    }, refs
-
-
-def _item(content: str, evidence_ref: str) -> ReportAnalysisItem:
-    return ReportAnalysisItem(content=content, evidence_refs=[evidence_ref])
-
-
-def build_mock_analysis(analysis_input: dict[str, object]) -> ReportAnalysisOutput:
-    """离线演示使用固定结构化输出，避免 Mock 随输入产生不可复现结论。"""
-    return ReportAnalysisOutput(
-        risks=[_item("请优先人工复核已保存报告中的失败、阻塞和结果不一致项。", "stage_progress")],
-        additional_verifications=[_item("请依据现有事实记录补充验证，不新增未记录的阈值。", "stage_progress")],
-        regression_recommendations=[_item("请从已保存报告范围内选择后续回归项。", "stage_progress")],
-        stage_recommendation=ReportStageRecommendation(
-            suggestion="请依据已保存事实报告补充验证后，再决定是否推进阶段。",
-            content="阶段建议仅作为参考，不构成强制质量门禁。",
-            evidence_refs=["stage_progress"],
-        ),
-    )
-
-
-def _validate_output(raw_output: dict[str, object], valid_refs: set[str]) -> ReportAnalysisOutput:
-    output = ReportAnalysisOutput.model_validate(raw_output)
-    items = [
-        *output.risks,
-        *output.additional_verifications,
-        *output.regression_recommendations,
-        output.stage_recommendation,
-    ]
-    invalid_refs = sorted({ref for item in items for ref in item.evidence_refs if ref not in valid_refs})
-    if invalid_refs:
-        raise ValueError(f"包含无效事实引用：{', '.join(invalid_refs)}")
-    return output
-
-
 def _save(
     connection: sqlite3.Connection,
     report_id: int,
@@ -196,6 +140,45 @@ def _save(
     return latest_analysis(connection, report_id)
 
 
+def _run_batched_analysis(
+    *,
+    report_id: int,
+    analysis_input: dict[str, object],
+    valid_refs: set[str],
+    provider: str,
+    model: str,
+    api_key: str,
+    adapter,
+    config,
+) -> ReportAnalysisOutput:
+    """多批分析：按模块/记录切批，截断二分，检查点恢复。"""
+    adapter.max_calls = config.call_limit
+    fingerprint = input_fingerprint(analysis_input, provider, model)
+
+    def call_model(batch: dict[str, object]) -> dict[str, object]:
+        return adapter.generate_json(
+            api_key=api_key,
+            model=model,
+            evidence_json=json.dumps(batch, ensure_ascii=False),
+            system_prompt=(
+                "只返回当前批次的报告分析 JSON：risks、additional_verifications、"
+                "regression_recommendations 和 stage_recommendation。"
+                "每项必须引用当前批次内的 evidence_refs；不得补充阈值或修改事实。"
+            ),
+            prompt_version="report-analysis-batch-v1",
+            stage="report_analysis_batch",
+        )
+
+    return run_batches(
+        semantic_batches(analysis_input, config),
+        call_model=call_model,
+        valid_refs=valid_refs,
+        checkpoints=DatabaseCheckpoints(report_id, fingerprint),
+        config=config,
+        cancel_event=lambda: cancel_requested(report_id),
+    )
+
+
 def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalysis:
     row = connection.execute("SELECT snapshot FROM online_reports WHERE id = ?", (report_id,)).fetchone()
     if row is None:
@@ -220,6 +203,58 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
     adapter = get_provider_adapter(provider)
     if hasattr(adapter, "network_mode"):
         adapter.network_mode = str(config_snapshot.get("network_mode", "auto"))
+    config = batch_config()
+    adapter.max_calls = config.call_limit
+    batches = semantic_batches(analysis_input, config)
+    if len(batches) > 1:
+        try:
+            batched_output = _run_batched_analysis(
+                report_id=report_id,
+                analysis_input=analysis_input,
+                valid_refs=valid_refs,
+                provider=provider,
+                model=model,
+                api_key=api_key,
+                adapter=adapter,
+                config=config,
+            )
+        except (SiliconFlowError, ValidationError, ValueError) as error:
+            detail = (
+                error.to_dict()
+                if isinstance(error, SiliconFlowError)
+                else SiliconFlowError(
+                    ModelErrorKind.SCHEMA_VALIDATION,
+                    "模型分析结构无效",
+                    False,
+                    stage="report_analysis",
+                    provider=provider,
+                    model=model,
+                ).to_dict()
+            )
+            save_request_logs(getattr(adapter, "request_logs", []))
+            return _save(
+                connection,
+                report_id,
+                analysis_input,
+                provider=provider,
+                model=model,
+                is_mock=False,
+                output=None,
+                error=("模型分析结构无效" if detail.get("kind") == ModelErrorKind.SCHEMA_VALIDATION else str(error)),
+                error_detail=detail,
+            )
+        save_request_logs(getattr(adapter, "request_logs", []))
+        return _save(
+            connection,
+            report_id,
+            analysis_input,
+            provider=provider,
+            model=model,
+            is_mock=False,
+            output=batched_output,
+            error=None,
+        )
+    preflight_budget(json.dumps(analysis_input, ensure_ascii=False), config)
     try:
         raw_output = adapter.generate_json(
             api_key=api_key,
@@ -253,7 +288,7 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
 
         output, _steps = run_repair_ladder(
             raw_output,
-            validate=lambda data: _validate_output(data, valid_refs),
+            validate=lambda data: validate_report_output(data, valid_refs),
             normalize=lambda data: normalize_refs(data, "stage_progress"),
             repair=repair,
             budget=RepairBudget(getattr(adapter, "max_calls", 40) - getattr(adapter, "call_count", 0)),
@@ -330,6 +365,13 @@ def run_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalys
 def retry_report_analysis(report_id: int) -> ReportAnalysis:
     with open_database() as connection:
         return run_analysis(connection, report_id)
+
+
+@router.post("/cancel")
+def cancel_report_analysis(report_id: int) -> dict[str, bool]:
+    """在下一批次边界取消；已完成批次检查点保留。"""
+    request_cancel(report_id)
+    return {"cancel_requested": True}
 
 
 def run_analysis_in_background(report_id: int) -> None:
