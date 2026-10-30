@@ -2,20 +2,21 @@ import { useEffect, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
 import { V020ExecutionResultCard } from "./V020ExecutionResultCard";
+import { V020ManualResultSummaryCard } from "./V020ManualResultSummaryCard";
 import { PrototypeReportActions } from "./V020PrototypeReports";
 import { listTestGroups, type TestGroupSummary } from "./testGroupsApi";
 import "./V020AutomationExecutions.css";
 
 /**
- * 冻结版“执行与结果”页：真实测试组选择和自动化执行记录；
- * 人工结果与最终报告仍保持后续 issue 的样例入口。
+ * 冻结版“执行与结果”页：真实测试组、自动化执行记录和人工记录入口；
+ * 最终报告入口仍保持后续 issue 的样例入口。
  */
 export function V020ExecutionResultsScreen({
   versionId,
   onOpenManual,
 }: {
   versionId: number | null;
-  onOpenManual: () => void;
+  onOpenManual: (group: { id: number; name: string }) => void;
 }) {
   const [groups, setGroups] = useState<TestGroupSummary[] | null>(null);
   const [groupId, setGroupId] = useState<number | null>(null);
@@ -101,18 +102,11 @@ export function V020ExecutionResultsScreen({
       {groupId !== null && (
         <div className="prototype-result-grid">
           <V020ExecutionResultCard groupId={groupId} />
-          <div className="prototype-result-card">
-            <strong>人工测试记录</strong>
-            <Status tone="warn">待补充</Status>
-            <p>已录入 5 条，未执行 2 条</p>
-            <button
-              className="prototype-secondary"
-              onClick={onOpenManual}
-              type="button"
-            >
-              进入人工结果录入
-            </button>
-          </div>
+          <V020ManualResultSummaryCard
+            groupId={groupId}
+            groupName={groupName}
+            onOpenManual={onOpenManual}
+          />
         </div>
       )}
       <div className="prototype-report-preview">

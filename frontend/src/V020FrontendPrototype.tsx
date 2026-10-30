@@ -22,10 +22,12 @@ import { useV020ProjectWorkspace } from "./useV020ProjectWorkspace";
 function VariantA({
   screen,
   setScreen,
+  manualGroup,
   ...workspaceProps
 }: VariantProps & {
   screen: ScreenKey;
   setScreen: (screen: ScreenKey) => void;
+  manualGroup: { id: number; name: string } | null;
 }) {
   const openProjects = () => {
     void workspaceProps.projectWorkspace.refreshProjects();
@@ -58,9 +60,8 @@ function VariantA({
         onOpenHome={() => setScreen("home")}
       >
         <ManualResultsPage
-          groupName={workspaceProps.selectedGroup}
-          drafts={workspaceProps.manualDrafts}
-          setDraft={workspaceProps.setManualDraft}
+          groupId={manualGroup?.id ?? null}
+          groupName={manualGroup?.name ?? "未选择测试组"}
           onBack={() => setScreen("workspace")}
         />
       </PrototypeWorkspaceShell>
@@ -106,9 +107,10 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
   ]);
   const [newGroupName, setNewGroupName] = useState("");
   const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
-  const [manualDrafts, setManualDrafts] = useState<
-    Record<string, { result: string; note: string }>
-  >({});
+  const [manualGroup, setManualGroup] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [dataAssignments, setDataAssignments] = useState<
     Record<string, string>
   >({
@@ -154,19 +156,6 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
   };
   const setDataAssignment = (caseId: string, dataId: string) =>
     setDataAssignments((current) => ({ ...current, [caseId]: dataId }));
-  const setManualDraft = (
-    caseId: string,
-    field: "result" | "note",
-    value: string,
-  ) =>
-    setManualDrafts((current) => ({
-      ...current,
-      [caseId]: {
-        result: current[caseId]?.result ?? "",
-        note: current[caseId]?.note ?? "",
-        [field]: value,
-      },
-    }));
   const contentProps: VariantProps = {
     projectWorkspace,
     section,
@@ -193,12 +182,18 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
     setDataAssignment,
     caseFilter,
     setCaseFilter,
-    manualDrafts,
-    setManualDraft,
-    onOpenManual: () => setScreen("manual"),
+    onOpenManual: (group) => {
+      setManualGroup(group);
+      setScreen("manual");
+    },
   };
   const view = (
-    <VariantA {...contentProps} screen={screen} setScreen={setScreen} />
+    <VariantA
+      {...contentProps}
+      manualGroup={manualGroup}
+      screen={screen}
+      setScreen={setScreen}
+    />
   );
   return (
     <div className="prototype-page">
