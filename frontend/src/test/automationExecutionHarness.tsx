@@ -161,6 +161,14 @@ export function stubExecutionApi(state: ExecutionStubState) {
           ? jsonResponse(record)
           : jsonResponse({ detail: "自动化执行记录不存在" }, 404);
       }
+      if (url === "/api/test-groups/21/manual-test-result-batches")
+        return jsonResponse({
+          test_group_id: 21,
+          product_version_id: 11,
+          cases: [],
+          batches: [],
+        });
+      if (/\/report-history$/.test(url)) return jsonResponse({ items: [] });
       return jsonResponse({ detail: "未模拟的接口" }, 404);
     },
   );

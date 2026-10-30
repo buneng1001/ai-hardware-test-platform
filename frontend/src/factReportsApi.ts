@@ -1,5 +1,58 @@
 import { jsonHeaders, request } from "./apiClient";
 
+export type FactReportSnapshotRecord = {
+  case_number: string;
+  title: string;
+  module: string;
+  test_item: string;
+  source: string;
+  status: string;
+  message: string;
+  executed_at: string | null;
+  result_consistency?: string;
+};
+
+export type FactReportSnapshot = {
+  basic_information: {
+    project_name: string;
+    product_name: string;
+    product_version: string;
+    test_group: string;
+    generated_at: string;
+    contains: string;
+    automation_execution: {
+      id: number;
+      execution_number: number;
+      status: string;
+      execution_mode: string;
+      started_at: string;
+      completed_at: string | null;
+    } | null;
+    manual_batches: Array<{
+      id: number;
+      batch_number: number;
+      created_at: string;
+    }>;
+  };
+  warnings: string[];
+  stage_progress: { conclusion: string; basis: string[] };
+  ai_analysis: { status: string; message: string };
+  scope_overview: {
+    original_case_count: number;
+    module_count: number;
+    automation_case_count: number;
+    manual_case_count: number;
+    counts: Record<string, number>;
+  };
+  modules: Array<{
+    name: string;
+    conclusion: string;
+    counts: Record<string, number>;
+    records: FactReportSnapshotRecord[];
+  }>;
+  cross_module_issues: Array<{ case_number: string; message: string }>;
+};
+
 export type FactReport = {
   id: number;
   test_group_id: number;
@@ -9,11 +62,7 @@ export type FactReport = {
   created_at: string;
   lifecycle_status: "current" | "stale" | "superseded";
   attachment_summary: ReportAttachmentSummary;
-  snapshot: {
-    warnings: string[];
-    stage_progress: { conclusion: string; basis: string[] };
-    ai_analysis: { status: string; message: string };
-  };
+  snapshot: FactReportSnapshot;
   analysis: ReportAnalysis;
 };
 

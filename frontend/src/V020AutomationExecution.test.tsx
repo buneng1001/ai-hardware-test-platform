@@ -55,14 +55,13 @@ test("执行与结果页展示真实执行记录并按测试组切换", async ()
   expect(screen.getByText("通过 1 · 失败 0 · 阻塞 0 · 未执行 0")).toBeVisible();
   expect(screen.getByLabelText("当前测试组")).toHaveValue("21");
 
+  const recordCalls = () =>
+    callsOf(fetchMock).filter(([input]) =>
+      String(input).endsWith("/test-groups/21/automation-executions"),
+    ).length;
+  const beforeRefresh = recordCalls();
   fireEvent.click(screen.getByRole("button", { name: "刷新最新结果" }));
-  await waitFor(() =>
-    expect(
-      callsOf(fetchMock).filter(([input]) =>
-        String(input).endsWith("/test-groups/21/automation-executions"),
-      ),
-    ).toHaveLength(2),
-  );
+  await waitFor(() => expect(recordCalls()).toBeGreaterThan(beforeRefresh));
 
   fireEvent.change(screen.getByLabelText("当前测试组"), {
     target: { value: "22" },

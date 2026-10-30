@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { FrontendRoot } from "./FrontendRoot";
+import { factReport, reportHistoryItem } from "./test/reportHarness";
 
 const prototypeProject = {
   id: 1,
@@ -291,6 +292,9 @@ function stubProjectApi() {
         method === "GET"
       )
         return jsonResponse(prototypeManualPage);
+      if (url === "/api/test-groups/21/report-history")
+        return jsonResponse({ items: [reportHistoryItem(5)] });
+      if (url === "/api/fact-reports/5") return jsonResponse(factReport());
       return jsonResponse({ detail: "未模拟的接口" }, 404);
     }),
   );
@@ -631,7 +635,7 @@ test("人工测试结果使用统一表格录入", async () => {
   ).toBeVisible();
 });
 
-test("执行结果使用浅色测试组选择区并展示 AI 回测建议和统一报告预览入口", async () => {
+test("执行结果使用浅色测试组选择区并展示真实最终报告和 HTML 预览", async () => {
   await renderWorkspace();
 
   expect(screen.getByTestId("prototype-sidebar-brand-glyph")).toHaveClass(
@@ -639,32 +643,39 @@ test("执行结果使用浅色测试组选择区并展示 AI 回测建议和统�
   );
   fireEvent.click(screen.getByRole("button", { name: "执行与结果" }));
 
-  expect(screen.getByText(/AI 回测建议：/)).toBeVisible();
-  expect(
-    screen.getByRole("button", { name: "预览最新报告（HTML）" }),
-  ).toBeVisible();
-  expect(screen.queryByRole("button", { name: "下载 HTML" })).toBeNull();
+  expect(await screen.findByText("当前在线报告")).toBeVisible();
+  expect(screen.getByText(/建议暂缓并补充验证/)).toBeVisible();
+  expect(screen.getByText(/AI 区域状态：not_configured/)).toBeVisible();
+  const previewButton = screen.getByRole("button", {
+    name: "预览最新报告（HTML）",
+  });
+  expect(previewButton).toBeEnabled();
 
-  fireEvent.click(screen.getByRole("button", { name: "查看报告列表" }));
-  expect(screen.getByRole("dialog", { name: "历史报告列表" })).toBeVisible();
-  expect(screen.getByText("报告 #003")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "预览报告 #003" }));
+  fireEvent.click(previewButton);
+  const previewDialog = await screen.findByRole("dialog", {
+    name: "报告 #5 HTML 预览",
+  });
   expect(
-    screen.getByRole("dialog", { name: "最新报告 HTML 预览" }),
+    within(previewDialog).getByRole("heading", { name: /最终测试报告/ }),
   ).toBeVisible();
-  expect(screen.getByRole("heading", { name: /最终测试报告/ })).toBeVisible();
-  expect(screen.getByText("AI 回测建议", { selector: "h3" })).toBeVisible();
+  expect(
+    within(previewDialog).getByRole("heading", { name: "AI 区域状态" }),
+  ).toBeVisible();
+  expect(screen.getByTitle("事实报告 HTML 预览")).toHaveAttribute(
+    "src",
+    "/api/fact-reports/5.html",
+  );
+
   fireEvent.click(screen.getByRole("button", { name: "返回报告列表" }));
-  fireEvent.click(screen.getByRole("button", { name: "预览报告 #002" }));
+  const historyDialog = await screen.findByRole("dialog", {
+    name: "历史报告列表",
+  });
+  expect(within(historyDialog).getByText("报告 #5")).toBeVisible();
+  fireEvent.click(
+    within(historyDialog).getByRole("button", { name: "预览报告 #5" }),
+  );
   expect(
-    screen.getByRole("dialog", { name: "报告 #002 HTML 预览" }),
+    await screen.findByRole("dialog", { name: "报告 #5 HTML 预览" }),
   ).toBeVisible();
-  expect(screen.getByText("待回归")).toBeVisible();
-  expect(screen.getByText(/文件索引未正确重建/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "关闭报告预览" }));
-
-  fireEvent.click(screen.getByRole("button", { name: "预览最新报告（HTML）" }));
-  expect(
-    screen.getByRole("dialog", { name: "最新报告 HTML 预览" }),
-  ).toBeVisible();
 });

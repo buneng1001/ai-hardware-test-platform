@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
 
-import { Status } from "./V020PrototypeShared";
 import { V020ExecutionResultCard } from "./V020ExecutionResultCard";
 import { V020ManualResultSummaryCard } from "./V020ManualResultSummaryCard";
-import { PrototypeReportActions } from "./V020PrototypeReports";
+import { V020ReportPanel } from "./V020ReportPanel";
 import { listTestGroups, type TestGroupSummary } from "./testGroupsApi";
 import "./V020AutomationExecutions.css";
 
 /**
- * 冻结版“执行与结果”页：真实测试组、自动化执行记录和人工记录入口；
- * 最终报告入口仍保持后续 issue 的样例入口。
+ * 冻结版“执行与结果”页：真实测试组、自动化执行记录、人工记录入口
+ * 和最终事实报告。
  */
 export function V020ExecutionResultsScreen({
   versionId,
@@ -109,18 +108,9 @@ export function V020ExecutionResultsScreen({
           />
         </div>
       )}
-      <div className="prototype-report-preview">
-        <div>
-          <Status tone="warn">需关注</Status>
-          <h3>{groupName}：建议有条件进入下一阶段</h3>
-          <p>当前报告来源：自动化执行结果 + 人工记录。</p>
-          <p>
-            <strong>AI 回测建议：</strong>
-            持续跟踪录制中断恢复、低电量采集与 IMU 时间戳漂移相关用例。
-          </p>
-        </div>
-        <PrototypeReportActions selectedGroup={groupName} />
-      </div>
+      {groupId !== null && (
+        <V020ReportPanel groupId={groupId} groupName={groupName} />
+      )}
     </>
   );
 }
