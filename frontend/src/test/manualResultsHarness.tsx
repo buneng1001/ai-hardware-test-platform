@@ -250,6 +250,7 @@ export function stubManualApi(state: ManualStubState) {
         }));
         return new Response(null, { status: 204 });
       }
+      if (/\/report-history$/.test(url)) return jsonResponse({ items: [] });
       return jsonResponse({ detail: "未模拟的接口" }, 404);
     },
   );
