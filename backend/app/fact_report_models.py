@@ -40,6 +40,11 @@ class ReportAnalysis(BaseModel):
     message: str
     output: ReportAnalysisOutput | None
     error: dict[str, object] | None = None
+    run_id: int | None = None
+    fingerprint: str | None = None
+    stage: str | None = None
+    elapsed_ms: int | None = None
+    reused: bool = False
 
 
 class FactReport(BaseModel):

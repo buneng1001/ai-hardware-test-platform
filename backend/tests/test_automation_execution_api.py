@@ -277,6 +277,12 @@ def test_report_analysis_is_optional_persisted_and_never_changes_fact_report(cli
     assert persisted["snapshot"] == report["snapshot"]
     assert persisted["analysis"]["status"] == "completed"
 
+    reused = client.post(f"/api/fact-reports/{report['id']}/analysis").json()
+    assert reused["reused"] is True
+    assert "复用运行" in reused["message"]
+    history = client.get(f"/api/fact-reports/{report['id']}/analysis/runs").json()
+    assert history and sum(int(item["is_active"]) for item in history) == 1
+
     class InvalidOutputAdapter:
         def generate_json(self, **_kwargs):
             return {
@@ -294,7 +300,7 @@ def test_report_analysis_is_optional_persisted_and_never_changes_fact_report(cli
     monkeypatch.setenv("AI_DIAGNOSIS_MODE", "deepseek")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setattr("app.report_analysis.get_provider_adapter", lambda _provider: InvalidOutputAdapter())
-    failed = client.post(f"/api/fact-reports/{report['id']}/analysis").json()
+    failed = client.post(f"/api/fact-reports/{report['id']}/analysis?force=true").json()
 
     assert failed["status"] == "failed"
     assert failed["message"] == "分析未完成：模型分析结构无效"
@@ -312,7 +318,7 @@ def test_report_analysis_is_optional_persisted_and_never_changes_fact_report(cli
     still_created = client.post(
         f"/api/test-groups/{group_id}/fact-reports", json={"automation_execution_id": execution["id"]}
     )
-    unavailable = client.post(f"/api/fact-reports/{report['id']}/analysis").json()
+    unavailable = client.post(f"/api/fact-reports/{report['id']}/analysis?force=true").json()
 
     assert still_created.status_code == 201
     background_report = still_created.json()

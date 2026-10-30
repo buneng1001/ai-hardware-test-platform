@@ -187,6 +187,26 @@ def input_fingerprint(analysis_input: dict[str, Any], provider: str, model: str)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def run_fingerprint(
+    analysis_input: dict[str, Any],
+    config_snapshot: dict[str, Any],
+    model: str,
+    prompt_version: str,
+) -> str:
+    """运行指纹覆盖输入材料、配置快照、模型和 Prompt；不含明文密钥。"""
+    raw = json.dumps(
+        {
+            "input": analysis_input,
+            "config": config_snapshot,
+            "model": model,
+            "prompt_version": prompt_version,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 class DatabaseCheckpoints:
     """按报告 + 输入指纹 + 语义批次键保存检查点。"""
 

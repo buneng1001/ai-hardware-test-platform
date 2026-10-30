@@ -13,11 +13,13 @@ export function V020ReportAnalysisSection({
   report,
   busy,
   onRetry,
+  onRerun,
   onRefresh,
 }: {
   report: FactReport;
   busy: boolean;
   onRetry: () => void;
+  onRerun: () => void;
   onRefresh: () => void;
 }) {
   const analysis = report.analysis;
@@ -79,6 +81,14 @@ export function V020ReportAnalysisSection({
           type="button"
         >
           重试报告分析
+        </button>
+        <button
+          className="prototype-secondary"
+          disabled={busy || analysis.status === "pending"}
+          onClick={onRerun}
+          type="button"
+        >
+          重新运行分析
         </button>
       </div>
       <p className="prototype-muted">

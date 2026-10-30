@@ -132,14 +132,21 @@ export function useV020FactReports(groupId: number | null) {
   };
 
   /** 只重试报告分析，不重新生成事实报告或重新执行自动化。 */
-  const retryAnalysis = async (): Promise<boolean> => {
+  const retryAnalysis = async (force = false): Promise<boolean> => {
     if (!report) return false;
     setBusy(true);
     setActionError(null);
     try {
-      const analysis = await retryFactReportAnalysis(report.id);
+      const analysis = await retryFactReportAnalysis(report.id, force);
       setReport({ ...report, analysis });
-      setMessage("报告分析已单独重试，事实报告未重新生成。");
+      setHistoryQuery("");
+      setMessage(
+        analysis.reused
+          ? analysis.message
+          : force
+            ? "已显式重新运行报告分析。"
+            : "报告分析已重试，事实报告未重新生成。",
+      );
       return true;
     } catch (caught) {
       setActionError(errorMessage(caught, "报告分析重试失败"));
