@@ -132,6 +132,14 @@ test("AI 连接失败时明确显示失败状态", async () => {
             error_kind: "authentication",
             retryable: false,
             message: "模型服务鉴权失败，请检查 API Key",
+            error: {
+              stage: "connection_test",
+              kind: "authentication",
+              retryable: false,
+              user_message: "模型服务鉴权失败，请检查 API Key",
+              action: "检查 API Key 和账户状态后重新测试",
+              diagnostic: null,
+            },
           }),
           { headers: { "Content-Type": "application/json" } },
         ),
@@ -146,6 +154,9 @@ test("AI 连接失败时明确显示失败状态", async () => {
     "连接失败：DeepSeek / DeepSeek-V4.1-Flash：模型服务鉴权失败，请检查 API Key",
   );
   expect(feedback).toHaveClass("prototype-ai-feedback-error");
+  expect(
+    screen.getByText("下一步：检查 API Key 和账户状态后重新测试"),
+  ).toBeVisible();
 });
 
 test("AI 配置可从后端刷新服务商实时模型目录", async () => {

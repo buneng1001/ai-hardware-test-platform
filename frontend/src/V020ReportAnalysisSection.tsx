@@ -41,6 +41,9 @@ export function V020ReportAnalysisSection({
           {statusLabels[analysis.status] ?? analysis.status}
         </Status>
         <p role={failed ? "alert" : undefined}>{analysis.message}</p>
+        {failed && analysis.error?.action && (
+          <p className="prototype-muted">下一步：{analysis.error.action}</p>
+        )}
       </div>
       {analysis.status === "completed" && analysis.output && (
         <div className="prototype-report-ai-output">

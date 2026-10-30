@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.ai_config import save_model_catalog, save_selection, save_verification
+from app.ai_config import save_model_catalog, save_request_logs, save_selection, save_verification
 from app.database import open_database
 from app.siliconflow import DeepSeekAdapter, KimiAdapter, SiliconFlowAdapter, SiliconFlowError
 
@@ -38,6 +38,7 @@ class ConnectionTestResponse(BaseModel):
     message: str
     config_fingerprint: str | None = None
     network_diagnostic: str | None = None
+    error: dict[str, object] | None = None
 
 
 class ModelCatalogQuery(BaseModel):
@@ -191,6 +192,7 @@ def query_ai_models(request: ModelCatalogQuery) -> ModelCatalogResponse:
             source=source,
             warning=warning,
         )
+    save_request_logs(getattr(adapter, "request_logs", []))
     return ModelCatalogResponse(
         provider=request.provider,
         models=models,
@@ -240,7 +242,9 @@ def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse
                 error_kind=error.kind,
                 retryable=error.retryable,
                 network_diagnostic=diagnostic,
+                error_detail=error.to_dict(),
             )
+        save_request_logs(getattr(adapter, "request_logs", []))
         return ConnectionTestResponse(
             ok=False,
             provider=request.provider,
@@ -250,6 +254,7 @@ def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse
             message=str(error),
             config_fingerprint=snapshot["fingerprint"],
             network_diagnostic=diagnostic,
+            error=error.to_dict(),
         )
     diagnostic = "；".join(getattr(adapter, "network_diagnostics", [])) or None
     with open_database() as connection:
@@ -262,6 +267,7 @@ def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse
             retryable=False,
             network_diagnostic=diagnostic,
         )
+    save_request_logs(getattr(adapter, "request_logs", []))
     return ConnectionTestResponse(
         ok=True,
         provider=request.provider,

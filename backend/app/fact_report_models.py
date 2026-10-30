@@ -39,6 +39,7 @@ class ReportAnalysis(BaseModel):
     status: str
     message: str
     output: ReportAnalysisOutput | None
+    error: dict[str, object] | None = None
 
 
 class FactReport(BaseModel):

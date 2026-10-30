@@ -333,6 +333,7 @@ class DiagnosisRun(BaseModel):
     output: StructuredDiagnosis | None
     evaluation: AiEvaluationResult | None
     error: str | None
+    error_detail: dict[str, object] = Field(default_factory=dict)
     created_at: datetime
     completed_at: datetime | None
 

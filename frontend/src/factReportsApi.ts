@@ -1,4 +1,5 @@
 import { jsonHeaders, request } from "./apiClient";
+import type { AiErrorDetail } from "./aiSettingsApi";
 
 export type FactReportSnapshotRecord = {
   case_number: string;
@@ -107,6 +108,7 @@ export type ReportAnalysis = {
       evidence_refs: string[];
     };
   } | null;
+  error?: AiErrorDetail | null;
 };
 
 export function createFactReport(

@@ -64,6 +64,11 @@ test("AI 分析失败时展示接口原因，并支持单独重试成功", async
           status: "failed",
           message: "分析未完成：模型请求超时",
           output: null,
+          error: {
+            stage: "report_analysis",
+            kind: "timeout",
+            action: "检查网络或缩小请求范围后重试",
+          },
         },
       }),
     },
@@ -78,6 +83,9 @@ test("AI 分析失败时展示接口原因，并支持单独重试成功", async
   });
   expect(within(dialog).getByText("分析未完成")).toBeVisible();
   expect(within(dialog).getByText("分析未完成：模型请求超时")).toBeVisible();
+  expect(
+    within(dialog).getByText("下一步：检查网络或缩小请求范围后重试"),
+  ).toBeVisible();
 
   fireEvent.click(within(dialog).getByRole("button", { name: "重试报告分析" }));
 

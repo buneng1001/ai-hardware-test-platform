@@ -247,7 +247,9 @@ def test_report_analysis_is_optional_persisted_and_never_changes_fact_report(cli
         f"/api/test-groups/{group_id}/fact-reports", json={"automation_execution_id": execution["id"]}
     ).json()
 
-    assert report["analysis"] == {"status": "not_enabled", "message": "AI 分析未启用", "output": None}
+    assert report["analysis"]["status"] == "not_enabled"
+    assert report["analysis"]["message"] == "AI 分析未启用"
+    assert report["analysis"]["output"] is None
     assert client.post(f"/api/fact-reports/{report['id']}/analysis").json()["status"] == "not_enabled"
 
     monkeypatch.setenv("REPORT_ANALYSIS_MODE", "mock")
@@ -294,7 +296,10 @@ def test_report_analysis_is_optional_persisted_and_never_changes_fact_report(cli
     monkeypatch.setattr("app.report_analysis.get_provider_adapter", lambda _provider: InvalidOutputAdapter())
     failed = client.post(f"/api/fact-reports/{report['id']}/analysis").json()
 
-    assert failed == {"status": "failed", "message": "分析未完成：模型分析结构无效", "output": None}
+    assert failed["status"] == "failed"
+    assert failed["message"] == "分析未完成：模型分析结构无效"
+    assert failed["output"] is None
+    assert failed["error"]["kind"] == "schema_validation"
     assert client.get(f"/api/fact-reports/{report['id']}").json()["snapshot"] == report["snapshot"]
 
     from app.siliconflow import ModelErrorKind, SiliconFlowError
@@ -317,8 +322,12 @@ def test_report_analysis_is_optional_persisted_and_never_changes_fact_report(cli
         if background_report["analysis"]["status"] == "failed":
             break
         time.sleep(0.01)
-    assert background_report["analysis"] == {"status": "failed", "message": "分析未完成：模型请求超时", "output": None}
-    assert unavailable == {"status": "failed", "message": "分析未完成：模型请求超时", "output": None}
+    assert background_report["analysis"]["status"] == "failed"
+    assert background_report["analysis"]["message"] == "分析未完成：模型请求超时"
+    assert background_report["analysis"]["output"] is None
+    assert unavailable["status"] == "failed"
+    assert unavailable["message"] == "分析未完成：模型请求超时"
+    assert unavailable["output"] is None
     assert client.get(f"/api/fact-reports/{report['id']}").json()["snapshot"] == report["snapshot"]
 
 

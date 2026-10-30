@@ -59,6 +59,7 @@ export function usePrototypeAiConfiguration() {
   );
   const [accessMode, setAccessMode] = useState<AccessMode>("local");
   const [connectionMessage, setConnectionMessage] = useState("");
+  const [connectionAction, setConnectionAction] = useState("");
   const [connectionSucceeded, setConnectionSucceeded] = useState<
     boolean | null
   >(null);
@@ -183,6 +184,7 @@ export function usePrototypeAiConfiguration() {
         setLoadingAction,
         setConnectionMessage,
         setConnectionSucceeded,
+        setConnectionAction,
         setVerificationStatus,
         setVerificationMessage,
         setModelWarning,
@@ -243,6 +245,7 @@ export function usePrototypeAiConfiguration() {
     accessMode,
     networkMode,
     connectionMessage,
+    connectionAction,
     connectionSucceeded,
     verificationStatus,
     verificationMessage,

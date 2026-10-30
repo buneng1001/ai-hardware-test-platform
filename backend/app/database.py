@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 29
+LATEST_SCHEMA_VERSION = 30
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -865,6 +865,41 @@ def migrate_database(connection: sqlite3.Connection) -> None:
                 )
         connection.executescript(
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (29); PRAGMA user_version = 29;"
+        )
+
+    if current_version < 30:
+        # 结构化错误和脱敏请求日志；任何列都不保存密钥、Authorization 或完整请求体。
+        available_tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        for table in ("diagnosis_runs", "report_analysis_runs", "ai_verification_runs"):
+            if table not in available_tables:
+                continue
+            columns = {row[1] for row in connection.execute(f"PRAGMA table_info({table})").fetchall()}
+            if "error_detail" not in columns:
+                connection.execute(f"ALTER TABLE {table} ADD COLUMN error_detail TEXT NOT NULL DEFAULT '{{}}'")
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS ai_request_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                endpoint_host TEXT NOT NULL,
+                network_mode TEXT NOT NULL,
+                prompt_version TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                elapsed_ms INTEGER,
+                attempt INTEGER NOT NULL,
+                http_status INTEGER,
+                finish_reason TEXT,
+                response_chars INTEGER,
+                token_usage TEXT,
+                error_kind TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_request_logs_created
+                ON ai_request_logs(created_at DESC);
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (30);
+            PRAGMA user_version = 30;
+            """
         )
 
 

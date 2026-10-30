@@ -38,6 +38,25 @@ export type AiConfigState = {
   network_modes: string[];
 };
 
+export type AiErrorDetail = {
+  action: string;
+  stage?: string;
+  kind?: string;
+  retryable?: boolean;
+  user_message?: string;
+  diagnostic?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  endpoint_host?: string | null;
+  network_mode?: string | null;
+  prompt_version?: string | null;
+  elapsed_ms?: number | null;
+  attempts?: number | null;
+  http_status?: number | null;
+  finish_reason?: string | null;
+  response_chars?: number | null;
+};
+
 export type AiModelCatalogResponse = {
   provider: RemoteAiProvider;
   models: string[];
@@ -54,6 +73,7 @@ export type AiConnectionTestResponse = {
   message: string;
   config_fingerprint?: string | null;
   network_diagnostic?: string | null;
+  error?: AiErrorDetail | null;
 };
 
 export function getAiConfig() {
