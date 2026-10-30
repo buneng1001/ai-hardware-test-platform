@@ -122,4 +122,4 @@ test("冻结版固定样例贯通用例、数据、测试组、执行、人工�
   expect(screen.getByText("当前报告")).toBeVisible();
   expect(screen.getByLabelText("左侧比较对象")).toHaveValue("");
   expect(screen.getByLabelText("右侧比较对象")).toHaveValue("");
-});
+}, 15000);

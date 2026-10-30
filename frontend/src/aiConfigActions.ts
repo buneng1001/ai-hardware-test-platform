@@ -65,7 +65,10 @@ export async function refreshCatalog(params: {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "请求失败";
-    setters.setCatalogMessage(`模型目录刷新失败：${message}`);
+    const friendly = /not found/i.test(message)
+      ? `${message}（后端接口不存在，请确认已启动当前版本后端）`
+      : message;
+    setters.setCatalogMessage(`模型目录刷新失败：${friendly}`);
   } finally {
     setters.setLoadingAction(null);
   }
