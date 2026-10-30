@@ -59,3 +59,37 @@
   font-style: normal;
   font-weight: 700;
 }
+
+.prototype-report-ai-section {
+  display: grid;
+  gap: 8px;
+}
+
+.prototype-report-ai-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.prototype-report-ai-status p {
+  margin: 0;
+}
+
+.prototype-report-ai-output {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 12px;
+}
+
+.prototype-report-ai-output h3,
+.prototype-report-ai-output h4 {
+  margin: 4px 0;
+}
+
+.prototype-report-ai-output small {
+  margin-left: 6px;
+  color: var(--prototype-color-muted);
+}

@@ -1,4 +1,5 @@
 import { Status } from "./V020PrototypeShared";
+import { V020ReportAnalysisSection } from "./V020ReportAnalysisSection";
 import type { FactReport } from "./factReportsApi";
 
 const statusLabels: Record<string, string> = {
@@ -18,13 +19,19 @@ const lifecycleLabels: Record<string, string> = {
 export function V020ReportPreviewDialog({
   report,
   groupName,
+  busy,
   onBack,
   onClose,
+  onRetryAnalysis,
+  onRefreshAnalysis,
 }: {
   report: FactReport;
   groupName: string;
+  busy: boolean;
   onBack: () => void;
   onClose: () => void;
+  onRetryAnalysis: () => void;
+  onRefreshAnalysis: () => void;
 }) {
   const snapshot = report.snapshot;
   return (
@@ -109,15 +116,12 @@ export function V020ReportPreviewDialog({
             </ul>
           </section>
 
-          <section>
-            <h2>AI 区域状态</h2>
-            <p>
-              {snapshot.ai_analysis.status}：{snapshot.ai_analysis.message}
-            </p>
-            <p className="prototype-muted">
-              AI 不参与事实结论；模型或 Skill 不可用时报告仍可交付。
-            </p>
-          </section>
+          <V020ReportAnalysisSection
+            busy={busy}
+            onRefresh={onRefreshAnalysis}
+            onRetry={onRetryAnalysis}
+            report={report}
+          />
 
           <section>
             <h2>范围总览</h2>
