@@ -1,6 +1,10 @@
 import { Status } from "./V020PrototypeShared";
 import { V020ReportAnalysisSection } from "./V020ReportAnalysisSection";
-import type { FactReport } from "./factReportsApi";
+import { V020ReportAttachmentSection } from "./V020ReportAttachmentSection";
+import type {
+  FactReport,
+  ReportAttachmentCleanupImpact,
+} from "./factReportsApi";
 
 const statusLabels: Record<string, string> = {
   passed: "通过",
@@ -24,6 +28,10 @@ export function V020ReportPreviewDialog({
   onClose,
   onRetryAnalysis,
   onRefreshAnalysis,
+  cleanupImpact,
+  onPrepareCleanup,
+  onCancelCleanup,
+  onConfirmCleanup,
 }: {
   report: FactReport;
   groupName: string;
@@ -32,6 +40,10 @@ export function V020ReportPreviewDialog({
   onClose: () => void;
   onRetryAnalysis: () => void;
   onRefreshAnalysis: () => void;
+  cleanupImpact: ReportAttachmentCleanupImpact | null;
+  onPrepareCleanup: () => void;
+  onCancelCleanup: () => void;
+  onConfirmCleanup: () => void;
 }) {
   const snapshot = report.snapshot;
   return (
@@ -89,6 +101,13 @@ export function V020ReportPreviewDialog({
               {warning}
             </p>
           ))}
+          {report.lifecycle_status !== "current" && (
+            <p className="prototype-inline-note" role="status">
+              该在线报告
+              {report.lifecycle_status === "stale" ? "已过期" : "已被覆盖"}
+              ，仍可查看和下载；系统不会自动改写已生成的事实内容。
+            </p>
+          )}
 
           <section>
             <h2>测试基本信息</h2>
@@ -187,6 +206,15 @@ export function V020ReportPreviewDialog({
               </ul>
             )}
           </section>
+
+          <V020ReportAttachmentSection
+            busy={busy}
+            cleanupImpact={cleanupImpact}
+            onCancelCleanup={onCancelCleanup}
+            onConfirmCleanup={onConfirmCleanup}
+            onPrepareCleanup={onPrepareCleanup}
+            report={report}
+          />
 
           <iframe
             title="事实报告 HTML 预览"

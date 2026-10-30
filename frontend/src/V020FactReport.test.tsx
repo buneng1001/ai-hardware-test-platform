@@ -81,7 +81,7 @@ test("生成最终报告后按固定顺序预览并下载 HTML 与纯文字", as
   const headings = within(dialog)
     .getAllByRole("heading", { level: 2 })
     .map((item) => item.textContent);
-  expect(headings).toEqual([
+  expect(headings.slice(0, 6)).toEqual([
     "测试基本信息",
     "阶段推进事实依据",
     "AI 区域状态",
@@ -89,6 +89,7 @@ test("生成最终报告后按固定顺序预览并下载 HTML 与纯文字", as
     "模块详情",
     "跨模块问题",
   ]);
+  expect(headings).toContain("已使用附件");
   expect(screen.getByTitle("事实报告 HTML 预览")).toHaveAttribute(
     "src",
     "/api/fact-reports/9.html",
@@ -184,7 +185,7 @@ test("报告列表展示真实生命周期并可预览历史报告", async () =>
   const stalePreview = await screen.findByRole("dialog", {
     name: "报告 #4 HTML 预览",
   });
-  expect(within(stalePreview).getByText(/已过期/)).toBeVisible();
+  expect(within(stalePreview).getAllByText(/已过期/).length).toBeGreaterThan(0);
 });
 
 test("历史快照警告和 AI 未配置不会阻止报告交付", async () => {

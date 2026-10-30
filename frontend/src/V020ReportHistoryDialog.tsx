@@ -5,19 +5,35 @@ const lifecycleLabels: Record<string, string> = {
   current: "当前在线",
   stale: "已过期",
   superseded: "已覆盖",
+  completed: "已完成",
+  cancelled: "已取消",
+  interrupted: "已中断",
+  recorded: "已保存",
 };
 
-/** 冻结版报告列表：展示真实在线报告和生命周期状态。 */
+const typeLabels: Record<string, string> = {
+  automation_execution: "自动化执行",
+  manual_result: "人工记录",
+  fact_report: "最终报告",
+};
+
+/** 冻结版报告与历史记录：可查找自动化、人工记录和最终报告。 */
 export function V020ReportHistoryDialog({
-  reports,
+  items,
   groupName,
+  query,
   busy,
+  onQueryChange,
+  onSearch,
   onPreview,
   onClose,
 }: {
-  reports: ReportHistoryItem[];
+  items: ReportHistoryItem[];
   groupName: string;
+  query: string;
   busy: boolean;
+  onQueryChange: (query: string) => void;
+  onSearch: () => void;
   onPreview: (reportId: number) => void;
   onClose: () => void;
 }) {
@@ -32,8 +48,8 @@ export function V020ReportHistoryDialog({
         <header className="prototype-report-dialog-head">
           <div>
             <span className="prototype-kicker">REPORT ARCHIVE</span>
-            <h2>历史报告</h2>
-            <p>{groupName} · 按生成时间倒序排列</p>
+            <h2>报告与历史记录</h2>
+            <p>{groupName} · 按发生时间倒序排列</p>
           </div>
           <button
             className="prototype-report-close"
@@ -44,14 +60,38 @@ export function V020ReportHistoryDialog({
             ×
           </button>
         </header>
-        {reports.length === 0 ? (
-          <p className="prototype-muted">当前测试组还没有在线报告。</p>
+        <div className="prototype-filter-row">
+          <label>
+            查找
+            <input
+              aria-label="查找报告与历史记录"
+              disabled={busy}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="自动化执行、人工记录或最终报告"
+              value={query}
+            />
+          </label>
+          <button
+            className="prototype-secondary"
+            disabled={busy}
+            onClick={onSearch}
+            type="button"
+          >
+            查找
+          </button>
+        </div>
+        {items.length === 0 ? (
+          <p className="prototype-muted">没有符合条件的记录。</p>
         ) : (
           <div className="prototype-report-history-list">
-            {reports.map((item) => (
-              <article key={item.id}>
+            {items.map((item) => (
+              <article key={`${item.record_type}-${item.id}`}>
                 <div>
-                  <span className="prototype-report-id">报告 #{item.id}</span>
+                  <span className="prototype-report-id">
+                    {item.record_type === "fact_report"
+                      ? `报告 #${item.id}`
+                      : typeLabels[item.record_type]}
+                  </span>
                   <Status tone={item.status === "current" ? "good" : "warn"}>
                     {lifecycleLabels[item.status] ?? item.status}
                   </Status>
@@ -59,15 +99,17 @@ export function V020ReportHistoryDialog({
                 </div>
                 <div className="prototype-report-row-actions">
                   <time>{item.occurred_at.slice(0, 16).replace("T", " ")}</time>
-                  <button
-                    className="prototype-secondary"
-                    disabled={busy}
-                    type="button"
-                    aria-label={`预览报告 #${item.id}`}
-                    onClick={() => onPreview(item.id)}
-                  >
-                    预览 HTML
-                  </button>
+                  {item.record_type === "fact_report" && (
+                    <button
+                      className="prototype-secondary"
+                      disabled={busy}
+                      type="button"
+                      aria-label={`预览报告 #${item.id}`}
+                      onClick={() => onPreview(item.id)}
+                    >
+                      预览 HTML
+                    </button>
+                  )}
                 </div>
               </article>
             ))}

@@ -5,11 +5,15 @@ import {
   type AutomationExecution,
 } from "./automationExecutionsApi";
 import {
+  cleanupReportUsedAttachments,
   createFactReport,
+  deleteFactReport,
   getFactReport,
+  getReportAttachmentCleanupImpact,
   getReportHistory,
   retryFactReportAnalysis,
   type FactReport,
+  type ReportAttachmentCleanupImpact,
   type ReportHistoryItem,
 } from "./factReportsApi";
 import {
@@ -41,6 +45,9 @@ export function useV020FactReports(groupId: number | null) {
   const [batches, setBatches] = useState<ManualTestResultBatch[]>([]);
   const [history, setHistory] = useState<ReportHistoryItem[]>([]);
   const [report, setReport] = useState<FactReport | null>(null);
+  const [cleanupImpact, setCleanupImpact] =
+    useState<ReportAttachmentCleanupImpact | null>(null);
+  const [historyQuery, setHistoryQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -152,6 +159,62 @@ export function useV020FactReports(groupId: number | null) {
     }
   };
 
+  const searchHistory = async () => {
+    if (groupId === null) return;
+    setActionError(null);
+    try {
+      setHistory((await getReportHistory(groupId, historyQuery)).items);
+    } catch (caught) {
+      setActionError(errorMessage(caught, "报告历史查找失败"));
+    }
+  };
+
+  /** 清理前先读取影响，确认后只删除当前报告已使用的原始附件。 */
+  const prepareCleanup = async () => {
+    if (!report) return;
+    setActionError(null);
+    try {
+      setCleanupImpact(await getReportAttachmentCleanupImpact(report.id));
+    } catch (caught) {
+      setActionError(errorMessage(caught, "附件清理影响加载失败"));
+    }
+  };
+
+  const confirmCleanup = async () => {
+    if (!report) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await cleanupReportUsedAttachments(report.id);
+      setCleanupImpact(null);
+      setReport(await getFactReport(report.id));
+      setMessage("已清理当前报告使用的附件；人工文字结果和附件名称保留。");
+    } catch (caught) {
+      setActionError(errorMessage(caught, "附件清理失败"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteReport = async (): Promise<boolean> => {
+    if (!report || groupId === null) return false;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await deleteFactReport(report.id);
+      setReport(null);
+      setCleanupImpact(null);
+      setHistory((await getReportHistory(groupId)).items);
+      setMessage("在线报告已删除；自动化执行、人工记录和数据包不受影响。");
+      return true;
+    } catch (caught) {
+      setActionError(errorMessage(caught, "在线报告删除失败"));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const reports = history.filter((item) => item.record_type === "fact_report");
   const latestReportId = reportIdOf(history);
 
@@ -160,8 +223,12 @@ export function useV020FactReports(groupId: number | null) {
     executions,
     batches,
     reports,
+    history,
     report,
     latestReportId,
+    cleanupImpact,
+    historyQuery,
+    setHistoryQuery,
     busy,
     error,
     actionError,
@@ -170,6 +237,11 @@ export function useV020FactReports(groupId: number | null) {
     openReport,
     retryAnalysis,
     refreshAnalysis,
+    searchHistory,
+    prepareCleanup,
+    cancelCleanup: () => setCleanupImpact(null),
+    confirmCleanup,
+    deleteReport,
     retry: () => (groupId !== null ? void load(groupId) : undefined),
   };
 }
