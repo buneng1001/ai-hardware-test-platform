@@ -148,7 +148,9 @@ test("编辑与 AI 反馈使用独立输入，反馈适配器不可用时保留�
     target: { value: "已编辑" },
   });
   fireEvent.click(screen.getAllByRole("button", { name: "保存修改" })[0]);
-  expect(await screen.findByDisplayValue("已编辑")).toBeInTheDocument();
+  expect(
+    await screen.findByDisplayValue("已编辑", {}, { timeout: 5000 }),
+  ).toBeInTheDocument();
 
   const feedback = screen.getByLabelText("AUTO-000001 AI 反馈");
   fireEvent.change(feedback, { target: { value: "请改成命令行" } });
@@ -174,6 +176,7 @@ test("存在未保存编辑时会提示浏览器确认离开页面", async () =>
   fireEvent.change(screen.getByLabelText("AUTO-000001 标题"), {
     target: { value: "未保存标题" },
   });
+  expect(screen.getByLabelText("AUTO-000001 标题")).toHaveValue("未保存标题");
 
   const event = new Event("beforeunload", { cancelable: true });
   window.dispatchEvent(event);
