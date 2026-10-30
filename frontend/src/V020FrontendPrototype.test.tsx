@@ -42,6 +42,17 @@ test("首页使用固定两行产品标题和完整测试工作流副标题", ()
   ).toBeVisible();
 });
 
+test("首页不展示趋势统计，选择暂不配置也能进入项目列表", async () => {
+  render(<FrontendRoot />);
+
+  expect(screen.queryByText("版本趋势")).toBeNull();
+  expect(screen.queryByText(/运行统计/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "暂不配置，进入平台" }));
+  expect(
+    await screen.findByRole("heading", { name: "项目列表" }),
+  ).toBeVisible();
+});
+
 test("首页动效复用四方块品牌图形", () => {
   render(<FrontendRoot />);
 
@@ -117,6 +128,11 @@ test("AI 配置支持临时密钥和本地接入方式切换", async () => {
       }),
     }),
   );
+  expect(
+    fetchMock.mock.calls.every(
+      ([url]) => !String(url).includes("temporary-secret"),
+    ),
+  ).toBe(true);
 });
 
 test("AI 连接失败时明确显示失败状态", async () => {
