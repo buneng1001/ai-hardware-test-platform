@@ -189,6 +189,11 @@ function handleGroupsRequest(
       },
     );
   }
+  if (
+    /^\/api\/test-groups\/\d+\/automation-executions$/.test(url) &&
+    method === "GET"
+  )
+    return jsonResponse({ items: [] });
   return handleGroupCases(state, url, method, init);
 }
 

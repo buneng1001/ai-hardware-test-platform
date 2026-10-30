@@ -10,11 +10,23 @@ export type PreparationCheck = {
   action: "edit_group" | "replace_data_packages";
 };
 
+export type AutomationExecutionCaseResult = {
+  automation_test_case_id: number;
+  case_number: string;
+  title: string;
+  position: number;
+  status: "passed" | "failed" | "blocked" | "not_executed";
+  message: string;
+  case_snapshot?: Record<string, unknown>;
+};
+
 export type AutomationExecution = {
   id: number;
   test_group_id: number;
+  product_version_id: number;
   execution_number: number;
   status: string;
+  execution_mode: string;
   started_at: string;
   completed_at: string | null;
   summary: {
@@ -23,27 +35,32 @@ export type AutomationExecution = {
     blocked: number;
     not_executed: number;
   };
-  group_snapshot: { name: string };
-  case_results: Array<{
-    automation_test_case_id: number;
-    case_number: string;
-    title: string;
-    position: number;
-    status: "passed" | "failed" | "blocked" | "not_executed";
-    message: string;
-  }>;
+  group_snapshot: {
+    name: string;
+    product_version?: string;
+    test_group_id?: number;
+  };
+  configuration_snapshot?: Record<string, unknown>;
+  case_results: AutomationExecutionCaseResult[];
 };
 
 export function prepareAutomationExecution(groupId: number) {
-  return request<{ passed: boolean; checks: PreparationCheck[] }>(
-    `/api/test-groups/${groupId}/automation-execution-preparations`,
-    { method: "POST" },
-  );
+  return request<{
+    test_group_id: number;
+    passed: boolean;
+    checks: PreparationCheck[];
+  }>(`/api/test-groups/${groupId}/automation-execution-preparations`, {
+    method: "POST",
+  });
 }
 
-export function startAutomationExecution(groupId: number) {
+export function startAutomationExecution(
+  groupId: number,
+  terminalStatus: "completed" | "cancelled" | "interrupted" = "completed",
+) {
+  const suffix = terminalStatus === "completed" ? "" : `/${terminalStatus}`;
   return request<AutomationExecution>(
-    `/api/test-groups/${groupId}/automation-executions`,
+    `/api/test-groups/${groupId}/automation-executions${suffix}`,
     { method: "POST" },
   );
 }
@@ -51,5 +68,11 @@ export function startAutomationExecution(groupId: number) {
 export function listAutomationExecutions(groupId: number) {
   return request<{ items: AutomationExecution[] }>(
     `/api/test-groups/${groupId}/automation-executions`,
+  );
+}
+
+export function getAutomationExecution(executionId: number) {
+  return request<AutomationExecution>(
+    `/api/automation-executions/${executionId}`,
   );
 }

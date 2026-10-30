@@ -155,6 +155,11 @@ def test_execution_creates_immutable_snapshots_and_fault_data_fails_case(client)
     assert cancelled.json()["execution_number"] == 4
     assert cancelled.json()["status"] == "cancelled"
     assert cancelled.json()["summary"] == {"passed": 0, "failed": 0, "blocked": 0, "not_executed": 1}
+    interrupted = client.post(f"/api/test-groups/{group_id}/automation-executions/interrupted")
+    assert interrupted.status_code == 201
+    assert interrupted.json()["execution_number"] == 5
+    assert interrupted.json()["status"] == "interrupted"
+    assert interrupted.json()["summary"] == {"passed": 0, "failed": 0, "blocked": 0, "not_executed": 1}
 
 
 def test_fact_report_combines_snapshots_marks_conflicts_and_downloads(client):
