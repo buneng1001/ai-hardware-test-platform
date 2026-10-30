@@ -13,18 +13,25 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
     temporaryKey,
     rememberTemporaryKey,
     accessMode,
+    networkMode,
     connectionMessage,
     connectionSucceeded,
+    verificationStatus,
+    verificationMessage,
+    modelWarning,
+    savedMessage,
     catalogMessage,
     loadingAction,
     providerConfig,
     currentAccess,
     canUseTemporaryApi,
     changeProvider,
+    changeNetworkMode,
     changeTemporaryKey,
     changeRememberTemporaryKey,
     clearTemporaryKey,
     chooseAccessMode,
+    saveConfiguration,
     validateConnectionConfiguration,
     refreshModelCatalog,
   } = usePrototypeAiConfiguration();
@@ -63,6 +70,28 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           <small>{providerConfig.preset}</small>
         </label>
 
+        <label className="prototype-ai-field">
+          <span className="prototype-ai-field-label">
+            <span aria-hidden="true">⌘</span> 网络方式
+          </span>
+          <select
+            aria-label="网络方式"
+            value={networkMode}
+            onChange={(event) =>
+              changeNetworkMode(
+                event.target.value as "auto" | "system_proxy" | "direct",
+              )
+            }
+          >
+            <option value="auto">自动（系统代理 → 直连）</option>
+            <option value="system_proxy">系统代理</option>
+            <option value="direct">直连</option>
+          </select>
+          <small>
+            自动模式只在连接类错误时回退直连，鉴权或模型错误不会回退
+          </small>
+        </label>
+
         <div className="prototype-ai-field">
           <div className="prototype-ai-model-heading">
             <span className="prototype-ai-field-label">
@@ -96,6 +125,11 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           {catalogMessage && (
             <small className="prototype-ai-catalog-feedback" role="status">
               {catalogMessage}
+            </small>
+          )}
+          {modelWarning && (
+            <small className="prototype-ai-catalog-feedback" role="status">
+              {modelWarning}
             </small>
           )}
         </div>
@@ -167,6 +201,9 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           使用后端配置接入
         </button>
       </div>
+      <small className="prototype-ai-catalog-feedback">
+        临时 API 优先于后端配置；临时密钥只保存在当前会话，不写入数据库。
+      </small>
       <button
         className="prototype-ai-test"
         type="button"
@@ -183,6 +220,34 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           {connectionMessage}
         </p>
       )}
+      {verificationStatus !== "untested" && (
+        <p
+          className={`prototype-ai-feedback${verificationStatus === "failed" ? " prototype-ai-feedback-error" : ""}`}
+          role="status"
+        >
+          验证状态：
+          {verificationStatus === "verified"
+            ? "已验证"
+            : verificationStatus === "invalidated"
+              ? "验证已失效"
+              : "验证失败"}
+          {" · "}
+          {verificationMessage}
+        </p>
+      )}
+      {savedMessage && (
+        <p className="prototype-ai-catalog-feedback" role="status">
+          {savedMessage}
+        </p>
+      )}
+      <button
+        className="prototype-secondary"
+        type="button"
+        onClick={saveConfiguration}
+        disabled={loadingAction !== null}
+      >
+        保存 AI 配置
+      </button>
       <button className="prototype-ai-skip" type="button" onClick={onSkip}>
         暂不配置，进入平台
       </button>

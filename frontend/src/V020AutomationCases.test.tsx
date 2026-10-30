@@ -91,10 +91,12 @@ test("生成自动化用例会展示规则候选和人工审核提示", async ()
         init?.method === "POST",
     ),
   ).toBe(true);
-  // 规则转换不依赖 AI 配置或模型服务。
+  // 规则转换不依赖 AI 配置或模型服务；读取配置快照不算调用模型。
   expect(
-    callsOf(fetchMock).some(([input]) =>
-      String(input).includes("/api/settings/ai"),
+    callsOf(fetchMock).some(
+      ([input]) =>
+        String(input).includes("/api/settings/ai") &&
+        !String(input).endsWith("/api/settings/ai/config"),
     ),
   ).toBe(false);
 });

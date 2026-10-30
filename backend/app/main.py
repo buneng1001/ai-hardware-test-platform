@@ -6,6 +6,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from app.ai_config import router as ai_config_router
 from app.ai_evaluation import router as ai_evaluation_router
 from app.automation_case_history import router as automation_case_history_router
 from app.automation_executions import router as automation_executions_router
@@ -57,6 +58,7 @@ app.include_router(collection_tasks_router)
 app.include_router(data_packages_router)
 app.include_router(fact_reports_router)
 app.include_router(ai_evaluation_router)
+app.include_router(ai_config_router)
 app.include_router(manual_check_results_router)
 app.include_router(manual_result_import_router)
 app.include_router(manual_test_results_router)

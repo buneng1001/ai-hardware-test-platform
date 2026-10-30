@@ -6,6 +6,8 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.ai_config import save_model_catalog, save_selection, save_verification
+from app.database import open_database
 from app.siliconflow import DeepSeekAdapter, KimiAdapter, SiliconFlowAdapter, SiliconFlowError
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -23,6 +25,8 @@ class ConnectionTestRequest(BaseModel):
     provider: Literal["siliconflow", "deepseek", "kimi"] = "siliconflow"
     model: str = Field(min_length=1, max_length=200)
     api_key: str = ""
+    key_source: Literal["environment", "temporary"] = "environment"
+    network_mode: Literal["auto", "system_proxy", "direct"] = "auto"
 
 
 class ConnectionTestResponse(BaseModel):
@@ -32,11 +36,14 @@ class ConnectionTestResponse(BaseModel):
     error_kind: str | None = None
     retryable: bool = False
     message: str
+    config_fingerprint: str | None = None
+    network_diagnostic: str | None = None
 
 
 class ModelCatalogQuery(BaseModel):
     provider: Literal["siliconflow", "deepseek", "kimi"]
     api_key: str = ""
+    network_mode: Literal["auto", "system_proxy", "direct"] = "auto"
 
 
 class ModelCatalogResponse(BaseModel):
@@ -146,33 +153,72 @@ def query_ai_models(request: ModelCatalogQuery) -> ModelCatalogResponse:
     api_key = request.api_key or configured_api_key(request.provider)
     if not api_key:
         provider_label = {"siliconflow": "SiliconFlow", "deepseek": "DeepSeek", "kimi": "Kimi"}[request.provider]
+        models = list(PROVIDER_MODELS[request.provider])
+        warning = f"未配置 {provider_label} API Key，当前显示内置候选目录。"
+        with open_database() as connection:
+            save_model_catalog(
+                connection,
+                provider=request.provider,
+                models=models,
+                source="configured",
+                warning=warning,
+            )
         return ModelCatalogResponse(
             provider=request.provider,
-            models=list(PROVIDER_MODELS[request.provider]),
+            models=models,
             source="configured",
-            warning=f"未配置 {provider_label} API Key，当前显示内置候选目录。",
+            warning=warning,
         )
+    adapter = get_provider_adapter(request.provider)
+    if hasattr(adapter, "network_mode"):
+        adapter.network_mode = request.network_mode
     try:
-        models = get_provider_adapter(request.provider).list_models(api_key=api_key)
+        models = adapter.list_models(api_key=api_key)
+        source: Literal["provider", "configured"] = "provider"
+        warning = None
     except SiliconFlowError as error:
-        return ModelCatalogResponse(
+        models = list(PROVIDER_MODELS[request.provider])
+        source = "configured"
+        warning = f"实时模型目录查询失败：{error}"
+    diagnostic = "；".join(getattr(adapter, "network_diagnostics", [])) or None
+    if diagnostic:
+        warning = f"{warning}（{diagnostic}）" if warning else diagnostic
+    with open_database() as connection:
+        save_model_catalog(
+            connection,
             provider=request.provider,
-            models=list(PROVIDER_MODELS[request.provider]),
-            source="configured",
-            warning=f"实时模型目录查询失败：{error}",
+            models=models,
+            source=source,
+            warning=warning,
         )
     return ModelCatalogResponse(
         provider=request.provider,
         models=models,
-        source="provider",
+        source=source,
+        warning=warning,
     )
 
 
-@router.post("/ai/test", response_model=ConnectionTestResponse)
+@router.post(
+    "/ai/test",
+    response_model=ConnectionTestResponse,
+    response_model_exclude_none=True,
+)
 def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse:
     validate_model(request.provider, request.model)
+    with open_database() as connection:
+        snapshot = save_selection(
+            connection,
+            provider=request.provider,
+            model=request.model,
+            key_source=request.key_source,
+            network_mode=request.network_mode,
+            prompt_version="diagnosis-v1",
+        )
+    adapter = get_provider_adapter(request.provider)
+    if hasattr(adapter, "network_mode"):
+        adapter.network_mode = request.network_mode
     try:
-        adapter = get_provider_adapter(request.provider)
         # 兼容旧测试替身；真实适配器使用专用连接检查，避免要求完整诊断结构。
         checker = getattr(adapter, "check_connection", None)
         if checker is not None:
@@ -184,6 +230,17 @@ def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse
                 evidence_json="{}",
             )
     except SiliconFlowError as error:
+        diagnostic = "；".join(getattr(adapter, "network_diagnostics", [])) or None
+        with open_database() as connection:
+            save_verification(
+                connection,
+                snapshot_id=snapshot["id"],
+                status="failed",
+                message=str(error),
+                error_kind=error.kind,
+                retryable=error.retryable,
+                network_diagnostic=diagnostic,
+            )
         return ConnectionTestResponse(
             ok=False,
             provider=request.provider,
@@ -191,10 +248,25 @@ def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse
             error_kind=error.kind,
             retryable=error.retryable,
             message=str(error),
+            config_fingerprint=snapshot["fingerprint"],
+            network_diagnostic=diagnostic,
+        )
+    diagnostic = "；".join(getattr(adapter, "network_diagnostics", [])) or None
+    with open_database() as connection:
+        save_verification(
+            connection,
+            snapshot_id=snapshot["id"],
+            status="verified",
+            message=f"{request.provider} 连接可用",
+            error_kind=None,
+            retryable=False,
+            network_diagnostic=diagnostic,
         )
     return ConnectionTestResponse(
         ok=True,
         provider=request.provider,
         model=request.model,
         message=f"{request.provider} 连接可用",
+        config_fingerprint=snapshot["fingerprint"],
+        network_diagnostic=diagnostic,
     )

@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import ValidationError
 
+from app.ai_config import selected_snapshot_payload
 from app.database import open_database
 from app.fact_report_models import ReportAnalysis, ReportAnalysisItem, ReportAnalysisOutput, ReportStageRecommendation
 from app.settings import configured_api_key, current_settings, get_provider_adapter
@@ -64,9 +65,18 @@ def enqueue_analysis(connection: sqlite3.Connection, report_id: int) -> None:
     provider, model, _, is_mock = configuration
     connection.execute(
         """INSERT INTO report_analysis_runs
-           (report_id, status, provider, model, is_mock, input_snapshot, output, error, created_at, completed_at)
-           VALUES (?, 'pending', ?, ?, ?, '{}', NULL, NULL, ?, ?)""",
-        (report_id, provider, model, int(is_mock), _now(), _now()),
+           (report_id, status, provider, model, is_mock, input_snapshot, output, error,
+            created_at, completed_at, config_snapshot)
+           VALUES (?, 'pending', ?, ?, ?, '{}', NULL, NULL, ?, ?, ?)""",
+        (
+            report_id,
+            provider,
+            model,
+            int(is_mock),
+            _now(),
+            _now(),
+            json.dumps(selected_snapshot_payload(), ensure_ascii=False),
+        ),
     )
 
 
@@ -158,8 +168,9 @@ def _save(
 ) -> ReportAnalysis:
     connection.execute(
         """INSERT INTO report_analysis_runs
-           (report_id, status, provider, model, is_mock, input_snapshot, output, error, created_at, completed_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           (report_id, status, provider, model, is_mock, input_snapshot, output, error,
+            created_at, completed_at, config_snapshot)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             report_id,
             "completed" if output else "failed",
@@ -171,6 +182,7 @@ def _save(
             error,
             _now(),
             _now(),
+            json.dumps(selected_snapshot_payload(), ensure_ascii=False),
         ),
     )
     return latest_analysis(connection, report_id)

@@ -328,6 +328,7 @@ class DiagnosisRun(BaseModel):
     provider: str = "siliconflow"
     prompt_version: str
     is_mock: bool
+    config_snapshot: dict[str, object] = Field(default_factory=dict)
     evidence_package: DiagnosisEvidencePackage
     output: StructuredDiagnosis | None
     evaluation: AiEvaluationResult | None
