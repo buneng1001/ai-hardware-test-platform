@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
+import { V020AutomationExecutionPanel } from "./V020AutomationExecutionPanel";
 import { V020TestGroupAutomationCases } from "./V020TestGroupAutomationCases";
 import { V020TestGroupSourceCases } from "./V020TestGroupSourceCases";
 import type { TestGroupDetail } from "./testGroupsApi";
@@ -89,6 +90,7 @@ export function V020TestGroupDetail({
       </form>
       <V020TestGroupSourceCases detail={detail} onChange={onApply} />
       <V020TestGroupAutomationCases detail={detail} onChange={onApply} />
+      <V020AutomationExecutionPanel groupId={detail.id} />
     </section>
   );
 }

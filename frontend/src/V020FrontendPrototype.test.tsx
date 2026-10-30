@@ -177,6 +177,29 @@ const prototypeGroupSummary = {
   updated_at: "2026-10-03T08:00:00Z",
 };
 
+const prototypeExecution = {
+  id: 3,
+  test_group_id: 21,
+  product_version_id: 11,
+  execution_number: 3,
+  status: "completed",
+  execution_mode: "data_driven_simulation",
+  started_at: "2026-09-15T10:32:00+00:00",
+  completed_at: "2026-09-15T10:32:20+00:00",
+  summary: { passed: 8, failed: 2, blocked: 1, not_executed: 1 },
+  group_snapshot: { name: "EVT1 基础录制回归", product_version: "EVT1" },
+  configuration_snapshot: { execution_mode: "data_driven_simulation" },
+  case_results: [
+    {
+      automation_test_case_id: 1,
+      case_number: "AUTO-000001",
+      title: "短按录制键，确认开始录制",
+      position: 1,
+      status: "passed",
+      message: "确定性数据检查结果符合用例预期。",
+    },
+  ],
+};
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
@@ -246,6 +269,8 @@ function stubProjectApi() {
         return jsonResponse({ items: [prototypeAutomationCase] });
       if (url === "/api/data-packages")
         return jsonResponse({ items: [prototypeDataPackage] });
+      if (url === "/api/test-groups/21/automation-executions")
+        return jsonResponse({ items: [prototypeExecution] });
       return jsonResponse({ detail: "未模拟的接口" }, 404);
     }),
   );
@@ -569,7 +594,9 @@ test("人工测试结果使用统一表格录入", async () => {
   await renderWorkspace();
 
   fireEvent.click(screen.getByRole("button", { name: "执行与结果" }));
-  fireEvent.click(screen.getByRole("button", { name: "进入人工结果录入" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "进入人工结果录入" }),
+  );
 
   expect(screen.getByRole("table")).toHaveClass("prototype-manual-table");
   expect(screen.getByRole("columnheader", { name: "用例编号" })).toBeVisible();

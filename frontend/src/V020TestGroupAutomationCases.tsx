@@ -95,7 +95,10 @@ export function V020TestGroupAutomationCases({
   };
 
   return (
-    <section aria-label="测试组自动化用例与数据包">
+    <section
+      aria-label="测试组自动化用例与数据包"
+      id="test-group-automation-scope"
+    >
       <h3>自动化用例与数据包</h3>
       {message && (
         <p className="prototype-muted" role="status">
