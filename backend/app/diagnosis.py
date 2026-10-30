@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError
 
+from app.ai_config import selected_snapshot_payload
 from app.database import open_database
 from app.run_models import (
     DiagnosisCause,
@@ -191,6 +192,9 @@ def _diagnosis_from_row(row) -> DiagnosisRun:
         model=row["model"],
         prompt_version=row["prompt_version"],
         is_mock=bool(row["is_mock"]),
+        config_snapshot=(
+            json.loads(row["config_snapshot"]) if "config_snapshot" in row.keys() and row["config_snapshot"] else {}
+        ),
         provider=row["provider"] if "provider" in row.keys() else "siliconflow",
         evidence_package=json.loads(row["evidence_package"]),
         output=json.loads(row["output"]) if row["output"] else None,
@@ -223,6 +227,7 @@ def _save_diagnosis(
     output: StructuredDiagnosis | None,
     error: str | None,
     status_override: str | None = None,
+    config_snapshot: dict[str, object] | None = None,
 ) -> DiagnosisRun:
     created_at = datetime.now(UTC)
     diagnosis_status = status_override or ("completed" if output else "failed")
@@ -242,6 +247,7 @@ def _save_diagnosis(
         output=output,
         evaluation=None,
         error=error,
+        config_snapshot=config_snapshot or {},
         created_at=created_at,
         completed_at=created_at,
     )
@@ -250,8 +256,8 @@ def _save_diagnosis(
         cursor = connection.execute(
             """INSERT INTO diagnosis_runs
             (run_id, status, model, prompt_version, is_mock, evidence_package, output,
-             evaluation, created_at, completed_at, error, provider)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             evaluation, created_at, completed_at, error, provider, config_snapshot)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 run_id,
                 diagnosis_status,
@@ -265,6 +271,7 @@ def _save_diagnosis(
                 created_at.isoformat(),
                 error,
                 provider,
+                json.dumps(config_snapshot or {}, ensure_ascii=False),
             ),
         )
         if cursor.lastrowid is None:
@@ -283,6 +290,7 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
     if run.status != "completed":
         raise HTTPException(status_code=409, detail="只有已完成运行才能生成诊断")
     package = build_evidence_package(run)
+    config_snapshot = selected_snapshot_payload()
     request = request or DiagnosisRequest()
     if request.mode == "mock":
         output = validate_evidence_refs(build_mock_diagnosis(run, package), package)
@@ -295,6 +303,7 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
             is_mock=True,
             output=output,
             error=None,
+            config_snapshot=config_snapshot,
         )
     provider = request.provider or request.mode
     if provider not in {"siliconflow", "deepseek", "kimi"}:
@@ -306,8 +315,11 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
         raise HTTPException(status_code=422, detail=f"未选择 {provider} 模型")
     validate_model(provider, model)
     api_key = request.api_key or configured_api_key(provider)
+    adapter = get_provider_adapter(provider)
+    if hasattr(adapter, "network_mode"):
+        adapter.network_mode = str(config_snapshot.get("network_mode", "auto"))
     try:
-        raw_output = get_provider_adapter(provider).generate(
+        raw_output = adapter.generate(
             api_key=api_key,
             model=model,
             evidence_json=package.model_dump_json(),
@@ -326,6 +338,7 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
             is_mock=False,
             output=None,
             error="invalid_response: 模型输出不符合诊断结构",
+            config_snapshot=config_snapshot,
         )
     except (SiliconFlowError, HTTPException) as error:
         message = error.detail if isinstance(error, HTTPException) else str(error)
@@ -341,6 +354,7 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
             output=None,
             error=message,
             status_override="retryable" if isinstance(error, SiliconFlowError) and error.retryable else None,
+            config_snapshot=config_snapshot,
         )
     return _save_diagnosis(
         run_id,

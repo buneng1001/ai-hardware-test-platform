@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 28
+LATEST_SCHEMA_VERSION = 29
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -805,6 +805,66 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             )
         connection.executescript(
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (28); PRAGMA user_version = 28;"
+        )
+
+    if current_version < 29:
+        # AI 配置快照、模型目录、验证记录和当前选择分开存储；密钥只保存来源，不落明文。
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS ai_config_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                model TEXT NOT NULL,
+                key_source TEXT NOT NULL,
+                network_mode TEXT NOT NULL DEFAULT 'auto',
+                prompt_version TEXT NOT NULL DEFAULT 'diagnosis-v1',
+                fingerprint TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ai_config_selection (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                snapshot_id INTEGER NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (snapshot_id) REFERENCES ai_config_snapshots(id)
+            );
+            CREATE TABLE IF NOT EXISTS ai_model_catalogs (
+                provider TEXT PRIMARY KEY,
+                models TEXT NOT NULL,
+                source TEXT NOT NULL,
+                warning TEXT,
+                fetched_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ai_verification_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                message TEXT NOT NULL,
+                error_kind TEXT,
+                retryable INTEGER NOT NULL DEFAULT 0,
+                network_diagnostic TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (snapshot_id) REFERENCES ai_config_snapshots(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_verification_runs_snapshot
+                ON ai_verification_runs(snapshot_id, id DESC);
+            """
+        )
+        available_tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        if "diagnosis_runs" in available_tables:
+            diagnosis_columns = {row[1] for row in connection.execute("PRAGMA table_info(diagnosis_runs)").fetchall()}
+            if "config_snapshot" not in diagnosis_columns:
+                connection.execute("ALTER TABLE diagnosis_runs ADD COLUMN config_snapshot TEXT NOT NULL DEFAULT '{}'")
+        if "report_analysis_runs" in available_tables:
+            analysis_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(report_analysis_runs)").fetchall()
+            }
+            if "config_snapshot" not in analysis_columns:
+                connection.execute(
+                    "ALTER TABLE report_analysis_runs ADD COLUMN config_snapshot TEXT NOT NULL DEFAULT '{}'"
+                )
+        connection.executescript(
+            "INSERT OR IGNORE INTO schema_migrations (version) VALUES (29); PRAGMA user_version = 29;"
         )
 
 

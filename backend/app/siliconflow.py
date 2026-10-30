@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable
 from enum import StrEnum
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener
 
 
 class ModelErrorKind(StrEnum):
@@ -43,6 +43,14 @@ PROVIDER_MODEL_ENDPOINTS = {
     "kimi": "https://api.moonshot.cn/v1/models",
 }
 
+CONNECTION_ERROR_KINDS = {ModelErrorKind.NETWORK, ModelErrorKind.TIMEOUT}
+
+
+def _open_url(request: Request, timeout: float, network_mode: str):
+    """direct 模式显式忽略系统代理；system_proxy/auto 使用系统默认代理。"""
+    handlers = [ProxyHandler({})] if network_mode == "direct" else []
+    return build_opener(*handlers).open(request, timeout=timeout)
+
 
 def _default_transport(request_data: dict[str, object]) -> tuple[int, str]:
     request = Request(
@@ -55,7 +63,7 @@ def _default_transport(request_data: dict[str, object]) -> tuple[int, str]:
         method="POST",
     )
     try:
-        with urlopen(request, timeout=30) as response:
+        with _open_url(request, 30, str(request_data.get("network_mode", "auto"))) as response:
             return response.status, response.read().decode("utf-8")
     except HTTPError as error:
         return error.code, error.read().decode("utf-8", errors="replace")
@@ -75,7 +83,7 @@ def _default_catalog_transport(request_data: dict[str, object]) -> tuple[int, st
         method="GET",
     )
     try:
-        with urlopen(request, timeout=30) as response:
+        with _open_url(request, 30, str(request_data.get("network_mode", "auto"))) as response:
             return response.status, response.read().decode("utf-8")
     except HTTPError as error:
         return error.code, error.read().decode("utf-8", errors="replace")
@@ -141,6 +149,7 @@ class ProviderAdapter:
         catalog_transport: CatalogTransport = _default_catalog_transport,
         model_endpoint: str | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        network_mode: str = "system_proxy",
     ) -> None:
         self.provider = provider
         self._endpoint = endpoint or PROVIDER_ENDPOINTS[provider]
@@ -148,6 +157,25 @@ class ProviderAdapter:
         self._catalog_transport = catalog_transport
         self._model_endpoint = model_endpoint or PROVIDER_MODEL_ENDPOINTS[provider]
         self._sleep = sleep
+        self.network_mode = network_mode if network_mode in {"auto", "system_proxy", "direct"} else "auto"
+        self.network_diagnostics: list[str] = []
+
+    def _call_transport(self, transport, request_data: dict[str, object]) -> tuple[int, str]:
+        """auto 先系统代理再直连；只有连接类错误触发有限回退。"""
+        modes = ["system_proxy", "direct"] if self.network_mode == "auto" else [self.network_mode]
+        last_error: SiliconFlowError | None = None
+        for index, mode in enumerate(modes):
+            try:
+                result = transport({**request_data, "network_mode": mode})
+                if index > 0:
+                    self.network_diagnostics.append(f"自动网络回退：系统代理失败，已改用直连（{last_error}）")
+                return result
+            except SiliconFlowError as error:
+                if error.kind not in CONNECTION_ERROR_KINDS or index == len(modes) - 1:
+                    raise
+                last_error = error
+                self.network_diagnostics.append(f"网络模式 {mode} 失败：{error.kind}；准备回退直连")
+        raise AssertionError("网络模式回退未返回")
 
     def list_models(self, *, api_key: str) -> list[str]:
         """读取服务商实时模型目录，保留返回顺序并过滤无效或重复 ID。"""
@@ -156,7 +184,7 @@ class ProviderAdapter:
         request_data = {"api_key": api_key, "endpoint": self._model_endpoint}
         for attempt in range(3):
             try:
-                response_status, response_text = self._catalog_transport(request_data)
+                response_status, response_text = self._call_transport(self._catalog_transport, request_data)
                 if response_status < 200 or response_status >= 300:
                     kind, retryable = _classify_status(response_status)
                     raise SiliconFlowError(kind, _status_message(response_status), retryable)
@@ -212,7 +240,7 @@ class ProviderAdapter:
         }
         for attempt in range(3):
             try:
-                response_status, response_text = self._transport(request_data)
+                response_status, response_text = self._call_transport(self._transport, request_data)
                 if response_status < 200 or response_status >= 300:
                     kind, retryable = _classify_status(response_status)
                     raise SiliconFlowError(kind, _status_message(response_status), retryable)
@@ -249,7 +277,7 @@ class ProviderAdapter:
         }
         for attempt in range(3):
             try:
-                response_status, response_text = self._transport(request_data)
+                response_status, response_text = self._call_transport(self._transport, request_data)
                 if response_status < 200 or response_status >= 300:
                     kind, retryable = _classify_status(response_status)
                     raise SiliconFlowError(kind, _status_message(response_status), retryable)
@@ -280,7 +308,7 @@ class ProviderAdapter:
         request_data = {"api_key": api_key, "endpoint": self._endpoint, "body": body}
         for attempt in range(3):
             try:
-                response_status, response_text = self._transport(request_data)
+                response_status, response_text = self._call_transport(self._transport, request_data)
                 if response_status < 200 or response_status >= 300:
                     kind, retryable = _classify_status(response_status)
                     raise SiliconFlowError(kind, _status_message(response_status), retryable)
@@ -310,6 +338,7 @@ class SiliconFlowAdapter(ProviderAdapter):
         sleep: Callable[[float], None] = time.sleep,
         endpoint: str | None = None,
         model_endpoint: str | None = None,
+        network_mode: str = "system_proxy",
     ) -> None:
         super().__init__(
             "siliconflow",
@@ -318,6 +347,7 @@ class SiliconFlowAdapter(ProviderAdapter):
             catalog_transport=catalog_transport,
             model_endpoint=model_endpoint,
             sleep=sleep,
+            network_mode=network_mode,
         )
 
 
@@ -329,6 +359,7 @@ class DeepSeekAdapter(ProviderAdapter):
         sleep: Callable[[float], None] = time.sleep,
         endpoint: str | None = None,
         model_endpoint: str | None = None,
+        network_mode: str = "system_proxy",
     ) -> None:
         super().__init__(
             "deepseek",
@@ -337,6 +368,7 @@ class DeepSeekAdapter(ProviderAdapter):
             catalog_transport=catalog_transport,
             model_endpoint=model_endpoint,
             sleep=sleep,
+            network_mode=network_mode,
         )
 
 
@@ -348,6 +380,7 @@ class KimiAdapter(ProviderAdapter):
         sleep: Callable[[float], None] = time.sleep,
         endpoint: str | None = None,
         model_endpoint: str | None = None,
+        network_mode: str = "system_proxy",
     ) -> None:
         super().__init__(
             "kimi",
@@ -356,4 +389,5 @@ class KimiAdapter(ProviderAdapter):
             catalog_transport=catalog_transport,
             model_endpoint=model_endpoint,
             sleep=sleep,
+            network_mode=network_mode,
         )

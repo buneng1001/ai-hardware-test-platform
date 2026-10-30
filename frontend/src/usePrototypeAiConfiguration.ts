@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { queryAiModelCatalog, verifyAiConnection } from "./aiSettingsApi";
+import { getAiConfig, type AiNetworkMode } from "./aiSettingsApi";
+import { refreshCatalog, testConnection } from "./aiConfigActions";
+import {
+  markVerificationInvalid,
+  persistAiConfiguration,
+} from "./aiConfigPersist";
+import { applyRestoredAiConfig } from "./aiConfigRestore";
 import {
   prototypeAiProviders as providers,
   type PrototypeAiModelOption,
@@ -57,6 +63,13 @@ export function usePrototypeAiConfiguration() {
     boolean | null
   >(null);
   const [catalogMessage, setCatalogMessage] = useState("");
+  const [networkMode, setNetworkMode] = useState<AiNetworkMode>("auto");
+  const [verificationStatus, setVerificationStatus] = useState<
+    "verified" | "failed" | "invalidated" | "untested"
+  >("untested");
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [modelWarning, setModelWarning] = useState("");
+  const [savedMessage, setSavedMessage] = useState("");
   const [loadingAction, setLoadingAction] = useState<"catalog" | "test" | null>(
     null,
   );
@@ -68,6 +81,38 @@ export function usePrototypeAiConfiguration() {
       ? `本地服务 · ${modelLabel}`
       : `${accessMode === "local" ? "后端配置" : "临时 API"} · ${providerConfig.label} / ${modelLabel}`;
 
+  useEffect(() => {
+    let cancelled = false;
+    void getAiConfig()
+      .then((state) => {
+        if (cancelled) return;
+        applyRestoredAiConfig(state, {
+          setProvider,
+          setModel,
+          setAccessMode,
+          setNetworkMode,
+          setVerificationStatus,
+          setVerificationMessage,
+          setAvailableModels,
+          setModelWarning,
+        });
+      })
+      .catch(() => {
+        // 后端不可用时保留本地默认配置，不阻塞进入平台。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const invalidateVerification = () => {
+    markVerificationInvalid({
+      setSavedMessage,
+      setVerificationStatus,
+      setVerificationMessage,
+    });
+  };
+
   const changeProvider = (nextProvider: ProviderKey) => {
     const nextModels = initialModels(nextProvider);
     setProvider(nextProvider);
@@ -76,6 +121,19 @@ export function usePrototypeAiConfiguration() {
     setConnectionMessage("");
     setConnectionSucceeded(null);
     setCatalogMessage("");
+    setModelWarning("");
+    invalidateVerification();
+  };
+
+  const changeModel = (nextModel: string) => {
+    setModel(nextModel);
+    invalidateVerification();
+  };
+
+  const changeNetworkMode = (mode: AiNetworkMode) => {
+    setNetworkMode(mode);
+    setSavedMessage("");
+    invalidateVerification();
   };
 
   const changeTemporaryKey = (value: string) => {
@@ -83,6 +141,7 @@ export function usePrototypeAiConfiguration() {
     if (rememberTemporaryKey) storeTemporaryKey(value);
     setConnectionMessage("");
     setConnectionSucceeded(null);
+    invalidateVerification();
   };
 
   const changeRememberTemporaryKey = (remember: boolean) => {
@@ -96,12 +155,14 @@ export function usePrototypeAiConfiguration() {
     setAccessMode("local");
     setConnectionMessage("");
     setConnectionSucceeded(null);
+    invalidateVerification();
   };
 
   const chooseAccessMode = (mode: AccessMode) => {
     setAccessMode(mode);
     setConnectionMessage("");
     setConnectionSucceeded(null);
+    invalidateVerification();
   };
 
   const validateConnectionConfiguration = async () => {
@@ -110,25 +171,23 @@ export function usePrototypeAiConfiguration() {
       setConnectionSucceeded(null);
       return;
     }
-    setLoadingAction("test");
-    setConnectionMessage("");
-    try {
-      const result = await verifyAiConnection(
-        provider,
-        model,
-        accessMode === "temporary" ? temporaryKey.trim() : "",
-      );
-      setConnectionMessage(
-        `${result.ok ? "连接成功" : "连接失败"}：${providerConfig.label} / ${modelLabel}：${result.message}`,
-      );
-      setConnectionSucceeded(result.ok);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "请求失败";
-      setConnectionMessage(`连接测试失败：${message}`);
-      setConnectionSucceeded(false);
-    } finally {
-      setLoadingAction(null);
-    }
+    await testConnection({
+      provider,
+      model,
+      apiKey: accessMode === "temporary" ? temporaryKey : "",
+      accessMode,
+      networkMode,
+      providerLabel: providerConfig.label,
+      modelLabel,
+      setters: {
+        setLoadingAction,
+        setConnectionMessage,
+        setConnectionSucceeded,
+        setVerificationStatus,
+        setVerificationMessage,
+        setModelWarning,
+      },
+    });
   };
 
   const refreshModelCatalog = async () => {
@@ -138,54 +197,69 @@ export function usePrototypeAiConfiguration() {
       );
       return;
     }
-    setLoadingAction("catalog");
-    setCatalogMessage("");
-    try {
-      const result = await queryAiModelCatalog(provider, temporaryKey.trim());
-      const knownModels = new Map(
-        initialModels(provider).map((item) => [item.id, item]),
-      );
-      const nextModels = result.models.map(
-        (id): PrototypeAiModelOption =>
-          knownModels.get(id) ?? { id, label: id, availability: "verified" },
-      );
-      setAvailableModels(nextModels);
-      if (!nextModels.some((item) => item.id === model)) {
-        setModel(nextModels[0]?.id ?? "");
-      }
-      setCatalogMessage(
-        result.source === "provider"
-          ? `已从 ${providerConfig.label} 实时获取 ${nextModels.length} 个可用模型。`
-          : `${result.warning ?? "未能读取实时模型目录。"} 共 ${nextModels.length} 个候选模型。`,
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "请求失败";
-      setCatalogMessage(`模型目录刷新失败：${message}`);
-    } finally {
-      setLoadingAction(null);
+    await refreshCatalog({
+      provider,
+      model,
+      apiKey: temporaryKey,
+      networkMode,
+      providerLabel: providerConfig.label,
+      setters: {
+        setLoadingAction,
+        setCatalogMessage,
+        setAvailableModels,
+        setModelWarning,
+      },
+    });
+  };
+
+  const saveConfiguration = async () => {
+    if (!isRemoteProvider(provider)) {
+      setSavedMessage("本地服务配置暂不支持保存到后端。");
+      return;
     }
+    await persistAiConfiguration(
+      {
+        provider,
+        model,
+        key_source: accessMode === "temporary" ? "temporary" : "environment",
+        network_mode: networkMode,
+      },
+      {
+        setLoadingAction,
+        setVerificationStatus,
+        setVerificationMessage,
+        setSavedMessage,
+      },
+    );
   };
 
   return {
     provider,
     model,
-    setModel,
+    setModel: changeModel,
     availableModels,
     temporaryKey,
     rememberTemporaryKey,
     accessMode,
+    networkMode,
     connectionMessage,
     connectionSucceeded,
+    verificationStatus,
+    verificationMessage,
+    modelWarning,
+    savedMessage,
     catalogMessage,
     loadingAction,
     providerConfig,
     currentAccess,
     canUseTemporaryApi: temporaryKey.trim().length > 0,
     changeProvider,
+    changeNetworkMode,
     changeTemporaryKey,
     changeRememberTemporaryKey,
     clearTemporaryKey,
     chooseAccessMode,
+    saveConfiguration,
     validateConnectionConfiguration,
     refreshModelCatalog,
   };
