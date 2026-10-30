@@ -72,7 +72,7 @@ export const v020VersionImpact: VersionDeletionImpact = {
   total_affected_assets: 5,
 };
 
-type ProjectRoute = unknown | ((init?: RequestInit) => unknown);
+type ProjectRoute = unknown | ((init?: RequestInit, url?: string) => unknown);
 
 export function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
@@ -91,7 +91,7 @@ export function mockProjectApi(routes: Record<string, ProjectRoute>) {
     const route = routes[key];
     const value =
       typeof route === "function"
-        ? (route as (init?: RequestInit) => unknown)(init)
+        ? (route as (init?: RequestInit, url?: string) => unknown)(init, url)
         : route;
     if (value instanceof Response) return value;
     return jsonResponse(value);
