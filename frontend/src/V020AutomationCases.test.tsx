@@ -60,45 +60,17 @@ test("自动化用例表展示真实候选、低可信度、来源链接和失�
   );
 });
 
-test("生成自动化用例会展示规则候选和人工审核提示", async () => {
-  const fetchMock = stubApi({
+test("自动化用例表不再重复提供生成入口", async () => {
+  stubApi({
     cases: [],
     records: [],
     automationCases: [],
-    automationConversion: {
-      created_count: 1,
-      items: [
-        automationCase({
-          id: 3,
-          source_test_case_id: 4,
-          source_case_number: "REC-001",
-          case_number: "AUTO-000003",
-        }),
-      ],
-    },
   });
   await openAutomationView();
 
   expect(screen.getByText("还没有自动化用例候选")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "生成自动化用例" }));
-
-  expect(await screen.findByText("AUTO-000003")).toBeVisible();
-  expect(screen.getByText("已生成 1 条规则候选，均需人工审核。")).toBeVisible();
-  expect(
-    callsOf(fetchMock).some(
-      ([input, init]) =>
-        String(input).endsWith("/automation-test-case-conversions/rules") &&
-        init?.method === "POST",
-    ),
-  ).toBe(true);
-  // 规则转换不依赖 AI 配置或模型服务；读取配置快照不算调用模型。
-  expect(
-    callsOf(fetchMock).some(
-      ([input]) =>
-        String(input).includes("/api/settings/ai") &&
-        !String(input).endsWith("/api/settings/ai/config"),
-    ),
-  ).toBe(false);
+  expect(screen.getByText(/生成入口在“测试用例表”/)).toBeVisible();
+  expect(screen.queryByRole("button", { name: "生成自动化用例" })).toBeNull();
 });
 
 test("从测试用例表生成候选后可跳回来源原始用例", async () => {

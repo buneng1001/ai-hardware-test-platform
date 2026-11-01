@@ -141,6 +141,8 @@ test("全部校验通过后才允许加入测试组", async () => {
   fireEvent.click(screen.getByRole("button", { name: "校验自动化用例" }));
 
   expect(await screen.findByText("自动化用例校验通过。")).toBeVisible();
+  // 校验通过后还需要勾选要加入测试组的用例。
+  fireEvent.click(screen.getByRole("checkbox", { name: /选择自动化用例/ }));
   expect(joinGroup).toBeEnabled();
 });
 

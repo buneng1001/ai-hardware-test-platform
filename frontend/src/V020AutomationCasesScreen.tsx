@@ -24,7 +24,10 @@ export function V020AutomationCasesScreen({
   const [createDirty, setCreateDirty] = useState(false);
   const [dirtyCaseIds, setDirtyCaseIds] = useState<number[]>([]);
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [page, setPage] = useState(1);
   const submitHandlers = useRef(new Map<number, () => Promise<boolean>>());
+  const pageSize = 20;
 
   const registerSubmit = useCallback(
     (caseId: number, submit: (() => Promise<boolean>) | null) => {
@@ -59,6 +62,10 @@ export function V020AutomationCasesScreen({
         : current.filter((id) => id !== caseId);
     });
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [automation.items]);
 
   const hasUnsavedChanges = dirtyCaseIds.length > 0 || createDirty;
   useEffect(() => {
@@ -108,6 +115,31 @@ export function V020AutomationCasesScreen({
   const allValidated =
     automation.items.length > 0 &&
     automation.items.every((item) => item.validation_status === "passed");
+  const totalPages = Math.max(1, Math.ceil(automation.items.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = automation.items.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  const toggleSelect = (caseId: number) =>
+    setSelectedIds((current) =>
+      current.includes(caseId)
+        ? current.filter((id) => id !== caseId)
+        : [...current, caseId],
+    );
+  const selectPage = () =>
+    setSelectedIds((current) => [
+      ...new Set([...current, ...pageItems.map((item) => item.id)]),
+    ]);
+  const invertPage = () =>
+    setSelectedIds((current) =>
+      pageItems
+        .map((item) => item.id)
+        .filter((id) => !current.includes(id))
+        .concat(
+          current.filter((id) => !pageItems.some((item) => item.id === id)),
+        ),
+    );
 
   const createCase = async (command: AutomationCaseCreateCommand) => {
     const created = await automation.createCase(command);
@@ -127,16 +159,26 @@ export function V020AutomationCasesScreen({
     <>
       <div className="prototype-case-toolbar prototype-automation-toolbar">
         <p className="prototype-muted">
-          规则转换不依赖 AI；共 {automation.items.length} 条候选，其中转换失败
-          {failedCount} 条，全部需要人工审核。
+          共 {automation.items.length} 条候选，其中转换失败 {failedCount}{" "}
+          条，已选 {selectedIds.length}{" "}
+          条。生成入口在“测试用例表”，这里只做编辑、校验和加入测试组。
         </p>
         <div className="prototype-actions">
           <button
-            disabled={automation.busy}
-            onClick={() => void automation.convert()}
+            className="prototype-secondary"
+            disabled={pageItems.length === 0}
+            onClick={selectPage}
             type="button"
           >
-            生成自动化用例
+            全选本页
+          </button>
+          <button
+            className="prototype-secondary"
+            disabled={pageItems.length === 0}
+            onClick={invertPage}
+            type="button"
+          >
+            反选本页
           </button>
           <button
             className="prototype-secondary"
@@ -172,10 +214,12 @@ export function V020AutomationCasesScreen({
           </button>
           <button
             className="prototype-secondary"
-            disabled={!allValidated}
+            disabled={!allValidated || selectedIds.length === 0}
             onClick={onOpenGroups}
             title={
-              allValidated ? undefined : "请先校验全部自动化用例再加入测试组"
+              allValidated
+                ? "带当前勾选的自动化用例进入测试组"
+                : "请先校验全部自动化用例再加入测试组"
             }
             type="button"
           >
@@ -213,23 +257,51 @@ export function V020AutomationCasesScreen({
         <div className="prototype-card">
           <h3>还没有自动化用例候选</h3>
           <p className="prototype-muted">
-            先导入原始测试用例，再点击“生成自动化用例”。规则转换可离线运行，不需要模型或
-            Skill。
+            先到“测试用例表”导入原始用例，再点“AI
+            生成自动化用例”或“规则转换（不使用 AI）”。
           </p>
         </div>
       ) : (
-        <V020AutomationCaseTable
-          busy={automation.busy}
-          items={automation.items}
-          productVersionId={versionId}
-          onDelete={deleteCase}
-          onDirtyChange={handleDirtyChange}
-          onFeedback={automation.submitFeedback}
-          onOpenSource={onOpenSource}
-          onRegisterSubmit={registerSubmit}
-          onRegenerate={automation.regenerateCase}
-          onSave={automation.updateCase}
-        />
+        <>
+          <V020AutomationCaseTable
+            busy={automation.busy}
+            items={pageItems}
+            productVersionId={versionId}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onDelete={deleteCase}
+            onDirtyChange={handleDirtyChange}
+            onFeedback={automation.submitFeedback}
+            onOpenSource={onOpenSource}
+            onRegisterSubmit={registerSubmit}
+            onRegenerate={automation.regenerateCase}
+            onSave={automation.updateCase}
+          />
+          {automation.items.length > pageSize && (
+            <div className="prototype-source-pager" aria-label="自动化用例分页">
+              <span>
+                第 {currentPage} / {totalPages} 页 · 共{" "}
+                {automation.items.length} 条，每页 {pageSize} 条
+              </span>
+              <button
+                className="prototype-secondary"
+                disabled={currentPage <= 1}
+                onClick={() => setPage(currentPage - 1)}
+                type="button"
+              >
+                上一页
+              </button>
+              <button
+                className="prototype-secondary"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage(currentPage + 1)}
+                type="button"
+              >
+                下一页
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <div className="prototype-inline-note">

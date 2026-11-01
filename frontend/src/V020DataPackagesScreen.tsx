@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import { V020DataPackageCard } from "./V020DataPackageCard";
 import { V020DataPackageDeletionDialog } from "./V020DataPackageDeletionDialog";
 import { V020DataPackageDetail } from "./V020DataPackageDetail";
@@ -7,6 +9,7 @@ import { faultTypeLabels } from "./v020DataPackageLabels";
 import "./V020DataPackages.css";
 
 const faultOptions = Object.entries(faultTypeLabels);
+const pageSize = 20;
 
 /**
  * 冻结版“测试数据”页：读取真实数据包，支持筛选、详情、更新提示、
@@ -18,6 +21,22 @@ export function V020DataPackagesScreen({
   onNavigate: (page: "new-task" | "import" | "saved") => void;
 }) {
   const data = useV020DataPackages();
+  const [page, setPage] = useState(1);
+
+  // 数据包同样每页最多 20 个；筛选结果变化后回到第一页。
+  const totalPages = Math.max(
+    1,
+    Math.ceil(data.visibleItems.length / pageSize),
+  );
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = data.visibleItems.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [data.visibleItems]);
 
   const changeKind = (value: string) => {
     const kind = (value || undefined) as DataPackageFilters["data_kind"];
@@ -116,17 +135,43 @@ export function V020DataPackagesScreen({
             </p>
           </div>
         ) : (
-          <div className="prototype-data-grid">
-            {data.visibleItems.map((item) => (
-              <V020DataPackageCard
-                busy={data.busy}
-                item={item}
-                key={item.id}
-                onDelete={() => void data.previewDeletion(item.id)}
-                onDetail={() => void data.showDetail(item.id)}
-              />
-            ))}
-          </div>
+          <>
+            <div className="prototype-data-grid">
+              {pageItems.map((item) => (
+                <V020DataPackageCard
+                  busy={data.busy}
+                  item={item}
+                  key={item.id}
+                  onDelete={() => void data.previewDeletion(item.id)}
+                  onDetail={() => void data.showDetail(item.id)}
+                />
+              ))}
+            </div>
+            {data.visibleItems.length > pageSize && (
+              <div className="prototype-source-pager" aria-label="数据包分页">
+                <span>
+                  第 {currentPage} / {totalPages} 页 · 共{" "}
+                  {data.visibleItems.length} 个，每页 {pageSize} 个
+                </span>
+                <button
+                  className="prototype-secondary"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage(currentPage - 1)}
+                  type="button"
+                >
+                  上一页
+                </button>
+                <button
+                  className="prototype-secondary"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage(currentPage + 1)}
+                  type="button"
+                >
+                  下一页
+                </button>
+              </div>
+            )}
+          </>
         ))}
 
       <div className="prototype-actions">

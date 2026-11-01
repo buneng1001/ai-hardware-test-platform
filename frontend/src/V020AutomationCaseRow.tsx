@@ -30,6 +30,8 @@ export function V020AutomationCaseRow({
   item,
   productVersionId,
   busy,
+  selected,
+  onToggleSelect,
   onOpenSource,
   onSave,
   onFeedback,
@@ -41,6 +43,8 @@ export function V020AutomationCaseRow({
   item: AutomationTestCase;
   productVersionId: number;
   busy: boolean;
+  selected: boolean;
+  onToggleSelect: (caseId: number) => void;
   onOpenSource: (sourceTestCaseId: number) => void;
   onSave: (caseId: number, draft: AutomationTestCaseDraft) => Promise<boolean>;
   onFeedback: (caseId: number, feedback: string) => Promise<boolean>;
@@ -81,6 +85,15 @@ export function V020AutomationCaseRow({
   return (
     <>
       <tr className={failed ? "prototype-row-warning" : undefined}>
+        <td>
+          <input
+            aria-label={`选择自动化用例 ${item.case_number}`}
+            checked={selected}
+            disabled={busy}
+            onChange={() => onToggleSelect(item.id)}
+            type="checkbox"
+          />
+        </td>
         <td>{item.case_number}</td>
         <td>{item.title || emptyCell}</td>
         <td>
@@ -169,7 +182,7 @@ export function V020AutomationCaseRow({
       </tr>
       {editing && (
         <tr className="prototype-automation-expanded">
-          <td colSpan={8}>
+          <td colSpan={9}>
             <V020AutomationCaseEditor
               item={item}
               busy={busy}
@@ -183,14 +196,14 @@ export function V020AutomationCaseRow({
       )}
       {historyError && (
         <tr className="prototype-automation-expanded">
-          <td colSpan={8}>
+          <td colSpan={9}>
             <p role="alert">{historyError}</p>
           </td>
         </tr>
       )}
       {history && (
         <tr className="prototype-automation-expanded">
-          <td colSpan={8}>
+          <td colSpan={9}>
             <V020AutomationCaseHistoryView history={history} />
           </td>
         </tr>
