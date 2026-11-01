@@ -46,7 +46,7 @@ export function V020SourceCaseTable({
           <tr>
             <th className="is-narrow">选择</th>
             <th className="is-narrow">用例编号</th>
-            <th>标题</th>
+            <th className="is-title">标题</th>
             <th className="is-narrow">类型</th>
             <th className="is-narrow">优先级</th>
             <th className="is-narrow">模块</th>
@@ -87,8 +87,8 @@ export function V020SourceCaseTable({
                     <em className="prototype-source-deleted">导入记录已删除</em>
                   )}
                 </td>
-                <td>{item.title}</td>
-                <td>
+                <td className="is-title">{item.title}</td>
+                <td className="is-narrow">
                   <span
                     className={
                       item.case_type === "automation"
@@ -99,21 +99,27 @@ export function V020SourceCaseTable({
                     {item.case_type === "automation" ? "自动化" : "人工"}
                   </span>
                 </td>
-                <td>{item.priority || "未填写"}</td>
-                <td>{item.module || "未分类"}</td>
-                <td>{item.test_item || "未填写"}</td>
-                <td>{item.preconditions || "未填写"}</td>
-                <td>{item.input || "未填写"}</td>
-                <td>
+                <td className="is-narrow">{item.priority || "未填写"}</td>
+                <td className="is-narrow">{item.module || "未分类"}</td>
+                <td className="is-narrow">{item.test_item || "未填写"}</td>
+                <td className="is-long-text">
+                  {item.preconditions || "未填写"}
+                </td>
+                <td className="is-long-text">{item.input || "未填写"}</td>
+                <td className="is-steps">
                   {stepsOf(item).length > 0 ? (
                     <TestSteps steps={stepsOf(item)} />
                   ) : (
                     <span className="prototype-muted">未填写</span>
                   )}
                 </td>
-                <td>{item.expected_result || "未填写"}</td>
-                <td>{item.test_type || "未填写"}</td>
-                <td>{item.software_version || "未填写"}</td>
+                <td className="is-long-text">
+                  {item.expected_result || "未填写"}
+                </td>
+                <td className="is-narrow">{item.test_type || "未填写"}</td>
+                <td className="is-narrow">
+                  {item.software_version || "未填写"}
+                </td>
               </tr>
             );
           })}

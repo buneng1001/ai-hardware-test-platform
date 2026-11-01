@@ -1,12 +1,5 @@
 .prototype-source-filters {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px 18px;
-}
-
-/* 工具栏：筛选一行，按钮单独一行，避免按钮夹在筛选中造成误触。 */
-.prototype-case-toolbar {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  gap: 14px 18px;
 }
 
 /* 原始用例表：按内容撑开，窄屏横向滚动，避免列被压成一个字一行。 */
@@ -20,7 +13,6 @@
 .prototype-source-table td {
   white-space: normal;
   word-break: normal;
-  overflow-wrap: anywhere;
 }
 
 .prototype-source-table .is-narrow {
@@ -29,17 +21,14 @@
 
 .prototype-source-table .is-title {
   min-width: 220px;
-  max-width: 360px;
 }
 
 .prototype-source-table .is-steps {
-  min-width: 280px;
-  max-width: 420px;
+  min-width: 260px;
 }
 
 .prototype-source-table .is-long-text {
   min-width: 160px;
-  max-width: 260px;
   white-space: pre-line;
 }
 

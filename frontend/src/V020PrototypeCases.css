@@ -60,11 +60,11 @@
   box-shadow: none;
 }
 
+/* 工具栏：说明一行、筛选一行、按钮一行，互不挤压。 */
 .prototype-case-toolbar {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto;
-  gap: 14px 24px;
-  align-items: end;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   margin-top: 22px;
   padding: 18px;
   border: 1px solid var(--prototype-color-line);
@@ -73,7 +73,6 @@
 }
 
 .prototype-case-toolbar > p {
-  grid-column: 1 / -1;
   margin: 0;
 }
 
@@ -84,7 +83,17 @@
 
 .prototype-case-toolbar .prototype-filter-row {
   display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 14px 18px;
   width: 100%;
+}
+
+.prototype-case-toolbar .prototype-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-start;
 }
 
 .prototype-module-filter {
