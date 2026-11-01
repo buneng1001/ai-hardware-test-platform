@@ -36,9 +36,15 @@ function errorMessage(caught: unknown, fallback: string): string {
  */
 export function useV020ProjectWorkspace() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [sort, setSort] = useState<ProjectSort>("updated_desc");
+  const [createdProject, setCreatedProject] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [lastProjectId, setLastProjectId] = useState<number | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -55,11 +61,16 @@ export function useV020ProjectWorkspace() {
 
   const loadProjects = async (nextSearch: string, nextSort: ProjectSort) => {
     setProjectsError(null);
+    setProjectsLoading(true);
     try {
       setProjects(await listProjects(nextSearch, nextSort));
+      // 只有真正从接口取到结果才记为“已生效的筛选”，避免界面显示还没应用的搜索词。
+      setAppliedSearch(nextSearch.trim());
     } catch (caught) {
       setProjects(null);
       setProjectsError(errorMessage(caught, "项目列表加载失败"));
+    } finally {
+      setProjectsLoading(false);
     }
   };
 
@@ -103,11 +114,13 @@ export function useV020ProjectWorkspace() {
   const submitProject = async (command: ProjectCommand): Promise<boolean> => {
     setBusy(true);
     setActionError(null);
+    setCreatedProject(null);
     try {
       const created = await createProject(command);
       await loadProjects(search, sort);
       setDetail(created);
       setOpenedVersion(created.product_versions[0] ?? null);
+      setCreatedProject({ id: created.id, name: created.name });
       await loadTrend(created.id);
       return true;
     } catch (caught) {
@@ -264,13 +277,22 @@ export function useV020ProjectWorkspace() {
 
   return {
     projects,
+    projectsLoading,
     projectsError,
     search,
+    appliedSearch,
     sort,
     setSearch,
     setSort,
+    /** 清空搜索框并立即按空条件重新加载。 */
+    clearSearch: () => {
+      setSearch("");
+      void loadProjects("", sort);
+    },
     refreshProjects: () => loadProjects(search, sort),
     submitProject,
+    createdProject,
+    clearCreatedProject: () => setCreatedProject(null),
     detail,
     detailLoading,
     detailError,

@@ -113,6 +113,7 @@ test("删除产品版本前展示影响范围并在确认后移除", async () =>
   fireEvent.click(screen.getByRole("button", { name: "删除版本" }));
 
   const dialog = await screen.findByRole("dialog", { name: "删除影响确认" });
+  expect(dialog).toHaveAttribute("aria-modal", "true");
   expect(dialog).toHaveTextContent("涉及 1 个产品版本：EVT1");
   expect(dialog).toHaveTextContent("共影响 5 项资产");
   fireEvent.click(screen.getByRole("button", { name: "确认删除" }));

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
 import { V020DeletionImpactPanel } from "./V020DeletionImpactPanel";
 import type { ProjectSort } from "./projectsApi";
 import type { V020ProjectWorkspace } from "./useV020ProjectWorkspace";
+import "./V020ProjectList.css";
 
 const sortOptions: Array<{ value: ProjectSort; label: string }> = [
   { value: "updated_desc", label: "最近更新" },
@@ -29,6 +30,16 @@ export function V020ProjectsScreen({
   const [name, setName] = useState("");
   const [productName, setProductName] = useState("");
   const [description, setDescription] = useState("");
+  const createdNoticeRef = useRef<HTMLDivElement>(null);
+
+  /** 新建成功后把提示和列表顶部滚进视野，避免新项目落在看不见的位置。 */
+  useEffect(() => {
+    if (!workspace.createdProject) return;
+    const target = createdNoticeRef.current;
+    if (target && typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({ block: "start" });
+    }
+  }, [workspace.createdProject]);
 
   const resetForm = () => {
     setCreating(false);
@@ -61,13 +72,31 @@ export function V020ProjectsScreen({
         </button>
       </div>
 
-      <div className="prototype-filter-row">
-        <input
-          aria-label="搜索项目"
-          onChange={(event) => workspace.setSearch(event.target.value)}
-          placeholder="搜索项目或产品名称"
-          value={workspace.search}
-        />
+      <div className="prototype-filter-row prototype-project-filters">
+        <div className="prototype-search-field">
+          <input
+            aria-label="搜索项目"
+            onChange={(event) => workspace.setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void workspace.refreshProjects();
+              }
+            }}
+            placeholder="搜索项目或产品名称"
+            value={workspace.search}
+          />
+          {workspace.search.trim() !== "" && (
+            <button
+              aria-label="清空搜索框"
+              className="prototype-search-clear"
+              onClick={workspace.clearSearch}
+              type="button"
+            >
+              ×
+            </button>
+          )}
+        </div>
         <select
           aria-label="项目排序"
           onChange={(event) =>
@@ -82,13 +111,51 @@ export function V020ProjectsScreen({
           ))}
         </select>
         <button
+          aria-busy={workspace.projectsLoading}
           className="prototype-secondary"
+          disabled={workspace.projectsLoading}
           onClick={() => void workspace.refreshProjects()}
           type="button"
         >
           查找
         </button>
       </div>
+
+      {workspace.appliedSearch !== "" && (
+        <div className="prototype-active-filter" aria-label="当前筛选">
+          <span>当前筛选：{workspace.appliedSearch}</span>
+          <button
+            className="prototype-secondary"
+            onClick={workspace.clearSearch}
+            type="button"
+          >
+            清除筛选，显示全部项目
+          </button>
+        </div>
+      )}
+
+      {workspace.projectsLoading && workspace.projects !== null && (
+        <p aria-live="polite" className="prototype-muted" role="status">
+          正在查找…
+        </p>
+      )}
+
+      {workspace.createdProject && (
+        <div
+          aria-live="polite"
+          className="prototype-inline-note prototype-created-notice"
+          ref={createdNoticeRef}
+        >
+          已创建项目「{workspace.createdProject.name}」，已排在列表最前。
+          <button
+            className="prototype-secondary"
+            onClick={workspace.clearCreatedProject}
+            type="button"
+          >
+            知道了
+          </button>
+        </div>
+      )}
 
       {workspace.projectsError ? (
         <div className="prototype-inline-note" role="alert">
@@ -114,7 +181,11 @@ export function V020ProjectsScreen({
         workspace.projects.map((project) => (
           <div
             aria-label={`打开项目 ${project.name}`}
-            className="prototype-project-card"
+            className={
+              workspace.createdProject?.id === project.id
+                ? "prototype-project-card prototype-project-card--new"
+                : "prototype-project-card"
+            }
             key={project.id}
             onClick={() => onOpen(project.id)}
             onKeyDown={(event) => {

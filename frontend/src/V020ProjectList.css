@@ -1,0 +1,64 @@
+.prototype-project-filters {
+  align-items: center;
+}
+
+.prototype-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.prototype-search-field input {
+  width: 100%;
+  padding-right: 38px;
+}
+
+.prototype-page button.prototype-search-clear {
+  position: absolute;
+  right: 8px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  place-items: center;
+  color: var(--prototype-color-muted);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.prototype-page button.prototype-search-clear:hover {
+  color: var(--prototype-color-text);
+  background: var(--prototype-color-surface-muted);
+}
+
+.prototype-active-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 10px 16px;
+  color: var(--prototype-color-brand-strong);
+  border: 1px solid var(--prototype-color-brand);
+  border-radius: 999px;
+  background: var(--prototype-color-brand-soft);
+  font-weight: 750;
+}
+
+.prototype-created-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.prototype-project-card--new {
+  border-color: var(--prototype-color-brand) !important;
+  box-shadow: 0 0 0 3px rgb(13 148 136 / 14%) !important;
+}
