@@ -5,7 +5,7 @@ import {
   convertSourceTestCasesWithRules,
 } from "./automationTestCasesApi";
 import { V020CaseTemplatePanel } from "./V020CaseTemplatePanel";
-import { mergePendingGroupCases } from "./pendingGroupCases";
+import { V020AddToGroupDialog } from "./V020AddToGroupDialog";
 import { V020SourceCaseImportPanel } from "./V020SourceCaseImportPanel";
 import { V020SourceCaseRecords } from "./V020SourceCaseRecords";
 import { V020SourceCaseTable } from "./V020SourceCaseTable";
@@ -40,6 +40,8 @@ export function V020SourceCasesScreen({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const source = useV020SourceTestCases(versionId);
   const [page, setPage] = useState(1);
+  const [showGroupDialog, setShowGroupDialog] = useState(false);
+  const [groupNotice, setGroupNotice] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generatingWithAi, setGeneratingWithAi] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -253,13 +255,22 @@ export function V020SourceCasesScreen({
           <button
             className="prototype-secondary"
             onClick={() => {
-              // 把当前勾选带给测试组页，避免进去后再一条条勾。
-              mergePendingGroupCases({ source: source.selectedIds });
-              onOpenGroups();
+              if (source.selectedIds.length === 0) {
+                setGroupNotice("请先勾选要加入测试组的用例。");
+                return;
+              }
+              setShowGroupDialog(true);
             }}
             type="button"
           >
             加入测试组（已选 {source.selectedIds.length} 条）
+          </button>
+          <button
+            className="prototype-secondary"
+            onClick={onOpenGroups}
+            type="button"
+          >
+            查看测试组
           </button>
         </div>
       </div>
@@ -360,6 +371,24 @@ export function V020SourceCasesScreen({
         原始用例按产品版本独立保存；删除导入记录时会一并清除该记录下的原始用例，
         以及由它们生成的自动化候选和测试组关联。重新导入时勾选“覆盖已有用例”即可替换旧用例表。
       </div>
+
+      {groupNotice && (
+        <div className="prototype-inline-note" role="status">
+          {groupNotice}
+        </div>
+      )}
+
+      <V020AddToGroupDialog
+        automationIds={[]}
+        onClose={() => setShowGroupDialog(false)}
+        onDone={(message) => {
+          setGroupNotice(message);
+          void source.retry();
+        }}
+        open={showGroupDialog}
+        sourceIds={source.selectedIds}
+        versionId={versionId}
+      />
     </>
   );
 }

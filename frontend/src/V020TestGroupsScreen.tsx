@@ -4,14 +4,7 @@ import { V020TestGroupCard } from "./V020TestGroupCard";
 import { V020TestGroupCreateForm } from "./V020TestGroupCreateForm";
 import { V020TestGroupDeletionDialog } from "./V020TestGroupDeletionDialog";
 import { V020TestGroupDetail } from "./V020TestGroupDetail";
-import {
-  clearPendingGroupCases,
-  readPendingGroupCases,
-} from "./pendingGroupCases";
-import {
-  addTestGroupAutomationCases,
-  addTestGroupSourceCases,
-} from "./testGroupsApi";
+
 import { useV020TestGroups } from "./useV020TestGroups";
 import "./V020TestGroups.css";
 
@@ -28,69 +21,6 @@ export function V020TestGroupsScreen({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [includeSelected, setIncludeSelected] = useState(true);
-  const [pending] = useState(() => readPendingGroupCases());
-  const [pendingName, setPendingName] = useState("");
-  const [pendingGroupId, setPendingGroupId] = useState("");
-  const [pendingBusy, setPendingBusy] = useState(false);
-  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
-  const pendingCount = pending.source.length + pending.automation.length;
-
-  /** 把从其他页面带过来的勾选用例一次性加入测试组。 */
-  const joinPendingTo = async (groupId: number) => {
-    setPendingBusy(true);
-    setPendingNotice(null);
-    try {
-      if (pending.source.length > 0) {
-        await addTestGroupSourceCases(groupId, pending.source);
-      }
-      if (pending.automation.length > 0) {
-        await addTestGroupAutomationCases(groupId, pending.automation);
-      }
-      clearPendingGroupCases();
-      setPendingNotice("已把之前在用例表里勾选的用例加入测试组。");
-      await groups.openDetail(groupId);
-    } catch (error) {
-      setPendingNotice(
-        error instanceof Error ? error.message : "加入测试组失败",
-      );
-    } finally {
-      setPendingBusy(false);
-    }
-  };
-
-  const createAndJoinPending = async () => {
-    setPendingBusy(true);
-    setPendingNotice(null);
-    try {
-      const created = await groups.createGroup(
-        pendingName.trim() || "新建测试组",
-        "",
-        pending.source.length > 0,
-      );
-      if (!created) return;
-      if (pending.automation.length > 0) {
-        await addTestGroupAutomationCases(created.id, pending.automation);
-      }
-      clearPendingGroupCases();
-      setPendingNotice("已新建测试组并加入勾选的用例。");
-      await groups.openDetail(created.id);
-    } catch (error) {
-      setPendingNotice(
-        error instanceof Error ? error.message : "创建测试组失败",
-      );
-    } finally {
-      setPendingBusy(false);
-    }
-  };
-
-  if (versionId === null) {
-    return (
-      <div className="prototype-inline-note">
-        请先在“版本与趋势”中打开一个产品版本，再创建测试组。
-      </div>
-    );
-  }
-
   const resetCreate = () => {
     setShowCreate(false);
     setName("");
@@ -169,58 +99,6 @@ export function V020TestGroupsScreen({
         />
       ) : (
         <>
-          {pendingCount > 0 && (
-            <div
-              className="prototype-inline-note"
-              aria-label="待加入测试组的用例"
-            >
-              <p>
-                已带着 <strong>{pending.source.length}</strong> 条原始用例、
-                <strong>{pending.automation.length}</strong>{" "}
-                条自动化用例：可以直接新建测试组并加入，或加入已有测试组，不需要再一条条勾。
-              </p>
-              <div className="prototype-filter-row">
-                <input
-                  aria-label="新测试组名称"
-                  onChange={(event) => setPendingName(event.target.value)}
-                  placeholder="新测试组名称"
-                  value={pendingName}
-                />
-                <button
-                  disabled={pendingBusy}
-                  onClick={() => void createAndJoinPending()}
-                  type="button"
-                >
-                  新建测试组并加入
-                </button>
-                <select
-                  aria-label="选择已有测试组"
-                  onChange={(event) => setPendingGroupId(event.target.value)}
-                  value={pendingGroupId}
-                >
-                  <option value="">选择已有测试组</option>
-                  {(groups.page?.items ?? []).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="prototype-secondary"
-                  disabled={pendingBusy || !pendingGroupId}
-                  onClick={() => void joinPendingTo(Number(pendingGroupId))}
-                  type="button"
-                >
-                  加入已有测试组
-                </button>
-              </div>
-              {pendingNotice && (
-                <p className="prototype-muted" role="status">
-                  {pendingNotice}
-                </p>
-              )}
-            </div>
-          )}
           <div className="prototype-filter-row">
             <input
               aria-label="搜索测试组"

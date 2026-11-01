@@ -1,13 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import {
-  listAutomationTestCases,
-  type AutomationTestCase,
-} from "./automationTestCasesApi";
 import { listDataPackages, type DataPackage } from "./dataPackagesApi";
 import { V020TestGroupAutomationRow } from "./V020TestGroupAutomationRow";
 import {
-  addTestGroupAutomationCases,
   assignDataPackageToCases,
   getTestGroup,
   orderTestGroupCases,
@@ -16,7 +11,10 @@ import {
   type TestGroupDetail,
 } from "./testGroupsApi";
 
-/** 冻结版测试组自动化范围：只允许已校验用例，数据包与用例多对多。 */
+/**
+ * 测试组里的自动化用例与数据包。
+ * 用例从哪里加入由“自动化用例表 → 加入测试组”负责，这里只做范围管理与数据包分配。
+ */
 export function V020TestGroupAutomationCases({
   detail,
   onChange,
@@ -24,46 +22,23 @@ export function V020TestGroupAutomationCases({
   detail: TestGroupDetail;
   onChange: (detail: TestGroupDetail) => void;
 }) {
-  const [available, setAvailable] = useState<AutomationTestCase[]>([]);
   const [packages, setPackages] = useState<DataPackage[]>([]);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
   const [bulkPackageId, setBulkPackageId] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    void Promise.all([
-      listAutomationTestCases(detail.product_version_id),
-      listDataPackages(),
-    ])
-      .then(([cases, loadedPackages]) => {
-        setAvailable(
-          cases.items.filter((item) => item.validation_status === "passed"),
-        );
+    void listDataPackages()
+      .then((loaded) =>
         setPackages(
-          loadedPackages.items.filter(
-            (item) => item.validation_status === "passed",
-          ),
-        );
-      })
-      .catch((caught) =>
-        setMessage(
-          caught instanceof Error ? caught.message : "自动化用例加载失败",
+          loaded.items.filter((item) => item.validation_status === "passed"),
         ),
+      )
+      .catch((caught) =>
+        setMessage(caught instanceof Error ? caught.message : "数据包加载失败"),
       );
-  }, [detail.product_version_id]);
-
-  const candidates = useMemo(
-    () =>
-      available.filter(
-        (item) =>
-          !detail.automation_test_cases.some(
-            (current) => current.id === item.id,
-          ),
-      ),
-    [available, detail.automation_test_cases],
-  );
+  }, []);
 
   const run = async (
     action: () => Promise<TestGroupDetail | void>,
@@ -94,27 +69,23 @@ export function V020TestGroupAutomationCases({
     );
   };
 
-  /**
-   * 关联数据包：如果还没把用例加入测试组，先自动加入再关联，
-   * 避免用户选了数据包却发现按钮点不动。
-   */
+  /** 有勾选就分配给勾选行，没有勾选就分配给全部用例（先全量默认，再局部微调）。 */
   const assignPackage = async () => {
     if (!bulkPackageId) return;
-    let targetIds = selectedGroupIds;
-    if (targetIds.length === 0 && selectedIds.length > 0) {
-      targetIds = [...selectedIds];
-      const added = await addTestGroupAutomationCases(detail.id, targetIds);
-      onChange(added);
-      setSelectedIds([]);
-    }
+    const targetIds =
+      selectedGroupIds.length > 0
+        ? selectedGroupIds
+        : detail.automation_test_cases.map((item) => item.id);
     if (targetIds.length === 0) {
-      setMessage("请先在上面的候选列表里选中要关联的用例。");
+      setMessage("测试组里还没有自动化用例。");
       return;
     }
     await run(
       () =>
         assignDataPackageToCases(detail.id, targetIds, Number(bulkPackageId)),
-      "已批量关联数据包。",
+      selectedGroupIds.length > 0
+        ? "已把数据包分配给勾选的用例。"
+        : "已把数据包分配给全部自动化用例。",
     );
   };
 
@@ -125,57 +96,20 @@ export function V020TestGroupAutomationCases({
     >
       <h3>自动化用例与数据包</h3>
       <p className="prototype-muted">
-        第一步：在上面的列表里多选（按住 Ctrl / ⌘
-        点选）要用的用例，点「加入所选用例」；
-        第二步：选中数据包，点「关联到所选用例」。还没加入测试组时，关联会自动把选中的用例加进来。
+        这里管理本次测试的自动化范围：勾选行可把同一个数据包批量分配给它们，不勾选则分配给全部用例；
+        单条想换数据包，直接改表格最后一列的下拉。需要加更多用例，到“自动化用例表”勾选后点“加入测试组”。
       </p>
       {message && (
         <p className="prototype-muted" role="status">
           {message}
         </p>
       )}
+
       <div className="prototype-filter-row">
         <select
-          multiple
-          aria-label="加入已校验自动化用例"
-          value={selectedIds.map(String)}
-          onChange={(event) =>
-            setSelectedIds(
-              Array.from(event.currentTarget.selectedOptions, (option) =>
-                Number(option.value),
-              ),
-            )
-          }
-        >
-          {candidates.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.case_number} · {item.title}
-            </option>
-          ))}
-        </select>
-        <button
-          className="prototype-secondary"
-          disabled={busy || selectedIds.length === 0}
-          onClick={() =>
-            void run(async () => {
-              const next = await addTestGroupAutomationCases(
-                detail.id,
-                selectedIds,
-              );
-              setSelectedIds([]);
-              return next;
-            }, "已加入已校验自动化用例。")
-          }
-          type="button"
-        >
-          加入所选用例
-        </button>
-      </div>
-      <div className="prototype-filter-row">
-        <select
-          aria-label="批量关联数据包"
-          value={bulkPackageId}
+          aria-label="批量数据包"
           onChange={(event) => setBulkPackageId(event.target.value)}
+          value={bulkPackageId}
         >
           <option value="">选择已校验数据包</option>
           {packages.map((item) => (
@@ -186,28 +120,36 @@ export function V020TestGroupAutomationCases({
         </select>
         <button
           className="prototype-secondary"
-          disabled={
-            busy ||
-            !bulkPackageId ||
-            (selectedGroupIds.length === 0 && selectedIds.length === 0)
-          }
+          disabled={busy || !bulkPackageId}
           onClick={() => void assignPackage()}
-          title={bulkPackageId ? undefined : "先选择一个已校验的数据包"}
           type="button"
         >
-          关联到所选用例
+          {selectedGroupIds.length > 0
+            ? `分配给已勾选的 ${selectedGroupIds.length} 条`
+            : "分配给全部用例"}
         </button>
+        {selectedGroupIds.length > 0 && (
+          <button
+            className="prototype-secondary"
+            disabled={busy}
+            onClick={() => setSelectedGroupIds([])}
+            type="button"
+          >
+            取消勾选
+          </button>
+        )}
       </div>
+
       {detail.automation_test_cases.length === 0 ? (
         <p className="prototype-muted">
-          测试组里还没有用例。先从上面的候选列表选中用例并点「加入所选用例」，
-          之后才能在表格里勾选并关联数据包。
+          测试组里还没有自动化用例。到“自动化用例表”勾选用例后点“加入测试组”即可。
         </p>
       ) : (
         <div className="prototype-table-wrap">
           <table className="prototype-table">
             <thead>
               <tr>
+                <th>选择</th>
                 <th>序号</th>
                 <th>用例编号</th>
                 <th>标题</th>

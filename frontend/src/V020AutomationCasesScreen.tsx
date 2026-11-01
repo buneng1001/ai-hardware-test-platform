@@ -4,7 +4,7 @@ import { V020AutomationCaseCreateForm } from "./V020AutomationCaseCreateForm";
 import { V020AutomationCaseTable } from "./V020AutomationCaseTable";
 import type { AutomationCaseCreateCommand } from "./automationTestCasesApi";
 import { useV020AutomationTestCases } from "./useV020AutomationTestCases";
-import { mergePendingGroupCases } from "./pendingGroupCases";
+import { V020AddToGroupDialog } from "./V020AddToGroupDialog";
 import "./V020AutomationCases.css";
 
 /**
@@ -27,6 +27,8 @@ export function V020AutomationCasesScreen({
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [page, setPage] = useState(1);
+  const [showGroupDialog, setShowGroupDialog] = useState(false);
+  const [groupNotice, setGroupNotice] = useState<string | null>(null);
   const submitHandlers = useRef(new Map<number, () => Promise<boolean>>());
   const pageSize = 20;
 
@@ -143,7 +145,10 @@ export function V020AutomationCasesScreen({
 
   /** 加入测试组前如果勾选还没校验，先自动校验一次，避免按钮“能选不能用”。 */
   const joinSelectedToGroup = async () => {
-    if (selectedItems.length === 0) return;
+    if (selectedItems.length === 0) {
+      setBatchMessage("请先勾选要加入测试组的自动化用例。");
+      return;
+    }
     if (!selectedValidated) {
       const passed = await automation.validateCases();
       if (!passed) {
@@ -151,9 +156,8 @@ export function V020AutomationCasesScreen({
         return;
       }
     }
-    // 把当前勾选的自动化用例带给测试组页，进去后不需要再勾一遍。
-    mergePendingGroupCases({ automation: selectedIds });
-    onOpenGroups();
+    // 校验通过后原地弹窗选择测试组，不再跳转到测试组页面。
+    setShowGroupDialog(true);
   };
 
   const createCase = async (command: AutomationCaseCreateCommand) => {
@@ -222,7 +226,6 @@ export function V020AutomationCasesScreen({
           </button>
           <button
             className="prototype-secondary"
-            disabled={selectedItems.length === 0}
             onClick={() => void joinSelectedToGroup()}
             title={
               selectedItems.length === 0
@@ -315,6 +318,21 @@ export function V020AutomationCasesScreen({
       <div className="prototype-inline-note">
         修改、新增、删除或重新生成后，用例立即变为未校验；未校验用例不能加入测试组或执行。删除资产不会删除历史快照。
       </div>
+
+      {groupNotice && (
+        <div className="prototype-inline-note" role="status">
+          {groupNotice}
+        </div>
+      )}
+
+      <V020AddToGroupDialog
+        automationIds={selectedIds}
+        onClose={() => setShowGroupDialog(false)}
+        onDone={(message) => setGroupNotice(message)}
+        open={showGroupDialog}
+        sourceIds={[]}
+        versionId={versionId}
+      />
     </>
   );
 }

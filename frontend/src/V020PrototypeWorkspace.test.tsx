@@ -77,9 +77,10 @@ test("测试用例表读取真实原始用例并支持模块筛选与加入测�
   expect(await screen.findByText("设备断电后数据保存状态")).toBeVisible();
   expect(screen.queryByText("短按录制键，确认开始录制")).toBeNull();
 
+  // 现在“加入测试组”在原地弹窗选择测试组，不再跳页。
+  // 没有勾选用例时给出明确提示，而不是静默无反应。
   fireEvent.click(screen.getByRole("button", { name: /加入测试组/ }));
-  expect(screen.getByRole("heading", { name: "测试组设置" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "＋ 新建测试组" })).toBeVisible();
+  expect(await screen.findByText("请先勾选要加入测试组的用例。")).toBeVisible();
 });
 
 test("测试数据支持复制编号且测试组数据包可输入或下拉选择", async () => {
