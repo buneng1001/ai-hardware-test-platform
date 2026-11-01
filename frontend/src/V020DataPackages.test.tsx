@@ -204,16 +204,18 @@ test("可登记已完成数据任务结果并刷新数据包列表", async () =>
   ).toBe(true);
 });
 
-test("现有 v0.1.0 任务入口仍可从测试数据页打开", async () => {
+test("测试数据页可以直接打开 v0.1.0 的数据任务入口", async () => {
   stubDataApi({ items: [] });
-  const onNavigate = vi.fn();
-  render(<V020DataPackagesScreen onNavigate={onNavigate} />);
+  render(<V020DataPackagesScreen onNavigate={vi.fn()} />);
 
   fireEvent.click(screen.getByRole("button", { name: "生成新的数据包" }));
-  fireEvent.click(screen.getByRole("button", { name: "导入数据并校验" }));
-  fireEvent.click(screen.getByRole("button", { name: "执行/刷新数据任务" }));
+  expect(
+    await screen.findByRole("heading", { name: "新建采集任务" }),
+  ).toBeVisible();
 
-  expect(onNavigate).toHaveBeenNthCalledWith(1, "new-task");
-  expect(onNavigate).toHaveBeenNthCalledWith(2, "import");
-  expect(onNavigate).toHaveBeenNthCalledWith(3, "saved");
+  fireEvent.click(screen.getByRole("button", { name: "返回数据包列表" }));
+  fireEvent.click(screen.getByRole("button", { name: "导入数据并校验" }));
+  expect(
+    await screen.findByRole("heading", { name: "导入实际测试数据" }),
+  ).toBeVisible();
 });

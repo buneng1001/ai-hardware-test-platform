@@ -3,6 +3,10 @@ import { useEffect, useState } from "react";
 import { V020DataPackageCard } from "./V020DataPackageCard";
 import { V020DataPackageDeletionDialog } from "./V020DataPackageDeletionDialog";
 import { V020DataPackageDetail } from "./V020DataPackageDetail";
+import {
+  V020LegacyDataTasks,
+  type LegacyDataView,
+} from "./V020LegacyDataTasks";
 import type { DataPackageFilters } from "./dataPackagesApi";
 import { useV020DataPackages } from "./useV020DataPackages";
 import { faultTypeLabels } from "./v020DataPackageLabels";
@@ -22,6 +26,7 @@ export function V020DataPackagesScreen({
 }) {
   const data = useV020DataPackages();
   const [page, setPage] = useState(1);
+  const [legacyView, setLegacyView] = useState<LegacyDataView | null>(null);
 
   // 数据包同样每页最多 20 个；筛选结果变化后回到第一页。
   const totalPages = Math.max(
@@ -184,26 +189,37 @@ export function V020DataPackagesScreen({
         </button>
         <button
           className="prototype-secondary"
-          onClick={() => onNavigate("new-task")}
+          onClick={() => setLegacyView("create")}
           type="button"
         >
           生成新的数据包
         </button>
         <button
           className="prototype-secondary"
-          onClick={() => onNavigate("import")}
+          onClick={() => setLegacyView("import")}
           type="button"
         >
           导入数据并校验
         </button>
         <button
           className="prototype-secondary"
-          onClick={() => onNavigate("saved")}
+          onClick={() => setLegacyView("saved")}
           type="button"
         >
           执行/刷新数据任务
         </button>
       </div>
+
+      {legacyView && (
+        <V020LegacyDataTasks
+          onBack={() => setLegacyView(null)}
+          onFinished={() => {
+            void data.retry();
+          }}
+          onOpenRunView={() => setLegacyView("run")}
+          view={legacyView}
+        />
+      )}
 
       {data.actionError && (
         <div className="prototype-inline-note" role="alert">
