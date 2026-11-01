@@ -3,14 +3,14 @@ import type { SourceTestCase } from "./sourceTestCasesApi";
 /** 原始用例筛选条件，字段名与后端查询参数保持一致。 */
 export type SourceCaseFilters = {
   module: string;
-  test_item: string;
+  test_type: string;
   priority: string;
   software_version: string;
 };
 
 export const emptySourceCaseFilters: SourceCaseFilters = {
   module: "",
-  test_item: "",
+  test_type: "",
   priority: "",
   software_version: "",
 };
@@ -41,7 +41,7 @@ export function collectFilterOptions(items: SourceTestCase[]) {
     [...new Set(items.map((item) => item[field]).filter(Boolean))].sort();
   return {
     module: collect("module"),
-    test_item: collect("test_item"),
+    test_type: collect("test_type"),
     priority: collect("priority"),
     software_version: collect("software_version"),
   };

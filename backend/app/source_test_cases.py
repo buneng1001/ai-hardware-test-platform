@@ -148,12 +148,14 @@ def list_source_test_case_imports(version_id: int) -> list[SourceTestCaseImportR
 def list_source_test_cases(
     version_id: int,
     module: str = Query(default="", max_length=120),
+    test_type: str = Query(default="", max_length=120),
     test_item: str = Query(default="", max_length=120),
     priority: str = Query(default="", max_length=80),
     software_version: str = Query(default="", max_length=120),
 ) -> SourceTestCaseList:
     filters = {
         "module": module.strip(),
+        "test_type": test_type.strip(),
         "test_item": test_item.strip(),
         "priority": priority.strip(),
         "software_version": software_version.strip(),

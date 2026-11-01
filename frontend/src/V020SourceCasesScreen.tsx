@@ -14,7 +14,7 @@ import "./V020SourceCases.css";
 
 const filterControls: Array<[keyof SourceCaseFilters, string, string]> = [
   ["module", "模块筛选", "全部模块"],
-  ["test_item", "测试项筛选", "全部测试项"],
+  ["test_type", "测试类型筛选", "全部测试类型"],
   ["priority", "优先级筛选", "全部优先级"],
   ["software_version", "软件版本筛选", "全部软件版本"],
 ];

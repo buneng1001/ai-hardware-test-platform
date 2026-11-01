@@ -993,9 +993,11 @@ def open_database() -> Iterator[sqlite3.Connection]:
     """打开项目内数据库，并保证调用方始终使用最新 schema。"""
     data_dir = get_data_dir()
     data_dir.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(data_dir / "platform.sqlite3") as connection:
+    with sqlite3.connect(data_dir / "platform.sqlite3", timeout=30) as connection:
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
+        # 并发写入时先等待而不是立刻抛 database is locked。
+        connection.execute("PRAGMA busy_timeout = 30000")
         migrate_database(connection)
         yield connection
 

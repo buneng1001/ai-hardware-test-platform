@@ -1,7 +1,7 @@
-/* 搜索、排序、查找保持一行，控件之间留出明确间隙。 */
+/* 搜索、排序、查找保持一行，搜索框只占一半左右宽度，控件之间留出间隙。 */
 .prototype-project-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 320px) auto auto;
   align-items: center;
   gap: 14px;
   margin: 26px 0 4px;

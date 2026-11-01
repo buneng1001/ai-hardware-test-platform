@@ -1,31 +1,46 @@
 .prototype-source-filters {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px 18px;
 }
 
-/* 原始用例表：12 个字段按内容分配宽度，短列不换行，长列允许折行。 */
+/* 工具栏：筛选一行，按钮单独一行，避免按钮夹在筛选中造成误触。 */
+.prototype-case-toolbar {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+/* 原始用例表：按内容撑开，窄屏横向滚动，避免列被压成一个字一行。 */
 .prototype-source-table {
-  min-width: 1680px;
+  width: max-content;
+  min-width: 100%;
   table-layout: auto;
 }
 
 .prototype-source-table th,
 .prototype-source-table td {
   white-space: normal;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .prototype-source-table .is-narrow {
   white-space: nowrap;
 }
 
+.prototype-source-table .is-title {
+  min-width: 220px;
+  max-width: 360px;
+}
+
 .prototype-source-table .is-steps {
-  min-width: 260px;
+  min-width: 280px;
+  max-width: 420px;
 }
 
 .prototype-source-table .is-long-text {
-  min-width: 180px;
-  max-width: 320px;
+  min-width: 160px;
+  max-width: 260px;
+  white-space: pre-line;
 }
 
 .prototype-test-steps--plain p {

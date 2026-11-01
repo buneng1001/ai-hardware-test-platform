@@ -290,6 +290,9 @@ def convert_source_cases_with_ai(
                         "DELETE FROM automation_test_cases WHERE id = ?", (int(existing["id"]),)
                     )
                     removed_count += 1
+            # 每批写完立刻提交，避免模型调用期间长时间占着写事务，
+            # 否则用户同时勾选用例会直接报 database is locked。
+            connection.commit()
         if created_count or updated_count or removed_count:
             _touch_project(connection, version_id)
         items = _list_cases(connection, version_id)
