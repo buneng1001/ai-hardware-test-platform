@@ -162,7 +162,11 @@ def list_source_test_cases(
                        SELECT 1 FROM source_test_case_selections selection
                        WHERE selection.product_version_id = c.product_version_id
                          AND selection.source_test_case_id = c.id
-                   ) AS selected
+                   ) AS selected,
+                   CASE WHEN EXISTS(
+                       SELECT 1 FROM automation_test_cases automation
+                       WHERE automation.source_test_case_id = c.id
+                   ) THEN 'automation' ELSE 'manual' END AS case_type
             FROM source_test_cases c
             WHERE {" AND ".join(clauses)}
             ORDER BY c.id

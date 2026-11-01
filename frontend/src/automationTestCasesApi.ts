@@ -146,18 +146,27 @@ export type AutomationCaseAiConversionBatch = {
   automation_count: number;
   manual_count: number;
   created_count: number;
+  updated_count: number;
+  removed_count: number;
   decisions: AutomationCaseAiDecision[];
   items: AutomationTestCase[];
 };
 
-/** 让 AI 读取原始用例并判定自动化/人工；临时密钥随请求发送，不落库。 */
-export function convertSourceTestCasesWithAi(versionId: number, apiKey = "") {
+/** 让 AI 读取勾选的原始用例并判定自动化/人工；临时密钥随请求发送，不落库。 */
+export function convertSourceTestCasesWithAi(
+  versionId: number,
+  apiKey = "",
+  sourceCaseIds: number[] = [],
+) {
   return request<AutomationCaseAiConversionBatch>(
     `/api/product-versions/${versionId}/automation-test-case-conversions/ai`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ api_key: apiKey }),
+      body: JSON.stringify({
+        api_key: apiKey,
+        source_case_ids: sourceCaseIds,
+      }),
     },
   );
 }

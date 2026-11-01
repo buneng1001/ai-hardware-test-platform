@@ -47,6 +47,7 @@ export function V020SourceCaseTable({
             <th>选择</th>
             <th>用例编号</th>
             <th>标题</th>
+            <th>类型</th>
             <th>模块</th>
             <th>测试步骤</th>
             <th>优先级</th>
@@ -83,6 +84,17 @@ export function V020SourceCaseTable({
                   )}
                 </td>
                 <td>{item.title}</td>
+                <td>
+                  <span
+                    className={
+                      item.case_type === "automation"
+                        ? "prototype-type-badge prototype-type-automation"
+                        : "prototype-type-badge prototype-type-manual"
+                    }
+                  >
+                    {item.case_type === "automation" ? "自动化" : "人工"}
+                  </span>
+                </td>
                 <td>{item.module || "未分类"}</td>
                 <td>
                   {stepsOf(item).length > 0 ? (

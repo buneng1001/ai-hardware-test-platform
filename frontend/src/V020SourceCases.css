@@ -182,3 +182,24 @@
 .prototype-ai-manual-list li {
   line-height: 1.6;
 }
+
+.prototype-type-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.prototype-type-automation {
+  color: var(--prototype-color-brand-strong);
+  border: 1px solid var(--prototype-color-brand-soft);
+  background: var(--prototype-color-brand-soft);
+}
+
+.prototype-type-manual {
+  color: var(--prototype-color-warn-strong, #b45309);
+  border: 1px solid rgb(180 83 9 / 24%);
+  background: rgb(180 83 9 / 10%);
+}

@@ -145,6 +145,47 @@ def test_ai_conversion_requires_configured_key(client, monkeypatch):
     assert "AI 模型" in response.json()["detail"]
 
 
+def test_ai_conversion_rejudges_selected_cases_and_removes_manual_candidates(client, monkeypatch):
+    adapter = DecisionAdapter()
+    monkeypatch.setattr(
+        "app.automation_conversion_ai.get_provider_adapter", lambda _provider: adapter
+    )
+    version_id = create_version_with_source_cases(client)
+    # 先跑规则转换：两条都先变成自动化候选，模拟用户已经点过一次旧按钮。
+    rules = client.post(
+        f"/api/product-versions/{version_id}/automation-test-case-conversions/rules"
+    ).json()
+    assert rules["created_count"] == 2
+    ids = [
+        item["id"]
+        for item in client.get(
+            f"/api/product-versions/{version_id}/source-test-cases"
+        ).json()["items"]
+    ]
+
+    converted = client.post(
+        f"/api/product-versions/{version_id}/automation-test-case-conversions/ai",
+        json={"source_case_ids": ids},
+    ).json()
+
+    assert converted["automation_count"] == 1
+    assert converted["manual_count"] == 1
+    assert converted["created_count"] == 0
+    assert converted["updated_count"] == 1
+    assert converted["removed_count"] == 1
+    listed = client.get(
+        f"/api/product-versions/{version_id}/automation-test-cases"
+    ).json()["items"]
+    assert [item["source_case_number"] for item in listed] == ["REC-001"]
+    case_types = {
+        item["case_number"]: item["case_type"]
+        for item in client.get(
+            f"/api/product-versions/{version_id}/source-test-cases"
+        ).json()["items"]
+    }
+    assert case_types == {"REC-001": "automation", "MANUAL-002": "manual"}
+
+
 def test_import_can_use_current_product_version_instead_of_imported_column(client):
     project = client.post(
         "/api/projects", json={"name": "IRIS", "product_name": "Recorder", "description": ""}

@@ -118,6 +118,8 @@ class SourceTestCase(BaseModel):
     attachment: str
     software_version: str
     selected: bool
+    # 用例类型：已生成自动化候选的算自动化，其余默认人工，保证每条用例都有明确归属。
+    case_type: Literal["automation", "manual"] = "manual"
 
 
 class SourceTestCaseList(BaseModel):

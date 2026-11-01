@@ -109,3 +109,18 @@ test("测试用例表把 AI 生成作为主入口并保留规则兜底", async (
     screen.getByRole("button", { name: "规则转换（不使用 AI）" }),
   ).toBeVisible();
 });
+
+test("原始用例表给每条用例标出自动化或人工", async () => {
+  stubApi({
+    cases: [
+      sourceCase({ id: 1, case_number: "REC-001", case_type: "automation" }),
+      sourceCase({ id: 2, case_number: "REC-002", case_type: "manual" }),
+    ],
+    records: [],
+  });
+  await openSourceView();
+
+  const automationRow = await screen.findByText("REC-001");
+  expect(automationRow.closest("tr")).toHaveTextContent("自动化");
+  expect(screen.getByText("REC-002").closest("tr")).toHaveTextContent("人工");
+});

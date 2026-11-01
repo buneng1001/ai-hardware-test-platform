@@ -44,6 +44,8 @@ class AutomationCaseConversionAiCommand(BaseModel):
     provider: str | None = Field(default=None, max_length=40)
     model: str | None = Field(default=None, max_length=200)
     api_key: str = Field(default="", max_length=400)
+    # 用户勾选的原始用例；不传时只处理尚未判定的用例。
+    source_case_ids: list[int] = Field(default_factory=list)
 
 
 def _resolve_target(command: AutomationCaseConversionAiCommand) -> tuple[str, str, str]:
@@ -126,6 +128,35 @@ def _save_candidate(
     record_automation_case_history(connection, saved, "initial_conversion", source=source_case)
 
 
+def _update_candidate(
+    connection: sqlite3.Connection,
+    case_id: int,
+    source_case: dict[str, object],
+    entry: dict[str, object],
+    decision: AutomationCaseAiDecision,
+) -> None:
+    """重新判定为自动化时就地更新已有候选，保持编号和测试组关联不变。"""
+    connection.execute(
+        """
+        UPDATE automation_test_cases
+        SET conversion_status = ?, confidence = ?, review_note = ?, title = ?, input = ?,
+            steps = ?, expected_result = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (
+            "candidate",
+            "low",
+            f"AI 判定可自动化（模型置信度 {decision.confidence}）：{decision.reason}",
+            str(entry.get("title") or source_case.get("title") or ""),
+            str(entry.get("input") or source_case.get("input") or ""),
+            str(entry.get("steps") or source_case.get("steps") or ""),
+            str(entry.get("expected_result") or ""),
+            _now(),
+            case_id,
+        ),
+    )
+
+
 @router.post(
     "/api/product-versions/{version_id}/automation-test-case-conversions/ai",
     response_model=AutomationCaseAiConversionBatch,
@@ -141,17 +172,33 @@ def convert_source_cases_with_ai(
 
     decisions: list[AutomationCaseAiDecision] = []
     created_count = 0
+    updated_count = 0
+    removed_count = 0
     with open_database() as connection:
         _ensure_version(connection, version_id)
-        source_cases = connection.execute(
-            """
-            SELECT source.* FROM source_test_cases source
-            LEFT JOIN automation_test_cases automation ON automation.source_test_case_id = source.id
-            WHERE source.product_version_id = ? AND automation.id IS NULL AND source.ai_decision = ''
-            ORDER BY source.id
-            """,
-            (version_id,),
-        ).fetchall()
+        selected_ids = list(dict.fromkeys(command.source_case_ids))
+        if selected_ids:
+            # 用户勾选后点“AI 生成”，就按勾选范围重新判定，不再跳过已有候选的用例。
+            placeholders = ",".join("?" for _ in selected_ids)
+            source_cases = connection.execute(
+                f"""
+                SELECT source.* FROM source_test_cases source
+                WHERE source.product_version_id = ? AND source.id IN ({placeholders})
+                ORDER BY source.id
+                """,
+                (version_id, *selected_ids),
+            ).fetchall()
+        else:
+            source_cases = connection.execute(
+                """
+                SELECT source.* FROM source_test_cases source
+                LEFT JOIN automation_test_cases automation
+                    ON automation.source_test_case_id = source.id
+                WHERE source.product_version_id = ? AND automation.id IS NULL AND source.ai_decision = ''
+                ORDER BY source.id
+                """,
+                (version_id,),
+            ).fetchall()
         case_batch_size = batch_config().cases_per_batch
         for batch_start in range(0, len(source_cases), case_batch_size):
             batch = source_cases[batch_start : batch_start + case_batch_size]
@@ -214,16 +261,31 @@ def convert_source_cases_with_ai(
                     "UPDATE source_test_cases SET ai_decision = ? WHERE id = ?",
                     (decision.decision, source_id),
                 )
+                existing = connection.execute(
+                    """
+                    SELECT id FROM automation_test_cases
+                    WHERE product_version_id = ? AND source_test_case_id = ?
+                    """,
+                    (version_id, source_id),
+                ).fetchone()
+                raw_entry = _raw_entry(payload, source_id)
                 if decision.decision == "automation":
-                    _save_candidate(
-                        connection,
-                        version_id,
-                        source_case,
-                        _raw_entry(payload, source_id),
-                        decision,
+                    if existing is not None:
+                        # 已经有候选（例如之前跑过规则转换）就地更新，避免重复生成。
+                        _update_candidate(
+                            connection, int(existing["id"]), source_case, raw_entry, decision
+                        )
+                        updated_count += 1
+                    else:
+                        _save_candidate(connection, version_id, source_case, raw_entry, decision)
+                        created_count += 1
+                elif existing is not None:
+                    # 判为人工的用例不再保留自动化候选，回到原始用例表按人工测试。
+                    connection.execute(
+                        "DELETE FROM automation_test_cases WHERE id = ?", (int(existing["id"]),)
                     )
-                    created_count += 1
-        if created_count:
+                    removed_count += 1
+        if created_count or updated_count or removed_count:
             _touch_project(connection, version_id)
         items = _list_cases(connection, version_id)
 
@@ -232,6 +294,8 @@ def convert_source_cases_with_ai(
         automation_count=automation_count,
         manual_count=len(decisions) - automation_count,
         created_count=created_count,
+        updated_count=updated_count,
+        removed_count=removed_count,
         decisions=decisions,
         items=items,
     )

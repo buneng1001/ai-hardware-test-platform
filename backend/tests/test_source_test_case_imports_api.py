@@ -84,6 +84,7 @@ def test_engineer_previews_confirms_and_filters_source_test_case_import(client):
             "attachment": "",
             "software_version": "1.2.0",
             "selected": False,
+            "case_type": "manual",
         }
     ]
 

@@ -46,6 +46,8 @@ export function V020SourceCasesScreen({
     automation: number;
     manual: number;
     created: number;
+    updated: number;
+    removed: number;
     manualItems: Array<{ caseNumber: string; reason: string }>;
   } | null>(null);
 
@@ -113,16 +115,18 @@ export function V020SourceCasesScreen({
     }
   };
 
-  /** AI 转换：把原始用例交给模型，由模型判定哪些可自动化、哪些转人工。 */
+  /** AI 转换：把勾选的原始用例交给模型，由模型判定哪些可自动化、哪些转人工。 */
   const generateAutomationCasesWithAi = async () => {
     if (versionId === null) return;
     setGeneratingWithAi(true);
     setGenerateError(null);
     setGenerateNotice(null);
     try {
+      // 勾选了多少条就判多少条；没参与判定的用例在原始用例表里默认按人工展示。
       const result = await convertSourceTestCasesWithAi(
         versionId,
         readTemporaryKey(),
+        source.selectedIds,
       );
       const manual = result.decisions.filter(
         (item) => item.decision === "manual",
@@ -131,14 +135,15 @@ export function V020SourceCasesScreen({
         automation: result.automation_count,
         manual: result.manual_count,
         created: result.created_count,
+        updated: result.updated_count,
+        removed: result.removed_count,
         manualItems: manual.map((item) => ({
           caseNumber: item.case_number,
           reason: item.reason,
         })),
       });
-      if (result.created_count === 0) {
-        setGenerateNotice("没有新的原始用例需要 AI 判定；已有候选不会被覆盖。");
-      }
+      // 判定后重新拉一次原始用例，让“自动化/人工”标签立即更新。
+      await source.retry();
     } catch (caught) {
       setGenerateError(
         caught instanceof Error && caught.message
@@ -245,8 +250,12 @@ export function V020SourceCasesScreen({
         <div className="prototype-inline-note" aria-label="AI 判定结果">
           <p>
             AI 判定：<strong>{aiSummary.automation}</strong> 条可自动化，
-            <strong>{aiSummary.manual}</strong> 条转人工（已生成{" "}
-            {aiSummary.created} 条自动化候选）。
+            <strong>{aiSummary.manual}</strong>{" "}
+            条转人工；没参与判定的用例默认按人工处理。
+          </p>
+          <p className="prototype-muted">
+            新增 {aiSummary.created} 条候选，更新 {aiSummary.updated} 条， 移除{" "}
+            {aiSummary.removed} 条转为人工的候选。
           </p>
           {aiSummary.manualItems.length > 0 && (
             <ul className="prototype-ai-manual-list">
@@ -257,15 +266,6 @@ export function V020SourceCasesScreen({
               ))}
             </ul>
           )}
-          <div className="prototype-actions">
-            <button
-              className="prototype-secondary"
-              onClick={onOpenAutomation}
-              type="button"
-            >
-              查看自动化用例表
-            </button>
-          </div>
         </div>
       )}
       {generateError && (

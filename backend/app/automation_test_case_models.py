@@ -49,6 +49,8 @@ class AutomationCaseAiConversionBatch(BaseModel):
     automation_count: int
     manual_count: int
     created_count: int
+    updated_count: int = 0
+    removed_count: int = 0
     decisions: list[AutomationCaseAiDecision]
     items: list[AutomationTestCase]
 
