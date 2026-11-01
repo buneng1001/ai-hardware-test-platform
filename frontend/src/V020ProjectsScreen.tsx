@@ -232,61 +232,68 @@ export function V020ProjectsScreen({
       <V020DeletionImpactPanel workspace={workspace} />
 
       {creating ? (
-        <form
-          className="prototype-card prototype-group-create"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submitProject();
-          }}
-        >
-          <h3>创建项目</h3>
-          <label>
-            项目名称
-            <input
-              aria-label="项目名称"
-              autoFocus
-              maxLength={60}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="例如：IRIS 头环"
-              value={name}
-            />
-          </label>
-          <label>
-            产品名称
-            <input
-              aria-label="产品名称"
-              maxLength={60}
-              onChange={(event) => setProductName(event.target.value)}
-              placeholder="例如：多传感器记录设备"
-              value={productName}
-            />
-          </label>
-          <label>
-            项目说明
-            <input
-              aria-label="项目说明"
-              maxLength={200}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="可选"
-              value={description}
-            />
-          </label>
-          <div className="prototype-actions">
-            <button
-              className="prototype-primary"
-              disabled={!name.trim() || !productName.trim() || workspace.busy}
-            >
-              创建项目
-            </button>
-            <button
-              className="prototype-secondary"
-              onClick={resetForm}
-              type="button"
-            >
-              取消
-            </button>
-          </div>
-        </form>
+        // 新建项目改用弹窗，避免表单在页面底部弹开把列表挤得跳动。
+        <div className="prototype-modal-backdrop">
+          <form
+            aria-label="新建项目"
+            className="prototype-modal"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitProject();
+            }}
+          >
+            <h3>新建项目</h3>
+            <p className="prototype-muted">
+              只填项目名称和产品名称即可，之后可以在项目下建立产品版本。
+            </p>
+            <label>
+              项目名称
+              <input
+                aria-label="项目名称"
+                autoFocus
+                maxLength={60}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="例如：IRIS 头环"
+                value={name}
+              />
+            </label>
+            <label>
+              产品名称
+              <input
+                aria-label="产品名称"
+                maxLength={60}
+                onChange={(event) => setProductName(event.target.value)}
+                placeholder="例如：多传感器记录设备"
+                value={productName}
+              />
+            </label>
+            <label>
+              项目说明
+              <input
+                aria-label="项目说明"
+                maxLength={200}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="可选"
+                value={description}
+              />
+            </label>
+            <div className="prototype-actions">
+              <button
+                className="prototype-secondary"
+                onClick={resetForm}
+                type="button"
+              >
+                取消
+              </button>
+              <button
+                className="prototype-primary"
+                disabled={!name.trim() || !productName.trim() || workspace.busy}
+              >
+                创建项目
+              </button>
+            </div>
+          </form>
+        </div>
       ) : (
         <button
           className="prototype-secondary"

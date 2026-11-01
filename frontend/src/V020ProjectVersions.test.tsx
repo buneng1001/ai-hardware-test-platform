@@ -40,6 +40,8 @@ test("版本与趋势页展示项目版本上下文和趋势空状态", async ()
   expect(screen.getByText("项目 / IRIS 头环")).toBeVisible();
   expect(screen.getByText("当前版本")).toBeVisible();
   expect(screen.getByText("尚无最终报告，暂无趋势数据")).toBeVisible();
+  // 侧边栏和顶栏改为显示真实项目与版本，不再保留写死的演示文案。
+  expect(screen.queryByText(/开发验证阶段/)).toBeNull();
 });
 
 test("新建产品版本只需填写版本号即可打开", async () => {

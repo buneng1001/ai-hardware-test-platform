@@ -1,16 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
-  cases,
-  dataPackages,
-  type CaseFilter,
-  type CaseModuleFilter,
   type CaseView,
-  type GroupView,
   type PrototypeProps,
   type ScreenKey,
   type SectionKey,
-  type VariantProps,
 } from "./V020PrototypeShared";
 import { PrototypeHome } from "./V020PrototypeEntryScreens";
 import { ManualResultsPage } from "./V020PrototypeManualResults";
@@ -19,198 +13,156 @@ import { WorkspaceContent } from "./V020PrototypeWorkspace";
 import { V020ProjectsScreen } from "./V020ProjectsScreen";
 import { useV020ProjectWorkspace } from "./useV020ProjectWorkspace";
 
-function VariantA({
-  screen,
-  setScreen,
-  manualGroup,
-  ...workspaceProps
-}: VariantProps & {
+const NAV_STORAGE_KEY = "iris-test-v020-navigation";
+const SECTION_KEYS: SectionKey[] = [
+  "overview",
+  "cases",
+  "data",
+  "groups",
+  "results",
+];
+
+type StoredNavigation = {
   screen: ScreenKey;
-  setScreen: (screen: ScreenKey) => void;
-  manualGroup: { id: number; name: string } | null;
-}) {
-  const openProjects = () => {
-    void workspaceProps.projectWorkspace.refreshProjects();
-    setScreen("projects");
-  };
-  if (screen === "home") return <PrototypeHome onOpenProjects={openProjects} />;
-  if (screen === "projects")
-    return (
-      <V020ProjectsScreen
-        onBack={() => setScreen("home")}
-        onOpen={(projectId) => {
-          void workspaceProps.projectWorkspace
-            .openProject(projectId)
-            .then((opened) => {
-              if (opened) setScreen("workspace");
-            });
-        }}
-        workspace={workspaceProps.projectWorkspace}
-      />
-    );
-  if (screen === "manual")
-    return (
-      <PrototypeWorkspaceShell
-        section={workspaceProps.section}
-        onSectionChange={(section) => {
-          workspaceProps.setSection(section);
-          setScreen("workspace");
-        }}
-        onOpenProjects={openProjects}
-        onOpenHome={() => setScreen("home")}
-      >
-        <ManualResultsPage
-          groupId={manualGroup?.id ?? null}
-          groupName={manualGroup?.name ?? "未选择测试组"}
-          onBack={() => setScreen("workspace")}
-        />
-      </PrototypeWorkspaceShell>
-    );
-  return (
-    <PrototypeWorkspaceShell
-      section={workspaceProps.section}
-      onSectionChange={workspaceProps.setSection}
-      onOpenProjects={openProjects}
-      onOpenHome={() => setScreen("home")}
-    >
-      <WorkspaceContent {...workspaceProps} />
-    </PrototypeWorkspaceShell>
-  );
+  section: SectionKey;
+  projectId: number | null;
+};
+
+const FALLBACK_NAVIGATION: StoredNavigation = {
+  screen: "home",
+  section: "overview",
+  projectId: null,
+};
+
+/** 读取上次停留的位置；内容失效时回到首页，避免刷新后落在空白页。 */
+function readStoredNavigation(): StoredNavigation {
+  try {
+    const raw = window.sessionStorage.getItem(NAV_STORAGE_KEY);
+    if (!raw) return FALLBACK_NAVIGATION;
+    const parsed = JSON.parse(raw) as Partial<StoredNavigation>;
+    const projectId =
+      typeof parsed.projectId === "number" ? parsed.projectId : null;
+    const screen: ScreenKey =
+      parsed.screen === "projects" || parsed.screen === "workspace"
+        ? parsed.screen
+        : "home";
+    // 没有项目上下文就不能停在需要项目的工作区。
+    if (screen === "workspace" && projectId === null) {
+      return FALLBACK_NAVIGATION;
+    }
+    const section = SECTION_KEYS.includes(parsed.section as SectionKey)
+      ? (parsed.section as SectionKey)
+      : "overview";
+    return { screen, section, projectId };
+  } catch {
+    return FALLBACK_NAVIGATION;
+  }
+}
+
+function storeNavigation(state: StoredNavigation) {
+  try {
+    window.sessionStorage.setItem(NAV_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // 存储不可用时只影响刷新恢复，不影响当前会话。
+  }
 }
 
 export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
+  const restored = useRef(readStoredNavigation());
   const projectWorkspace = useV020ProjectWorkspace();
-  const [screen, setScreen] = useState<ScreenKey>("home");
-  const [section, setSection] = useState<SectionKey>("overview");
-  const [selected, setSelected] = useState<string[]>(["TC-REC-001"]);
-  const [runCount, setRunCount] = useState(0);
+  const [screen, setScreen] = useState<ScreenKey>(restored.current.screen);
+  const [section, setSection] = useState<SectionKey>(restored.current.section);
   const [caseView, setCaseView] = useState<CaseView>("requirements");
-  const [caseModuleFilter, setCaseModuleFilter] =
-    useState<CaseModuleFilter>("all");
-  const [groupView, setGroupView] = useState<GroupView>("list");
-  const [selectedGroup, setSelectedGroup] = useState("EVT1 基础录制回归");
-  const [groups, setGroups] = useState([
-    {
-      name: "EVT1 基础录制回归",
-      status: "validated" as const,
-      caseCount: 12,
-      dataPackageCount: 2,
-      recentRunCount: 3,
-    },
-    {
-      name: "EVT1 断电故障验证",
-      status: "not_run" as const,
-      caseCount: 4,
-      dataPackageCount: 1,
-      recentRunCount: 0,
-    },
-  ]);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
   const [manualGroup, setManualGroup] = useState<{
     id: number;
     name: string;
   } | null>(null);
-  const [dataAssignments, setDataAssignments] = useState<
-    Record<string, string>
-  >({
-    "TC-REC-001": dataPackages[0],
-    "TC-REC-002": dataPackages[1],
-  });
-  const toggle = (id: string) =>
-    setSelected((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
-  const onSelectAll = () => setSelected(cases.map((item) => item.id));
-  const onInvertSelection = () =>
-    setSelected((current) =>
-      cases.map((item) => item.id).filter((id) => !current.includes(id)),
-    );
-  const onRun = () => setRunCount((count) => count + 1);
-  const navigateSection = (nextSection: SectionKey) => {
-    if (nextSection === "groups") setGroupView("list");
-    setSection(nextSection);
+
+  /** 刷新页面后重新打开上次的项目；项目已不存在时退回项目列表。 */
+  useEffect(() => {
+    const projectId = restored.current.projectId;
+    if (projectId === null) return;
+    void projectWorkspace.openProject(projectId).then((opened) => {
+      if (!opened) setScreen("projects");
+    });
+    // 只在挂载时恢复一次，后续导航由用户操作驱动。
+  }, []);
+
+  /** 记录当前位置，刷新后可以回到同一页。 */
+  useEffect(() => {
+    storeNavigation({
+      screen,
+      section,
+      projectId: projectWorkspace.detail?.id ?? null,
+    });
+  }, [screen, section, projectWorkspace.detail]);
+
+  const openProjects = () => {
+    // 进入项目列表时清空上一次的搜索条件，避免筛选状态跨页面残留。
+    projectWorkspace.clearSearch();
+    setScreen("projects");
   };
-  const createGroup = () => {
-    const name = newGroupName.trim();
-    if (!name) return;
-    setGroups((current) =>
-      current.some((group) => group.name === name)
-        ? current
-        : [
-            ...current,
-            {
-              name,
-              status: "not_run",
-              caseCount: selected.length,
-              dataPackageCount: new Set(Object.values(dataAssignments)).size,
-              recentRunCount: 0,
-            },
-          ],
-    );
-    setSelectedGroup(name);
-    setNewGroupName("");
-    setGroupView("detail");
-  };
-  const setDataAssignment = (caseId: string, dataId: string) =>
-    setDataAssignments((current) => ({ ...current, [caseId]: dataId }));
-  const contentProps: VariantProps = {
-    projectWorkspace,
+
+  const shellProps = {
     section,
-    setSection: navigateSection,
-    selected,
-    onToggle: toggle,
-    onSelectAll,
-    onInvertSelection,
-    onRun,
-    onNavigate,
-    caseView,
-    setCaseView,
-    caseModuleFilter,
-    setCaseModuleFilter,
-    groupView,
-    setGroupView,
-    selectedGroup,
-    setSelectedGroup,
-    groups,
-    newGroupName,
-    setNewGroupName,
-    createGroup,
-    dataAssignments,
-    setDataAssignment,
-    caseFilter,
-    setCaseFilter,
-    onOpenManual: (group) => {
-      setManualGroup(group);
-      setScreen("manual");
-    },
+    onSectionChange: setSection,
+    onOpenProjects: openProjects,
+    onOpenHome: () => setScreen("home"),
+    projectName: projectWorkspace.detail?.name,
+    versionLabel: projectWorkspace.openedVersion?.version,
   };
-  const view = (
-    <VariantA
-      {...contentProps}
-      manualGroup={manualGroup}
-      screen={screen}
-      setScreen={setScreen}
-    />
-  );
+
+  const renderScreen = () => {
+    if (screen === "home")
+      return <PrototypeHome onOpenProjects={openProjects} />;
+    if (screen === "projects")
+      return (
+        <V020ProjectsScreen
+          onBack={() => setScreen("home")}
+          onOpen={(projectId) => {
+            void projectWorkspace.openProject(projectId).then((opened) => {
+              if (opened) setScreen("workspace");
+            });
+          }}
+          workspace={projectWorkspace}
+        />
+      );
+    if (screen === "manual")
+      return (
+        <PrototypeWorkspaceShell {...shellProps}>
+          <ManualResultsPage
+            groupId={manualGroup?.id ?? null}
+            groupName={manualGroup?.name ?? "未选择测试组"}
+            onBack={() => setScreen("workspace")}
+          />
+        </PrototypeWorkspaceShell>
+      );
+    return (
+      <PrototypeWorkspaceShell {...shellProps}>
+        <WorkspaceContent
+          projectWorkspace={projectWorkspace}
+          section={section}
+          setSection={setSection}
+          caseView={caseView}
+          setCaseView={setCaseView}
+          onNavigate={onNavigate}
+          onOpenManual={(group) => {
+            setManualGroup(group);
+            setScreen("manual");
+          }}
+        />
+      </PrototypeWorkspaceShell>
+    );
+  };
+
   return (
     <div className="prototype-page">
-      <div
-        className={`prototype-banner${
-          runCount === 0 ? " prototype-banner--placeholder" : ""
-        }`}
-        aria-hidden={runCount === 0}
-      >
-        {runCount > 0 ? `已模拟执行 ${runCount} 次` : "\u200b"}
-      </div>
       <div
         className="prototype-screen-transition"
         data-testid="prototype-screen-transition"
         key={screen}
       >
-        {view}
+        {renderScreen()}
       </div>
     </div>
   );

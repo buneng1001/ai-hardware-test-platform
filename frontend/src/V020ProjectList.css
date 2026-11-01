@@ -1,5 +1,26 @@
 .prototype-project-filters {
   align-items: center;
+  margin: 26px 0 4px;
+}
+
+/* 项目卡片之间留出稳定的呼吸空间，避免列表看起来挤成一团 */
+.prototype-project-card {
+  margin: 22px 0 0;
+}
+
+.prototype-project-card + .prototype-project-card {
+  margin-top: 16px;
+}
+
+.prototype-projects > .prototype-secondary {
+  margin-top: 26px;
+}
+
+.prototype-modal label {
+  display: grid;
+  gap: 6px;
+  color: var(--prototype-color-muted);
+  font-weight: 700;
 }
 
 .prototype-search-field {

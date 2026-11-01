@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { getAiConfig, type AiNetworkMode } from "./aiSettingsApi";
 import { refreshCatalog, testConnection } from "./aiConfigActions";
+import { readCachedCatalog, writeCachedCatalog } from "./aiModelCatalogCache";
 import {
   markVerificationInvalid,
   persistAiConfiguration,
@@ -37,7 +38,13 @@ function storeTemporaryKey(value: string) {
   }
 }
 
-function initialModels(provider: ProviderKey): PrototypeAiModelOption[] {
+/**
+ * 选模型列表时的初始来源：优先用上次实时刷新缓存的目录，
+ * 没有缓存才回退到内置目录，避免切页面后又出现“待实时校验”。
+ */
+function modelsForProvider(provider: ProviderKey): PrototypeAiModelOption[] {
+  const cached = readCachedCatalog(provider);
+  if (cached) return cached;
   return providers[provider].models.map((item) => ({ ...item }));
 }
 
@@ -51,7 +58,7 @@ export function usePrototypeAiConfiguration() {
   const [provider, setProvider] = useState<ProviderKey>("deepseek");
   const [model, setModel] = useState<string>(providers.deepseek.models[0].id);
   const [availableModels, setAvailableModels] = useState(() =>
-    initialModels("deepseek"),
+    modelsForProvider("deepseek"),
   );
   const [temporaryKey, setTemporaryKey] = useState(readRememberedTemporaryKey);
   const [rememberTemporaryKey, setRememberTemporaryKey] = useState(
@@ -82,6 +89,12 @@ export function usePrototypeAiConfiguration() {
       ? `本地服务 · ${modelLabel}`
       : `${accessMode === "local" ? "后端配置" : "临时 API"} · ${providerConfig.label} / ${modelLabel}`;
 
+  /** 模型目录变化时同步写缓存，切页面或刷新后仍是同一份目录。 */
+  const applyModels = (models: PrototypeAiModelOption[]) => {
+    setAvailableModels(models);
+    writeCachedCatalog(provider, models);
+  };
+
   useEffect(() => {
     let cancelled = false;
     void getAiConfig()
@@ -94,7 +107,7 @@ export function usePrototypeAiConfiguration() {
           setNetworkMode,
           setVerificationStatus,
           setVerificationMessage,
-          setAvailableModels,
+          setAvailableModels: applyModels,
           setModelWarning,
         });
       })
@@ -115,7 +128,7 @@ export function usePrototypeAiConfiguration() {
   };
 
   const changeProvider = (nextProvider: ProviderKey) => {
-    const nextModels = initialModels(nextProvider);
+    const nextModels = modelsForProvider(nextProvider);
     setProvider(nextProvider);
     setAvailableModels(nextModels);
     setModel(nextModels[0].id);
@@ -208,7 +221,7 @@ export function usePrototypeAiConfiguration() {
       setters: {
         setLoadingAction,
         setCatalogMessage,
-        setAvailableModels,
+        setAvailableModels: applyModels,
         setModelWarning,
       },
     });

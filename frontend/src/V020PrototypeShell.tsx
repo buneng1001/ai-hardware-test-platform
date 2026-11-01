@@ -79,12 +79,16 @@ export function PrototypeWorkspaceShell({
   onSectionChange,
   onOpenProjects,
   onOpenHome,
+  projectName,
+  versionLabel,
   children,
 }: {
   section: SectionKey;
   onSectionChange: (section: SectionKey) => void;
   onOpenProjects: () => void;
   onOpenHome: () => void;
+  projectName?: string;
+  versionLabel?: string;
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(initialSidebarState);
@@ -95,6 +99,10 @@ export function PrototypeWorkspaceShell({
       return next;
     });
   };
+  // 侧边栏和顶栏显示当前真正打开的项目与版本，未打开时给出明确占位。
+  const currentProject = projectName ?? "未打开项目";
+  const currentVersion = versionLabel ?? "未选择版本";
+  const projectInitials = currentProject.slice(0, 2).toUpperCase();
 
   return (
     <div
@@ -127,10 +135,10 @@ export function PrototypeWorkspaceShell({
           <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>
         </button>
         <div className="prototype-sidebar-project">
-          <span className="prototype-project-avatar">IR</span>
+          <span className="prototype-project-avatar">{projectInitials}</span>
           <span className="prototype-sidebar-project-copy">
-            <strong>IRIS 头环</strong>
-            <small>EVT1 · 开发验证阶段</small>
+            <strong>{currentProject}</strong>
+            <small>{currentVersion}</small>
           </span>
         </div>
         <nav className="prototype-sidebar-navigation" aria-label="工作区导航">
@@ -176,8 +184,8 @@ export function PrototypeWorkspaceShell({
       <main>
         <div className="prototype-topline">
           <span>
-            工作空间&nbsp;&nbsp;/&nbsp;&nbsp;IRIS
-            头环&nbsp;&nbsp;/&nbsp;&nbsp;EVT1
+            工作空间&nbsp;&nbsp;/&nbsp;&nbsp;{currentProject}
+            &nbsp;&nbsp;/&nbsp;&nbsp;{currentVersion}
           </span>
           <span className="prototype-workspace-status">本地工作区</span>
         </div>
