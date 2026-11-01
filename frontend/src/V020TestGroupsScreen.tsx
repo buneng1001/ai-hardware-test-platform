@@ -123,7 +123,7 @@ export function V020TestGroupsScreen({
               <option value="name_asc">名称升序</option>
               <option value="name_desc">名称降序</option>
             </select>
-            <label>
+            <label className="prototype-inline-check">
               <input
                 aria-label="显示已隐藏测试组"
                 checked={groups.showHidden}
@@ -199,7 +199,7 @@ export function V020TestGroupsScreen({
             </div>
           )}
           <button
-            className="prototype-primary"
+            className="prototype-primary prototype-create-group"
             onClick={() => setShowCreate(true)}
             type="button"
           >

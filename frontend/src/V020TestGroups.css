@@ -26,3 +26,12 @@
 .prototype-filter-row select[multiple] {
   min-height: 96px;
 }
+
+/* 新建测试组按钮与上方内容留出间距，不贴着输入框。 */
+.prototype-create-group {
+  margin-top: 20px;
+}
+
+.prototype-group-list {
+  margin-top: 18px;
+}

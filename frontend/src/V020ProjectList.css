@@ -1,19 +1,15 @@
-/* 搜索、排序、查找保持一行，搜索框只占一半左右宽度，控件之间留出间隙。 */
+/* 搜索、排序、查找保持一行，三者间距相同；搜索框约占一半宽度。 */
 .prototype-project-filters {
-  display: grid;
-  grid-template-columns: minmax(0, 320px) auto auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 14px;
   margin: 26px 0 4px;
 }
 
 .prototype-project-filters .prototype-search-field {
-  min-width: 0;
-}
-
-.prototype-project-filters select,
-.prototype-project-filters button {
-  justify-self: start;
+  flex: 0 1 320px;
+  min-width: 220px;
 }
 
 /* 项目卡片之间留出稳定的呼吸空间，避免列表看起来挤成一团 */

@@ -18,7 +18,22 @@
   min-width: 260px;
 }
 
-.prototype-filter-row label,
+/* 通用筛选行：控件横向排列，彼此留出空隙，勾选项与文字同一行。 */
+.prototype-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.prototype-filter-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--prototype-color-muted);
+  font-weight: 700;
+}
+
 .prototype-group-create label {
   display: grid;
   gap: 8px;
