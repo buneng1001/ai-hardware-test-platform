@@ -15,13 +15,24 @@ export function V020LegacyDataTasks({
   onBack,
   onFinished,
   onOpenRunView,
+  onTaskCreated,
 }: {
   view: LegacyDataView;
   onBack: () => void;
   onFinished: () => void;
   onOpenRunView: () => void;
+  onTaskCreated: () => void;
 }) {
   const controller = useAppController();
+
+  /** 创建成功后跳到任务列表，让用户立刻看到刚建的任务，而不是停在表单上。 */
+  const submitTask = async (
+    command: Parameters<typeof controller.submitTask>[0],
+  ) => {
+    const created = await controller.submitTask(command);
+    if (created) onTaskCreated();
+    return created;
+  };
 
   return (
     <section className="prototype-card legacy-data-shell" aria-label="数据任务">
@@ -64,34 +75,40 @@ export function V020LegacyDataTasks({
           <CollectionTaskForm
             disabled={controller.tasks === null}
             saving={controller.saving}
-            onSubmit={controller.submitTask}
+            onSubmit={submitTask}
           />
           {controller.formError && <p role="alert">{controller.formError}</p>}
         </>
       )}
 
       {view === "import" && (
-        <ImportTaskPanel
-          file={controller.importFile}
-          record={controller.importRecord}
-          name={controller.importName}
-          label={controller.importLabel}
-          permissionConfirmed={controller.importPermissionConfirmed}
-          busy={controller.importBusy}
-          message={controller.importMessage}
-          onFileChange={(file) => {
-            controller.setImportFile(file);
-            controller.setImportRecord(null);
-            controller.setImportMessage(null);
-          }}
-          onPermissionChange={controller.setImportPermissionConfirmed}
-          onNameChange={controller.setImportName}
-          onLabelChange={controller.setImportLabel}
-          onUpload={() => void controller.uploadActualData()}
-          onValidate={() => void controller.validateActualData()}
-          onConvert={() => void controller.showConversionNotice()}
-          onCreate={() => void controller.addImportedTask()}
-        />
+        <>
+          <p className="prototype-muted">
+            先选择实际测试 ZIP
+            并点“导入实际测试文件”；上传成功后“校验导入文件”和“转为标准格式”才会变成可点。
+          </p>
+          <ImportTaskPanel
+            file={controller.importFile}
+            record={controller.importRecord}
+            name={controller.importName}
+            label={controller.importLabel}
+            permissionConfirmed={controller.importPermissionConfirmed}
+            busy={controller.importBusy}
+            message={controller.importMessage}
+            onFileChange={(file) => {
+              controller.setImportFile(file);
+              controller.setImportRecord(null);
+              controller.setImportMessage(null);
+            }}
+            onPermissionChange={controller.setImportPermissionConfirmed}
+            onNameChange={controller.setImportName}
+            onLabelChange={controller.setImportLabel}
+            onUpload={() => void controller.uploadActualData()}
+            onValidate={() => void controller.validateActualData()}
+            onConvert={() => void controller.showConversionNotice()}
+            onCreate={() => void controller.addImportedTask()}
+          />
+        </>
       )}
 
       {view === "saved" && (

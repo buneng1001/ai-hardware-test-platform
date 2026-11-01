@@ -27,6 +27,7 @@ export function V020DataPackagesScreen({
   const data = useV020DataPackages();
   const [page, setPage] = useState(1);
   const [legacyView, setLegacyView] = useState<LegacyDataView | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // 数据包同样每页最多 20 个；筛选结果变化后回到第一页。
   const totalPages = Math.max(
@@ -56,6 +57,11 @@ export function V020DataPackagesScreen({
     <>
       <div className="prototype-kicker">第 2 步 / 数据任务</div>
       <h2>生成或导入测试数据</h2>
+      <p className="prototype-muted">
+        路径：新建任务 → 执行任务 → 刷新数据包 →
+        登记为数据包。任务创建成功不代表数据包已生成，
+        执行完成并登记后才会出现在下面的列表里。
+      </p>
       <div className="prototype-filter-row prototype-data-toolbar">
         <input
           aria-label="搜索数据包"
@@ -215,10 +221,25 @@ export function V020DataPackagesScreen({
           onBack={() => setLegacyView(null)}
           onFinished={() => {
             void data.retry();
+            setNotice(
+              "已刷新数据包列表。执行完成的任务需要先登记，才会出现在数据包列表。",
+            );
           }}
           onOpenRunView={() => setLegacyView("run")}
+          onTaskCreated={() => {
+            setLegacyView("saved");
+            setNotice(
+              "任务已创建，已跳到下方任务列表：先执行任务，执行完成后点“刷新数据包”，再登记为数据包。",
+            );
+          }}
           view={legacyView}
         />
+      )}
+
+      {notice && (
+        <div className="prototype-inline-note" aria-live="polite">
+          {notice}
+        </div>
       )}
 
       {data.actionError && (
