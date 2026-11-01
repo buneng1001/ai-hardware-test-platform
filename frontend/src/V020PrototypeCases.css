@@ -92,8 +92,16 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+/* 按钮收紧到一行放得下 6 个，且一律不换行。 */
+.prototype-case-toolbar .prototype-actions button {
+  padding: 8px 12px;
+  font-size: 0.86rem;
+  white-space: nowrap;
 }
 
 .prototype-module-filter {

@@ -48,15 +48,14 @@ export function V020SourceCaseTable({
             <th className="is-narrow">用例编号</th>
             <th className="is-title">标题</th>
             <th className="is-narrow">类型</th>
-            <th className="is-narrow">优先级</th>
             <th className="is-narrow">模块</th>
-            <th className="is-narrow">测试项</th>
+            <th className="is-narrow">测试类型</th>
+            <th className="is-narrow">优先级</th>
+            <th className="is-narrow">软件版本</th>
             <th className="is-long-text">预置条件</th>
             <th className="is-long-text">输入</th>
             <th className="is-steps">操作步骤</th>
             <th className="is-long-text">预期结果</th>
-            <th className="is-narrow">测试类型</th>
-            <th className="is-narrow">软件版本</th>
           </tr>
         </thead>
         <tbody>
@@ -99,9 +98,12 @@ export function V020SourceCaseTable({
                     {item.case_type === "automation" ? "自动化" : "人工"}
                   </span>
                 </td>
-                <td className="is-narrow">{item.priority || "未填写"}</td>
                 <td className="is-narrow">{item.module || "未分类"}</td>
-                <td className="is-narrow">{item.test_item || "未填写"}</td>
+                <td className="is-narrow">{item.test_type || "未填写"}</td>
+                <td className="is-narrow">{item.priority || "未填写"}</td>
+                <td className="is-narrow">
+                  {item.software_version || "未填写"}
+                </td>
                 <td className="is-long-text">
                   {item.preconditions || "未填写"}
                 </td>
@@ -115,10 +117,6 @@ export function V020SourceCaseTable({
                 </td>
                 <td className="is-long-text">
                   {item.expected_result || "未填写"}
-                </td>
-                <td className="is-narrow">{item.test_type || "未填写"}</td>
-                <td className="is-narrow">
-                  {item.software_version || "未填写"}
                 </td>
               </tr>
             );
