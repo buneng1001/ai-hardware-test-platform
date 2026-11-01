@@ -94,12 +94,41 @@ export function V020TestGroupAutomationCases({
     );
   };
 
+  /**
+   * 关联数据包：如果还没把用例加入测试组，先自动加入再关联，
+   * 避免用户选了数据包却发现按钮点不动。
+   */
+  const assignPackage = async () => {
+    if (!bulkPackageId) return;
+    let targetIds = selectedGroupIds;
+    if (targetIds.length === 0 && selectedIds.length > 0) {
+      targetIds = [...selectedIds];
+      const added = await addTestGroupAutomationCases(detail.id, targetIds);
+      onChange(added);
+      setSelectedIds([]);
+    }
+    if (targetIds.length === 0) {
+      setMessage("请先在上面的候选列表里选中要关联的用例。");
+      return;
+    }
+    await run(
+      () =>
+        assignDataPackageToCases(detail.id, targetIds, Number(bulkPackageId)),
+      "已批量关联数据包。",
+    );
+  };
+
   return (
     <section
       aria-label="测试组自动化用例与数据包"
       id="test-group-automation-scope"
     >
       <h3>自动化用例与数据包</h3>
+      <p className="prototype-muted">
+        第一步：在上面的列表里多选（按住 Ctrl / ⌘
+        点选）要用的用例，点「加入所选用例」；
+        第二步：选中数据包，点「关联到所选用例」。还没加入测试组时，关联会自动把选中的用例加进来。
+      </p>
       {message && (
         <p className="prototype-muted" role="status">
           {message}
@@ -157,25 +186,23 @@ export function V020TestGroupAutomationCases({
         </select>
         <button
           className="prototype-secondary"
-          disabled={busy || !bulkPackageId || selectedGroupIds.length === 0}
-          onClick={() =>
-            void run(
-              () =>
-                assignDataPackageToCases(
-                  detail.id,
-                  selectedGroupIds,
-                  Number(bulkPackageId),
-                ),
-              "已批量关联数据包。",
-            )
+          disabled={
+            busy ||
+            !bulkPackageId ||
+            (selectedGroupIds.length === 0 && selectedIds.length === 0)
           }
+          onClick={() => void assignPackage()}
+          title={bulkPackageId ? undefined : "先选择一个已校验的数据包"}
           type="button"
         >
           关联到所选用例
         </button>
       </div>
       {detail.automation_test_cases.length === 0 ? (
-        <p className="prototype-muted">当前测试组还没有已校验自动化用例。</p>
+        <p className="prototype-muted">
+          测试组里还没有用例。先从上面的候选列表选中用例并点「加入所选用例」，
+          之后才能在表格里勾选并关联数据包。
+        </p>
       ) : (
         <div className="prototype-table-wrap">
           <table className="prototype-table">

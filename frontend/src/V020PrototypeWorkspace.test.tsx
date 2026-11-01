@@ -68,7 +68,7 @@ test("测试用例表读取真实原始用例并支持模块筛选与加入测�
   ).toBeVisible();
   expect(screen.getByText("确认设备处于待机状态")).toBeVisible();
   expect(screen.getByText("短按录制键，确认开始录制")).toBeVisible();
-  expect(screen.getByRole("button", { name: "加入测试组" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /加入测试组/ })).toBeVisible();
   expect(screen.getByRole("button", { name: "导入用例表" })).toBeVisible();
   expect(screen.queryByRole("button", { name: /Beta/i })).toBeNull();
 
@@ -77,7 +77,7 @@ test("测试用例表读取真实原始用例并支持模块筛选与加入测�
   expect(await screen.findByText("设备断电后数据保存状态")).toBeVisible();
   expect(screen.queryByText("短按录制键，确认开始录制")).toBeNull();
 
-  fireEvent.click(screen.getByRole("button", { name: "加入测试组" }));
+  fireEvent.click(screen.getByRole("button", { name: /加入测试组/ }));
   expect(screen.getByRole("heading", { name: "测试组设置" })).toBeVisible();
   expect(screen.getByRole("button", { name: "＋ 新建测试组" })).toBeVisible();
 });

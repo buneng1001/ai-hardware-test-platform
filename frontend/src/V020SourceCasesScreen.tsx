@@ -5,6 +5,7 @@ import {
   convertSourceTestCasesWithRules,
 } from "./automationTestCasesApi";
 import { V020CaseTemplatePanel } from "./V020CaseTemplatePanel";
+import { mergePendingGroupCases } from "./pendingGroupCases";
 import { V020SourceCaseImportPanel } from "./V020SourceCaseImportPanel";
 import { V020SourceCaseRecords } from "./V020SourceCaseRecords";
 import { V020SourceCaseTable } from "./V020SourceCaseTable";
@@ -251,10 +252,14 @@ export function V020SourceCasesScreen({
           </button>
           <button
             className="prototype-secondary"
-            onClick={onOpenGroups}
+            onClick={() => {
+              // 把当前勾选带给测试组页，避免进去后再一条条勾。
+              mergePendingGroupCases({ source: source.selectedIds });
+              onOpenGroups();
+            }}
             type="button"
           >
-            加入测试组
+            加入测试组（已选 {source.selectedIds.length} 条）
           </button>
         </div>
       </div>

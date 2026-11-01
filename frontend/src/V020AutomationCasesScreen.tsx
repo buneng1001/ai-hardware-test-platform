@@ -4,6 +4,7 @@ import { V020AutomationCaseCreateForm } from "./V020AutomationCaseCreateForm";
 import { V020AutomationCaseTable } from "./V020AutomationCaseTable";
 import type { AutomationCaseCreateCommand } from "./automationTestCasesApi";
 import { useV020AutomationTestCases } from "./useV020AutomationTestCases";
+import { mergePendingGroupCases } from "./pendingGroupCases";
 import "./V020AutomationCases.css";
 
 /**
@@ -150,6 +151,8 @@ export function V020AutomationCasesScreen({
         return;
       }
     }
+    // 把当前勾选的自动化用例带给测试组页，进去后不需要再勾一遍。
+    mergePendingGroupCases({ automation: selectedIds });
     onOpenGroups();
   };
 
