@@ -54,7 +54,9 @@ export function V020DataPackagesScreen({
         return;
       }
       if (current.status !== "completed") {
-        setNotice(`数据生成未成功（${current.status}），可打开运行详情查看原因。`);
+        setNotice(
+          `数据生成未成功（${current.status}），可打开运行详情查看原因。`,
+        );
         return;
       }
       await data.registerCompleted();
