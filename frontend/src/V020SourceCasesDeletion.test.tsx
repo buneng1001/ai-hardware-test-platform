@@ -80,15 +80,19 @@ test("删除导入记录前展示影响并保留原始用例的来源状态", as
   expect(await screen.findByText("导入记录已删除")).toBeVisible();
 });
 
-test("测试需求页明确显示需求点拆解与用例生成未启用", async () => {
+test("测试需求页提供导入需求点入口和 AI 解析选项", async () => {
   stubApi({ cases: [], records: [] });
   await openCasesTab();
 
   fireEvent.click(screen.getByRole("button", { name: "测试需求" }));
-  expect(screen.getByText("未启用")).toBeVisible();
-  expect(screen.getByText(/平台不会伪造需求点或测试用例/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "导入需求点" })).toBeVisible();
+  expect(
+    screen.getByRole("checkbox", { name: "使用 AI 大模型解析上传文件" }),
+  ).toBeChecked();
+  expect(screen.getByLabelText("对上传文件的说明")).toBeVisible();
+  expect(screen.getByRole("button", { name: "开始解析" })).toBeDisabled();
 
-  fireEvent.click(screen.getByRole("button", { name: "前往导入测试用例资料" }));
+  fireEvent.click(screen.getByRole("button", { name: "导入用例" }));
   expect(
     await screen.findByRole("button", { name: "导入用例表" }),
   ).toBeVisible();

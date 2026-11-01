@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 
 import { convertSourceTestCasesWithRules } from "./automationTestCasesApi";
+import { V020CaseTemplatePanel } from "./V020CaseTemplatePanel";
 import { V020SourceCaseImportPanel } from "./V020SourceCaseImportPanel";
 import { V020SourceCaseRecords } from "./V020SourceCaseRecords";
 import { V020SourceCaseTable } from "./V020SourceCaseTable";
@@ -92,6 +93,8 @@ export function V020SourceCasesScreen({
 
   return (
     <>
+      <V020CaseTemplatePanel />
+
       <div className="prototype-case-toolbar">
         <p className="prototype-muted">
           当前勾选 {source.selectedIds.length} 条，关闭页面后仍会保留；共
