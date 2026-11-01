@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 import { CollectionTaskForm } from "./CollectionTaskForm";
 import { ImportTaskPanel } from "./ImportTaskPanel";
 import { RunDetail } from "./RunDetail";
@@ -21,17 +23,24 @@ export function V020LegacyDataTasks({
   onBack: () => void;
   onFinished: () => void;
   onOpenRunView: () => void;
-  onTaskCreated: () => void;
+  onTaskCreated: (taskId: number) => void;
 }) {
   const controller = useAppController();
+  // 创建成功后在最新一次渲染里取到新任务 id，交给父组件自动执行并登记数据包。
+  const tasksRef = useRef(controller.tasks);
+  tasksRef.current = controller.tasks;
 
-  /** 创建成功后跳到任务列表，让用户立刻看到刚建的任务，而不是停在表单上。 */
   const submitTask = async (
     command: Parameters<typeof controller.submitTask>[0],
   ) => {
     const created = await controller.submitTask(command);
-    if (created) onTaskCreated();
-    return created;
+    if (!created) return false;
+    await new Promise((resolve) => {
+      setTimeout(resolve, 400);
+    });
+    const newest = tasksRef.current?.[0];
+    if (newest) onTaskCreated(newest.id);
+    return true;
   };
 
   return (

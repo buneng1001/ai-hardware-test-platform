@@ -10,6 +10,8 @@ import {
 import type { DataPackageFilters } from "./dataPackagesApi";
 import { useV020DataPackages } from "./useV020DataPackages";
 import { faultTypeLabels } from "./v020DataPackageLabels";
+import { isTerminalRun } from "./RunDetail";
+import { executeCollectionTask, getRun } from "./collectionTasksApi";
 import "./V020DataPackages.css";
 
 const faultOptions = Object.entries(faultTypeLabels);
@@ -28,6 +30,43 @@ export function V020DataPackagesScreen({
   const [page, setPage] = useState(1);
   const [legacyView, setLegacyView] = useState<LegacyDataView | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  /**
+   * 一键生成：创建任务后自动执行、等待运行完成并登记为数据包，
+   * 用户不需要再手动点“执行”和“登记”。
+   */
+  const generateFromTask = async (taskId: number) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      setNotice("任务已创建，正在生成数据…");
+      setLegacyView("saved");
+      const run = await executeCollectionTask(taskId);
+      let current = run;
+      const deadline = Date.now() + 120_000;
+      while (!isTerminalRun(current.status) && Date.now() < deadline) {
+        await new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, 1500);
+        });
+        current = await getRun(run.id);
+      }
+      if (!isTerminalRun(current.status)) {
+        setNotice("数据仍在生成中，稍后点“刷新数据包”即可看到结果。");
+        return;
+      }
+      if (current.status !== "completed") {
+        setNotice(`数据生成未成功（${current.status}），可打开运行详情查看原因。`);
+        return;
+      }
+      await data.registerCompleted();
+      setNotice("数据包已生成并登记，见上方数据包列表。");
+    } catch (error) {
+      setNotice(
+        `生成数据失败：${error instanceof Error ? error.message : "未知原因"}`,
+      );
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
 
   // 数据包同样每页最多 20 个；筛选结果变化后回到第一页。
   const totalPages = Math.max(
@@ -226,12 +265,7 @@ export function V020DataPackagesScreen({
             );
           }}
           onOpenRunView={() => setLegacyView("run")}
-          onTaskCreated={() => {
-            setLegacyView("saved");
-            setNotice(
-              "任务已创建，已跳到下方任务列表：先执行任务，执行完成后点“刷新数据包”，再登记为数据包。",
-            );
-          }}
+          onTaskCreated={generateFromTask}
           view={legacyView}
         />
       )}
