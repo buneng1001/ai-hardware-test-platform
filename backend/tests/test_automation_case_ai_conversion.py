@@ -186,6 +186,15 @@ def test_ai_conversion_rejudges_selected_cases_and_removes_manual_candidates(cli
     assert case_types == {"REC-001": "automation", "MANUAL-002": "manual"}
 
 
+def test_unknown_ai_stage_falls_back_to_business_timeout(monkeypatch):
+    """新增的转换阶段没有单独超时配置时，按业务请求超时处理而不是抛 KeyError。"""
+    from app.ai_provider_core import configured_timeout
+
+    monkeypatch.delenv("AI_BUSINESS_TIMEOUT_SECONDS", raising=False)
+
+    assert configured_timeout("automation_conversion") == 600.0
+
+
 def test_import_can_use_current_product_version_instead_of_imported_column(client):
     project = client.post(
         "/api/projects", json={"name": "IRIS", "product_name": "Recorder", "description": ""}

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.ai_batching import batch_config
+from app.ai_config import save_request_logs
 from app.automation_case_history import record_automation_case_history
 from app.automation_test_case_models import (
     AutomationCaseAiConversionBatch,
@@ -230,11 +231,15 @@ def convert_source_cases_with_ai(
                 )
                 batch_decisions = _parse_decisions(payload, set(rows_by_id))
             except SiliconFlowError as error:
+                save_request_logs(getattr(adapter, "request_logs", []))
+                stage = getattr(error, "stage", "") or "unknown"
+                kind = getattr(error, "kind", "") or "unknown"
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"AI 转换失败：{error}",
+                    detail=f"AI 转换失败（阶段 {stage}／{kind}）：{error}",
                 ) from error
             except ValueError as error:
+                save_request_logs(getattr(adapter, "request_logs", []))
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
                     detail=f"AI 输出无法解析：{error}",
