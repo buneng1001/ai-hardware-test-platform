@@ -82,6 +82,27 @@ test("删除导入记录改成弹窗并说明会清除相关用例", async () =>
   ).toBe(true);
 });
 
+test("原始用例每页只显示 20 条并可翻页", async () => {
+  stubApi({
+    cases: Array.from({ length: 25 }, (_, index) =>
+      sourceCase({
+        id: index + 1,
+        case_number: `TC-${String(index + 1).padStart(3, "0")}`,
+      }),
+    ),
+    records: [],
+  });
+  await openSourceView();
+
+  expect(await screen.findByText(/第 1 \/ 2 页/)).toBeVisible();
+  expect(screen.getAllByRole("row")).toHaveLength(21);
+
+  fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+
+  expect(await screen.findByText(/第 2 \/ 2 页/)).toBeVisible();
+  expect(screen.getAllByRole("row")).toHaveLength(6);
+});
+
 test("测试需求页提供导入需求点入口和 AI 解析选项", async () => {
   stubApi({ cases: [], records: [] });
   await openCasesTab();

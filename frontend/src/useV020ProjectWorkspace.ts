@@ -111,7 +111,10 @@ export function useV020ProjectWorkspace() {
     return openProject(projectId);
   };
 
-  const submitProject = async (command: ProjectCommand): Promise<boolean> => {
+  /** 创建项目；成功时返回新项目 id，供页面直接打开它。 */
+  const submitProject = async (
+    command: ProjectCommand,
+  ): Promise<number | null> => {
     setBusy(true);
     setActionError(null);
     setCreatedProject(null);
@@ -122,10 +125,10 @@ export function useV020ProjectWorkspace() {
       setOpenedVersion(created.product_versions[0] ?? null);
       setCreatedProject({ id: created.id, name: created.name });
       await loadTrend(created.id);
-      return true;
+      return created.id;
     } catch (caught) {
       setActionError(errorMessage(caught, "项目创建失败"));
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }

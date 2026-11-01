@@ -200,30 +200,6 @@
   background: #f8fbfb;
 }
 
-.prototype-case-table th:nth-child(1) {
-  width: 64px;
-}
-
-.prototype-case-table th:nth-child(2) {
-  width: 130px;
-}
-
-.prototype-case-table th:nth-child(3) {
-  width: 18%;
-}
-
-.prototype-case-table th:nth-child(4) {
-  width: 120px;
-}
-
-.prototype-case-table th:nth-child(5) {
-  width: 34%;
-}
-
-.prototype-case-table th:nth-child(6) {
-  width: 112px;
-}
-
 .prototype-secondary {
   color: var(--prototype-color-text) !important;
   border: 1px solid var(--prototype-color-line) !important;

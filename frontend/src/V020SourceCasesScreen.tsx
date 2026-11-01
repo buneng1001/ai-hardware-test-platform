@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   convertSourceTestCasesWithAi,
@@ -38,6 +38,7 @@ export function V020SourceCasesScreen({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const source = useV020SourceTestCases(versionId);
+  const [page, setPage] = useState(1);
   const [generating, setGenerating] = useState(false);
   const [generatingWithAi, setGeneratingWithAi] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -50,6 +51,19 @@ export function V020SourceCasesScreen({
     removed: number;
     manualItems: Array<{ caseNumber: string; reason: string }>;
   } | null>(null);
+
+  // 每页固定 20 条；用例数量或筛选变化后回到第一页，避免停在空页。
+  const pageSize = 20;
+  const totalPages = Math.max(1, Math.ceil(source.items.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = source.items.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [source.items]);
 
   if (versionId === null) {
     return (
@@ -122,11 +136,15 @@ export function V020SourceCasesScreen({
     setGenerateError(null);
     setGenerateNotice(null);
     try {
-      // 勾选了多少条就判多少条；没参与判定的用例在原始用例表里默认按人工展示。
+      // 勾选了多少条就判多少条；没有勾选时按当前筛选结果全部判定。
+      const targetIds =
+        source.selectedIds.length > 0
+          ? source.selectedIds
+          : source.items.map((item) => item.id);
       const result = await convertSourceTestCasesWithAi(
         versionId,
         readTemporaryKey(),
-        source.selectedIds,
+        targetIds,
       );
       const manual = result.decisions.filter(
         (item) => item.decision === "manual",
@@ -291,13 +309,38 @@ export function V020SourceCasesScreen({
       )}
 
       <V020SourceCaseTable
-        items={source.items}
+        items={pageItems}
         selectedIds={source.selectedIds}
         busy={source.busy}
         hasCases={source.totalCount > 0}
         focusCaseId={focusCaseId}
         onToggle={source.toggleSelect}
       />
+
+      {source.items.length > pageSize && (
+        <div className="prototype-source-pager" aria-label="用例分页">
+          <span>
+            第 {currentPage} / {totalPages} 页 · 共 {source.items.length}{" "}
+            条，每页 {pageSize} 条
+          </span>
+          <button
+            className="prototype-secondary"
+            disabled={currentPage <= 1}
+            onClick={() => setPage(currentPage - 1)}
+            type="button"
+          >
+            上一页
+          </button>
+          <button
+            className="prototype-secondary"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage(currentPage + 1)}
+            type="button"
+          >
+            下一页
+          </button>
+        </div>
+      )}
 
       <V020SourceCaseRecords
         records={source.records}

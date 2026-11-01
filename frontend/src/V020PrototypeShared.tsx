@@ -45,6 +45,19 @@ export function Status({
 }
 
 export function TestSteps({ steps }: { steps: string[] }) {
+  // 数据本身常已带“1、2、3”编号，这种情况不再套有序列表，避免出现两层编号。
+  const alreadyNumbered = steps.every((step) =>
+    /^\s*\d+\s*[、.．)]/.test(step),
+  );
+  if (alreadyNumbered && steps.length > 0) {
+    return (
+      <div className="prototype-test-steps prototype-test-steps--plain">
+        {steps.map((step) => (
+          <p key={step}>{step}</p>
+        ))}
+      </div>
+    );
+  }
   return (
     <ol className="prototype-test-steps">
       {steps.map((step) => (

@@ -49,12 +49,15 @@ export function V020ProjectsScreen({
   };
 
   const submitProject = async () => {
-    const created = await workspace.submitProject({
+    const createdId = await workspace.submitProject({
       name: name.trim(),
       product_name: productName.trim(),
       description: description.trim(),
     });
-    if (created) resetForm();
+    if (createdId === null) return;
+    resetForm();
+    // 创建后直接进入新项目的“版本与趋势”，不用再回列表点一次。
+    onOpen(createdId);
   };
 
   return (

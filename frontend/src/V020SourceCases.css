@@ -3,6 +3,58 @@
   gap: 12px 18px;
 }
 
+/* 原始用例表：12 个字段按内容分配宽度，短列不换行，长列允许折行。 */
+.prototype-source-table {
+  min-width: 1680px;
+  table-layout: auto;
+}
+
+.prototype-source-table th,
+.prototype-source-table td {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.prototype-source-table .is-narrow {
+  white-space: nowrap;
+}
+
+.prototype-source-table .is-steps {
+  min-width: 260px;
+}
+
+.prototype-source-table .is-long-text {
+  min-width: 180px;
+  max-width: 320px;
+}
+
+.prototype-test-steps--plain p {
+  margin: 0 0 4px;
+}
+
+.prototype-test-steps--plain p:last-child {
+  margin-bottom: 0;
+}
+
+.prototype-source-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 4px 0 14px;
+  color: var(--prototype-color-muted);
+}
+
+/* 工具栏按钮保持等距换行，不会挤在一起导致点错。 */
+.prototype-case-toolbar .prototype-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .prototype-source-filters label {
   display: grid;
   gap: 6px;

@@ -1,6 +1,19 @@
+/* 搜索、排序、查找保持一行，控件之间留出明确间隙。 */
 .prototype-project-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
+  gap: 14px;
   margin: 26px 0 4px;
+}
+
+.prototype-project-filters .prototype-search-field {
+  min-width: 0;
+}
+
+.prototype-project-filters select,
+.prototype-project-filters button {
+  justify-self: start;
 }
 
 /* 项目卡片之间留出稳定的呼吸空间，避免列表看起来挤成一团 */

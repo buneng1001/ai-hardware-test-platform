@@ -64,7 +64,7 @@ test("测试用例表读取真实原始用例并支持模块筛选与加入测�
   fireEvent.click(screen.getByRole("button", { name: "测试用例表" }));
 
   expect(
-    await screen.findByRole("columnheader", { name: "测试步骤" }),
+    await screen.findByRole("columnheader", { name: "操作步骤" }),
   ).toBeVisible();
   expect(screen.getByText("确认设备处于待机状态")).toBeVisible();
   expect(screen.getByText("短按录制键，确认开始录制")).toBeVisible();

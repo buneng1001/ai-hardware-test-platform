@@ -179,6 +179,8 @@ export function useV020SourceTestCases(productVersionId: number | null) {
           ...defaultSourceTestCaseImportOptions,
           ...preview.import_options,
         },
+        // 默认覆盖该版本已有用例表，避免同一批用例重复导入。
+        replace_existing: true,
       });
     } catch (caught) {
       setActionError(errorMessage(caught, "导入预览失败"));

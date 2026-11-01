@@ -121,7 +121,10 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
           onBack={() => setScreen("home")}
           onOpen={(projectId) => {
             void projectWorkspace.openProject(projectId).then((opened) => {
-              if (opened) setScreen("workspace");
+              if (!opened) return;
+              // 每次从列表打开项目都从“版本与趋势”开始，避免停留在上次的页签。
+              setSection("overview");
+              setScreen("workspace");
             });
           }}
           workspace={projectWorkspace}

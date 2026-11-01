@@ -46,7 +46,7 @@ test("测试用例表加载真实数据并恢复已保存的勾选清单", async
     screen.getByRole("checkbox", { name: "选择用例 REC-002" }),
   ).not.toBeChecked();
   expect(screen.getByRole("columnheader", { name: "用例编号" })).toBeVisible();
-  expect(screen.getByRole("columnheader", { name: "测试步骤" })).toBeVisible();
+  expect(screen.getByRole("columnheader", { name: "操作步骤" })).toBeVisible();
   expect(screen.getByText(/当前勾选 1 条/)).toBeVisible();
 });
 

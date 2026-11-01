@@ -8,7 +8,7 @@ function stepsOf(item: SourceTestCase): string[] {
     .filter(Boolean);
 }
 
-/** 冻结版原始用例表：真实字段直接展示，未填写字段显示占位而不是伪造值。 */
+/** 冻结版原始用例表：展示导入的 12 个字段，未填写字段显示占位而不是伪造值。 */
 export function V020SourceCaseTable({
   items,
   selectedIds,
@@ -41,18 +41,22 @@ export function V020SourceCaseTable({
 
   return (
     <div className="prototype-table-wrap">
-      <table className="prototype-table prototype-case-table">
+      <table className="prototype-table prototype-case-table prototype-source-table">
         <thead>
           <tr>
-            <th>选择</th>
-            <th>用例编号</th>
+            <th className="is-narrow">选择</th>
+            <th className="is-narrow">用例编号</th>
             <th>标题</th>
-            <th>类型</th>
-            <th>模块</th>
-            <th>测试步骤</th>
-            <th>优先级</th>
-            <th>测试项</th>
-            <th>软件版本</th>
+            <th className="is-narrow">类型</th>
+            <th className="is-narrow">优先级</th>
+            <th className="is-narrow">模块</th>
+            <th className="is-narrow">测试项</th>
+            <th className="is-long-text">预置条件</th>
+            <th className="is-long-text">输入</th>
+            <th className="is-steps">操作步骤</th>
+            <th className="is-long-text">预期结果</th>
+            <th className="is-narrow">测试类型</th>
+            <th className="is-narrow">软件版本</th>
           </tr>
         </thead>
         <tbody>
@@ -95,7 +99,11 @@ export function V020SourceCaseTable({
                     {item.case_type === "automation" ? "自动化" : "人工"}
                   </span>
                 </td>
+                <td>{item.priority || "未填写"}</td>
                 <td>{item.module || "未分类"}</td>
+                <td>{item.test_item || "未填写"}</td>
+                <td>{item.preconditions || "未填写"}</td>
+                <td>{item.input || "未填写"}</td>
                 <td>
                   {stepsOf(item).length > 0 ? (
                     <TestSteps steps={stepsOf(item)} />
@@ -103,8 +111,8 @@ export function V020SourceCaseTable({
                     <span className="prototype-muted">未填写</span>
                   )}
                 </td>
-                <td>{item.priority || "未填写"}</td>
-                <td>{item.test_item || "未填写"}</td>
+                <td>{item.expected_result || "未填写"}</td>
+                <td>{item.test_type || "未填写"}</td>
                 <td>{item.software_version || "未填写"}</td>
               </tr>
             );
