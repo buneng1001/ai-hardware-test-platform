@@ -77,6 +77,18 @@ def create_source_test_case_import(version_id: int, command: SourceTestCaseImpor
             "SELECT version FROM product_versions WHERE id = ?", (version_id,)
         ).fetchone()
         current_version = str(version_row["version"]) if version_row else ""
+        if command.replace_existing:
+            # 覆盖导入：先清掉该版本已有的导入记录和原始用例，
+            # 自动化候选通过外键级联删除，避免同一批用例重复堆叠。
+            connection.execute(
+                "DELETE FROM source_test_cases WHERE import_record_id IN "
+                "(SELECT id FROM source_test_case_imports WHERE product_version_id = ?)",
+                (version_id,),
+            )
+            connection.execute(
+                "DELETE FROM source_test_case_imports WHERE product_version_id = ?",
+                (version_id,),
+            )
         cursor = connection.execute(
             """
             INSERT INTO source_test_case_imports
@@ -222,7 +234,7 @@ def get_source_test_case_import_deletion_impact(import_id: int) -> ImportDeletio
         import_record_id=import_id,
         source_test_cases=source_test_cases,
         automation_test_cases=automation_test_cases,
-        message="删除后原始用例保留，但其来源会标记为“导入记录已删除”；已有自动化用例不会被删除。",
+        message="删除后会同时清除该导入记录下的原始用例，以及由这些用例生成的自动化候选和测试组关联；数据包和其他导入记录不受影响。",
     )
 
 
@@ -237,7 +249,7 @@ def delete_source_test_case_import(import_id: int, confirm: bool = False) -> Res
         if record is None:
             raise HTTPException(status_code=404, detail="导入记录不存在")
         connection.execute(
-            "UPDATE source_test_cases SET source_import_deleted = 1 WHERE import_record_id = ?", (import_id,)
+            "DELETE FROM source_test_cases WHERE import_record_id = ?", (import_id,)
         )
         connection.execute("DELETE FROM source_test_case_imports WHERE id = ?", (import_id,))
         connection.execute(

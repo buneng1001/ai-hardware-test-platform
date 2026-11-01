@@ -42,7 +42,7 @@ test("加载失败时展示错误原因并可以重试", async () => {
   ).toBeVisible();
 });
 
-test("删除导入记录前展示影响并保留原始用例的来源状态", async () => {
+test("删除导入记录改成弹窗并说明会清除相关用例", async () => {
   const fetchMock = stubApi({
     cases: [sourceCase({ id: 1 })],
     records: [importRecord()],
@@ -51,7 +51,7 @@ test("删除导入记录前展示影响并保留原始用例的来源状态", as
       source_test_cases: 1,
       automation_test_cases: 2,
       message:
-        "删除后原始用例保留，但其来源会标记为“导入记录已删除”；已有自动化用例不会被删除。",
+        "删除后会同时清除该导入记录下的原始用例，以及由这些用例生成的自动化候选和测试组关联；数据包和其他导入记录不受影响。",
     },
   });
   await openSourceView();
@@ -60,11 +60,14 @@ test("删除导入记录前展示影响并保留原始用例的来源状态", as
   const dialog = await screen.findByRole("dialog", {
     name: "删除导入记录影响",
   });
-  expect(dialog).toHaveTextContent("删除后原始用例保留");
-  expect(dialog).toHaveTextContent("原始用例：1 条");
+  expect(dialog).toHaveAttribute("aria-modal", "true");
+  expect(dialog).toHaveTextContent("删除后会同时清除该导入记录下的原始用例");
+  expect(dialog).toHaveTextContent("将清除原始用例 1 条");
   expect(dialog).toHaveTextContent("2 条");
 
-  fireEvent.click(screen.getByRole("button", { name: "确认删除导入记录" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "确认删除导入记录及用例" }),
+  );
   await waitFor(() =>
     expect(
       screen.queryByRole("dialog", { name: "删除导入记录影响" }),
@@ -77,7 +80,6 @@ test("删除导入记录前展示影响并保留原始用例的来源状态", as
         init?.method === "DELETE",
     ),
   ).toBe(true);
-  expect(await screen.findByText("导入记录已删除")).toBeVisible();
 });
 
 test("测试需求页提供导入需求点入口和 AI 解析选项", async () => {

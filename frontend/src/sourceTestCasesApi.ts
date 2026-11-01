@@ -34,6 +34,8 @@ export type SourceTestCaseImportDraft = {
   import_options: Partial<ImportOptions>;
   /** 软件版本来源：imported 保留文件里的版本列，current 统一用当前产品版本。 */
   software_version_source?: "imported" | "current";
+  /** 覆盖该版本之前导入的用例表。 */
+  replace_existing?: boolean;
 };
 export type SourceTestCase = {
   id: number;

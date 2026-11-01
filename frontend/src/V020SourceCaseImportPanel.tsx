@@ -39,6 +39,7 @@ export function V020SourceCaseImportPanel({
     ([field]) => field !== "software_version",
   );
   const versionSource = draft.software_version_source ?? "imported";
+  const replaceExisting = draft.replace_existing ?? true;
 
   return (
     <section className="prototype-field-mapping" aria-label="确认字段映射">
@@ -102,6 +103,23 @@ export function V020SourceCaseImportPanel({
           />
           使用当前产品版本
           {currentVersionLabel ? `（${currentVersionLabel}）` : ""}
+        </label>
+      </fieldset>
+      <fieldset className="prototype-import-options">
+        <legend>导入方式</legend>
+        <label>
+          <input
+            aria-label="覆盖已有用例"
+            checked={replaceExisting}
+            onChange={(event) =>
+              onDraftChange({
+                ...draft,
+                replace_existing: event.target.checked,
+              })
+            }
+            type="checkbox"
+          />
+          覆盖该版本之前导入的用例（推荐）
         </label>
       </fieldset>
       <fieldset className="prototype-import-options">

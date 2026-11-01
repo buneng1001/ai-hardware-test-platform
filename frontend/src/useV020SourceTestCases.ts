@@ -192,7 +192,11 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     setBusy(true);
     setActionError(null);
     try {
-      await createSourceTestCaseImport(productVersionId, draft);
+      await createSourceTestCaseImport(productVersionId, {
+        ...draft,
+        // 勾选状态默认为“覆盖”，与导入面板的默认勾选保持一致。
+        replace_existing: draft.replace_existing ?? true,
+      });
       setDraft(null);
       setFilters(emptySourceCaseFilters);
       await loadVersion(productVersionId, emptySourceCaseFilters);

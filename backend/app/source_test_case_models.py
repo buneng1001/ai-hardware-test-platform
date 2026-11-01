@@ -47,6 +47,8 @@ class SourceTestCaseImportCommand(BaseModel):
     import_options: ImportOptions = Field(default_factory=ImportOptions)
     # 软件版本来源：imported 保留文件里的软件版本列，current 统一用当前产品版本。
     software_version_source: Literal["imported", "current"] = "imported"
+    # 覆盖该产品版本之前导入的用例表，避免同一批用例重复导入。
+    replace_existing: bool = False
 
     @field_validator("source_filename")
     @classmethod
@@ -68,6 +70,36 @@ class SourceTestCaseImportCommand(BaseModel):
     @classmethod
     def normalize_rows(cls, rows: list[dict[str, str]]) -> list[dict[str, str]]:
         return [{str(key): str(value or "") for key, value in row.items()} for row in rows]
+
+    @model_validator(mode="after")
+    def merge_continuation_rows(self):
+        """把多行一条用例的表合并：编号为空的行视为上一条用例的续行。
+
+        测试用例表常用合并单元格写多条步骤/预期，续行没有编号和标题；
+        这里把续行的步骤、预期结果追加到上一条用例，其他空列做补全。
+        """
+        number_column = self.field_mapping.get("case_number", "")
+        if not number_column:
+            return self
+        steps_column = self.field_mapping.get("steps", "")
+        expected_column = self.field_mapping.get("expected_result", "")
+        merged: list[dict[str, str]] = []
+        for row in self.rows:
+            if not row.get(number_column, "").strip() and merged:
+                target = merged[-1]
+                for column, value in row.items():
+                    text = (value or "").strip()
+                    if not text:
+                        continue
+                    if column in {steps_column, expected_column}:
+                        existing = target.get(column, "").strip()
+                        target[column] = f"{existing}\n{text}" if existing else text
+                    elif not target.get(column, "").strip():
+                        target[column] = text
+                continue
+            merged.append(dict(row))
+        self.rows = merged
+        return self
 
     @model_validator(mode="after")
     def require_case_identity_and_unique_numbers(self):
