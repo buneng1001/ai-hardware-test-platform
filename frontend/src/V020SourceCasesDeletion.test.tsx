@@ -97,3 +97,15 @@ test("测试需求页提供导入需求点入口和 AI 解析选项", async () =
     await screen.findByRole("button", { name: "导入用例表" }),
   ).toBeVisible();
 });
+
+test("测试用例表把 AI 生成作为主入口并保留规则兜底", async () => {
+  stubApi({ cases: [], records: [] });
+  await openSourceView();
+
+  expect(
+    await screen.findByRole("button", { name: "AI 生成自动化用例" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "规则转换（不使用 AI）" }),
+  ).toBeVisible();
+});

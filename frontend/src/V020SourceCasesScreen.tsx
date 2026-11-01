@@ -1,6 +1,9 @@
 import { useRef, useState } from "react";
 
-import { convertSourceTestCasesWithRules } from "./automationTestCasesApi";
+import {
+  convertSourceTestCasesWithAi,
+  convertSourceTestCasesWithRules,
+} from "./automationTestCasesApi";
 import { V020CaseTemplatePanel } from "./V020CaseTemplatePanel";
 import { V020SourceCaseImportPanel } from "./V020SourceCaseImportPanel";
 import { V020SourceCaseRecords } from "./V020SourceCaseRecords";
@@ -22,11 +25,13 @@ const filterControls: Array<[keyof SourceCaseFilters, string, string]> = [
  */
 export function V020SourceCasesScreen({
   versionId,
+  versionLabel,
   focusCaseId,
   onOpenGroups,
   onOpenAutomation,
 }: {
   versionId: number | null;
+  versionLabel: string;
   focusCaseId: number | null;
   onOpenGroups: () => void;
   onOpenAutomation: () => void;
@@ -34,8 +39,15 @@ export function V020SourceCasesScreen({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const source = useV020SourceTestCases(versionId);
   const [generating, setGenerating] = useState(false);
+  const [generatingWithAi, setGeneratingWithAi] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generateNotice, setGenerateNotice] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<{
+    automation: number;
+    manual: number;
+    created: number;
+    manualItems: Array<{ caseNumber: string; reason: string }>;
+  } | null>(null);
 
   if (versionId === null) {
     return (
@@ -70,12 +82,22 @@ export function V020SourceCasesScreen({
 
   const pickFile = () => fileInputRef.current?.click();
 
-  /** 规则转换使用既有服务边界，成功后切到自动化用例表查看候选。 */
+  /** 读取首页保存的临时 API Key，让 AI 转换可以直接复用当前配置。 */
+  const readTemporaryKey = () => {
+    try {
+      return window.sessionStorage.getItem("iris-test-temporary-ai-key") ?? "";
+    } catch {
+      return "";
+    }
+  };
+
+  /** 规则转换不使用 AI，只作为没有模型时的兜底候选。 */
   const generateAutomationCases = async () => {
     if (versionId === null) return;
     setGenerating(true);
     setGenerateError(null);
     setGenerateNotice(null);
+    setAiSummary(null);
     try {
       const result = await convertSourceTestCasesWithRules(versionId);
       if (result.created_count > 0) onOpenAutomation();
@@ -88,6 +110,43 @@ export function V020SourceCasesScreen({
       );
     } finally {
       setGenerating(false);
+    }
+  };
+
+  /** AI 转换：把原始用例交给模型，由模型判定哪些可自动化、哪些转人工。 */
+  const generateAutomationCasesWithAi = async () => {
+    if (versionId === null) return;
+    setGeneratingWithAi(true);
+    setGenerateError(null);
+    setGenerateNotice(null);
+    try {
+      const result = await convertSourceTestCasesWithAi(
+        versionId,
+        readTemporaryKey(),
+      );
+      const manual = result.decisions.filter(
+        (item) => item.decision === "manual",
+      );
+      setAiSummary({
+        automation: result.automation_count,
+        manual: result.manual_count,
+        created: result.created_count,
+        manualItems: manual.map((item) => ({
+          caseNumber: item.case_number,
+          reason: item.reason,
+        })),
+      });
+      if (result.created_count === 0) {
+        setGenerateNotice("没有新的原始用例需要 AI 判定；已有候选不会被覆盖。");
+      }
+    } catch (caught) {
+      setGenerateError(
+        caught instanceof Error && caught.message
+          ? caught.message
+          : "AI 转换失败",
+      );
+    } finally {
+      setGeneratingWithAi(false);
     }
   };
 
@@ -137,11 +196,21 @@ export function V020SourceCasesScreen({
             }}
           />
           <button
-            disabled={source.busy || generating}
+            className="prototype-primary"
+            disabled={source.busy || generating || generatingWithAi}
+            onClick={() => void generateAutomationCasesWithAi()}
+            type="button"
+          >
+            {generatingWithAi ? "AI 判定中…" : "AI 生成自动化用例"}
+          </button>
+          <button
+            className="prototype-secondary"
+            disabled={source.busy || generating || generatingWithAi}
+            title="不使用 AI，仅按规则生成低可信度候选"
             onClick={() => void generateAutomationCases()}
             type="button"
           >
-            生成自动化用例
+            {generating ? "规则转换中…" : "规则转换（不使用 AI）"}
           </button>
           <button
             className="prototype-secondary"
@@ -172,6 +241,33 @@ export function V020SourceCasesScreen({
           {source.actionError}
         </div>
       )}
+      {aiSummary && (
+        <div className="prototype-inline-note" aria-label="AI 判定结果">
+          <p>
+            AI 判定：<strong>{aiSummary.automation}</strong> 条可自动化，
+            <strong>{aiSummary.manual}</strong> 条转人工（已生成{" "}
+            {aiSummary.created} 条自动化候选）。
+          </p>
+          {aiSummary.manualItems.length > 0 && (
+            <ul className="prototype-ai-manual-list">
+              {aiSummary.manualItems.map((item) => (
+                <li key={item.caseNumber}>
+                  <strong>{item.caseNumber}</strong>：{item.reason}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="prototype-actions">
+            <button
+              className="prototype-secondary"
+              onClick={onOpenAutomation}
+              type="button"
+            >
+              查看自动化用例表
+            </button>
+          </div>
+        </div>
+      )}
       {generateError && (
         <div className="prototype-inline-note" role="alert">
           {generateError}
@@ -187,6 +283,7 @@ export function V020SourceCasesScreen({
         <V020SourceCaseImportPanel
           draft={source.draft}
           busy={source.busy}
+          currentVersionLabel={versionLabel}
           onDraftChange={source.updateDraft}
           onConfirm={() => void source.confirmImport()}
           onCancel={() => source.updateDraft(null)}

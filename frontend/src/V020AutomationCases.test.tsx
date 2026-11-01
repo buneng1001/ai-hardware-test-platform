@@ -121,7 +121,9 @@ test("从测试用例表生成候选后可跳回来源原始用例", async () =>
   });
   await openSourceView();
 
-  fireEvent.click(screen.getByRole("button", { name: "生成自动化用例" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "规则转换（不使用 AI）" }),
+  );
   expect(await screen.findByText("AUTO-000007")).toBeVisible();
 
   fireEvent.click(screen.getByRole("link", { name: "REC-001" }));
@@ -159,7 +161,9 @@ test("没有新的原始用例时提示不覆盖已有候选", async () => {
   });
   await openSourceView();
 
-  fireEvent.click(screen.getByRole("button", { name: "生成自动化用例" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "规则转换（不使用 AI）" }),
+  );
   expect(
     await screen.findByText("没有新的原始用例需要转换；已有候选不会被覆盖。"),
   ).toBeVisible();

@@ -60,6 +60,7 @@ export function CasesSection({
       {caseView === "source" && (
         <V020SourceCasesScreen
           versionId={versionId}
+          versionLabel={projectWorkspace.openedVersion?.version ?? ""}
           focusCaseId={focusedSourceCaseId}
           onOpenGroups={() => setSection("groups")}
           onOpenAutomation={() => setCaseView("automation")}

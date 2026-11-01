@@ -34,6 +34,25 @@ class AutomationCaseConversionBatch(BaseModel):
     items: list[AutomationTestCase]
 
 
+class AutomationCaseAiDecision(BaseModel):
+    """模型对单条原始用例的判定结果。"""
+
+    source_case_id: int
+    case_number: str
+    title: str
+    decision: Literal["automation", "manual"]
+    reason: str
+    confidence: str = "medium"
+
+
+class AutomationCaseAiConversionBatch(BaseModel):
+    automation_count: int
+    manual_count: int
+    created_count: int
+    decisions: list[AutomationCaseAiDecision]
+    items: list[AutomationTestCase]
+
+
 class AutomationTestCaseCreate(BaseModel):
     source_case_number: str = Field(min_length=1, max_length=120)
     title: str = Field(default="", max_length=2_000)

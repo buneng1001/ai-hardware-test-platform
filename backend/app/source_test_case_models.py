@@ -45,6 +45,8 @@ class SourceTestCaseImportCommand(BaseModel):
     field_mapping: dict[str, str] = Field(default_factory=dict)
     rows: list[dict[str, str]] = Field(min_length=1, max_length=1000)
     import_options: ImportOptions = Field(default_factory=ImportOptions)
+    # 软件版本来源：imported 保留文件里的软件版本列，current 统一用当前产品版本。
+    software_version_source: Literal["imported", "current"] = "imported"
 
     @field_validator("source_filename")
     @classmethod

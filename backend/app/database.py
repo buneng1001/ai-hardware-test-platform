@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 32
+LATEST_SCHEMA_VERSION = 33
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -927,6 +927,7 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             """
         )
 
+
     if current_version < 32:
         # 运行指纹幂等与活动结果指针；历史运行全部保留，只有一条处于 active。
         available_tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
@@ -960,6 +961,27 @@ def migrate_database(connection: sqlite3.Connection) -> None:
                 PRAGMA user_version = 32;
                 """
             )
+
+
+    if current_version < 33:
+        # AI 转换判定结果：记录每条原始用例是否已被模型判定，避免重复消耗模型调用。
+        has_source_table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'source_test_cases'"
+        ).fetchone()
+        if has_source_table is not None:
+            source_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(source_test_cases)").fetchall()
+            }
+            if "ai_decision" not in source_columns:
+                connection.execute(
+                    "ALTER TABLE source_test_cases ADD COLUMN ai_decision TEXT NOT NULL DEFAULT ''"
+                )
+        connection.executescript(
+            """
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (33);
+            PRAGMA user_version = 33;
+            """
+        )
 
 
 def get_data_dir() -> Path:

@@ -73,6 +73,10 @@ def create_source_test_case_import(version_id: int, command: SourceTestCaseImpor
     source_placeholders = ",".join("?" for _ in SOURCE_CASE_FIELDS)
     with open_database() as connection:
         _ensure_version(connection, version_id)
+        version_row = connection.execute(
+            "SELECT version FROM product_versions WHERE id = ?", (version_id,)
+        ).fetchone()
+        current_version = str(version_row["version"]) if version_row else ""
         cursor = connection.execute(
             """
             INSERT INTO source_test_case_imports
@@ -92,6 +96,9 @@ def create_source_test_case_import(version_id: int, command: SourceTestCaseImpor
             raise HTTPException(status_code=500, detail="导入记录保存失败")
         for row in command.rows:
             values = _mapped_case_values(row, command.field_mapping, options)
+            if command.software_version_source == "current":
+                # 用户明确选择“使用当前产品版本”时，统一覆盖为当前产品版本号。
+                values["software_version"] = current_version
             connection.execute(
                 f"""
                 INSERT INTO source_test_cases

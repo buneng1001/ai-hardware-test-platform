@@ -32,6 +32,8 @@ export type SourceTestCaseImportDraft = {
   field_mapping: Partial<Record<SourceCaseField, string>>;
   rows: Array<Record<string, string>>;
   import_options: Partial<ImportOptions>;
+  /** 软件版本来源：imported 保留文件里的版本列，current 统一用当前产品版本。 */
+  software_version_source?: "imported" | "current";
 };
 export type SourceTestCase = {
   id: number;
