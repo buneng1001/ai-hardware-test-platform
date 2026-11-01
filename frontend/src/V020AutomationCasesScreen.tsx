@@ -127,19 +127,31 @@ export function V020AutomationCasesScreen({
         ? current.filter((id) => id !== caseId)
         : [...current, caseId],
     );
-  const selectPage = () =>
-    setSelectedIds((current) => [
-      ...new Set([...current, ...pageItems.map((item) => item.id)]),
-    ]);
-  const invertPage = () =>
-    setSelectedIds((current) =>
-      pageItems
-        .map((item) => item.id)
-        .filter((id) => !current.includes(id))
-        .concat(
-          current.filter((id) => !pageItems.some((item) => item.id === id)),
-        ),
-    );
+  // 一次选中当前全部用例（跨页），再点一次取消，不需要逐页全选。
+  const allSelected =
+    automation.items.length > 0 &&
+    automation.items.every((item) => selectedIds.includes(item.id));
+  const toggleSelectAll = () =>
+    setSelectedIds(allSelected ? [] : automation.items.map((item) => item.id));
+  const selectedItems = automation.items.filter((item) =>
+    selectedIds.includes(item.id),
+  );
+  const selectedValidated =
+    selectedItems.length > 0 &&
+    selectedItems.every((item) => item.validation_status === "passed");
+
+  /** 加入测试组前如果勾选还没校验，先自动校验一次，避免按钮“能选不能用”。 */
+  const joinSelectedToGroup = async () => {
+    if (selectedItems.length === 0) return;
+    if (!selectedValidated) {
+      const passed = await automation.validateCases();
+      if (!passed) {
+        setBatchMessage("勾选的用例还没通过校验，请先修改后再加入测试组。");
+        return;
+      }
+    }
+    onOpenGroups();
+  };
 
   const createCase = async (command: AutomationCaseCreateCommand) => {
     const created = await automation.createCase(command);
@@ -165,20 +177,13 @@ export function V020AutomationCasesScreen({
         </p>
         <div className="prototype-actions">
           <button
-            className="prototype-secondary"
-            disabled={pageItems.length === 0}
-            onClick={selectPage}
+            aria-pressed={allSelected}
+            className={allSelected ? "is-selected" : "prototype-secondary"}
+            disabled={automation.items.length === 0}
+            onClick={toggleSelectAll}
             type="button"
           >
-            全选本页
-          </button>
-          <button
-            className="prototype-secondary"
-            disabled={pageItems.length === 0}
-            onClick={invertPage}
-            type="button"
-          >
-            反选本页
+            {allSelected ? "取消选择" : "全选"}
           </button>
           <button
             className="prototype-secondary"
@@ -214,12 +219,12 @@ export function V020AutomationCasesScreen({
           </button>
           <button
             className="prototype-secondary"
-            disabled={!allValidated || selectedIds.length === 0}
-            onClick={onOpenGroups}
+            disabled={selectedItems.length === 0}
+            onClick={() => void joinSelectedToGroup()}
             title={
-              allValidated
-                ? "带当前勾选的自动化用例进入测试组"
-                : "请先校验全部自动化用例再加入测试组"
+              selectedItems.length === 0
+                ? "先勾选要加入测试组的自动化用例"
+                : "带当前勾选的自动化用例进入测试组"
             }
             type="button"
           >
