@@ -108,6 +108,23 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 
 不要在已经运行 Uvicorn 的终端继续输入前端命令；请新开终端或 PyCharm 的新 Terminal 标签页。
 
+### 8000 端口被其它项目占用时
+
+不要改代码。启动后端时指定其它端口：
+
+```powershell
+backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload --env-file .env --port 8020
+```
+
+然后在 `frontend/.env.development` 里改代理目标（只需改一次）：
+
+```text
+VITE_API_PROXY_TARGET=http://127.0.0.1:8020
+```
+
+前端代理默认指向 `http://127.0.0.1:8000`，改这个环境变量即可切换，不需要动 `vite.config.ts`。
+
+
 <!--
 启动命令拆成两个终端，后端终端不要继续输入前端命令。
 -->
