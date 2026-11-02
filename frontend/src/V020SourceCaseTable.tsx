@@ -95,7 +95,11 @@ export function V020SourceCaseTable({
                         : "prototype-type-badge prototype-type-manual"
                     }
                   >
-                    {item.case_type === "automation" ? "自动化" : "人工"}
+                    {item.case_type === "automation"
+                      ? item.automation_validation_status === "passed"
+                        ? "自动化"
+                        : "自动化·待校验"
+                      : "人工"}
                   </span>
                 </td>
                 <td className="is-long-text">

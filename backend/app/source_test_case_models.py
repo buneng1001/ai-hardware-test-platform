@@ -150,8 +150,12 @@ class SourceTestCase(BaseModel):
     attachment: str
     software_version: str
     selected: bool
-    # 用例类型：已生成自动化候选的算自动化，其余默认人工，保证每条用例都有明确归属。
+    # 执行方式：存在已校验的自动化用例才算“自动化”，否则是“人工”。
     case_type: Literal["automation", "manual"] = "manual"
+    # 该原始用例对应的自动化用例 id（没有则为空）。
+    automation_test_case_id: int | None = None
+    # 该自动化用例的校验状态（passed / unvalidated / failed）。
+    automation_validation_status: str | None = None
 
 
 class SourceTestCaseList(BaseModel):

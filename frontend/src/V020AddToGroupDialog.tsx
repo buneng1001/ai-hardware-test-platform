@@ -19,6 +19,7 @@ export function V020AddToGroupDialog({
   versionId,
   sourceIds,
   automationIds,
+  pendingAutomationCount = 0,
   onClose,
   onDone,
 }: {
@@ -26,6 +27,8 @@ export function V020AddToGroupDialog({
   versionId: number | null;
   sourceIds: number[];
   automationIds: number[];
+  /** 有自动化候选但未校验的条数：这些会按人工加入。 */
+  pendingAutomationCount?: number;
   onClose: () => void;
   onDone: (message: string) => void;
 }) {
@@ -82,12 +85,15 @@ export function V020AddToGroupDialog({
     setBusy(true);
     setError(null);
     try {
-      // 原始用例用后端“带入已勾选”能力，自动化用例单独补加。
+      // 按执行方式分别写入：人工用例走原始用例接口，自动化用例走自动化接口。
       const created = await createTestGroup(versionId, {
         name,
         description: newDescription.trim(),
-        include_selected_source_cases: sourceIds.length > 0,
+        include_selected_source_cases: false,
       });
+      if (sourceIds.length > 0) {
+        await addTestGroupSourceCases(created.id, sourceIds);
+      }
       if (automationIds.length > 0) {
         await addTestGroupAutomationCases(created.id, automationIds);
       }

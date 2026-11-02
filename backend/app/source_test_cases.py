@@ -73,9 +73,7 @@ def create_source_test_case_import(version_id: int, command: SourceTestCaseImpor
     source_placeholders = ",".join("?" for _ in SOURCE_CASE_FIELDS)
     with open_database() as connection:
         _ensure_version(connection, version_id)
-        version_row = connection.execute(
-            "SELECT version FROM product_versions WHERE id = ?", (version_id,)
-        ).fetchone()
+        version_row = connection.execute("SELECT version FROM product_versions WHERE id = ?", (version_id,)).fetchone()
         current_version = str(version_row["version"]) if version_row else ""
         if command.replace_existing:
             # 覆盖导入：先清掉该版本已有的导入记录和原始用例，
@@ -177,6 +175,17 @@ def list_source_test_cases(
                        WHERE selection.product_version_id = c.product_version_id
                          AND selection.source_test_case_id = c.id
                    ) AS selected,
+                   (
+                       SELECT automation.id FROM automation_test_cases automation
+                       WHERE automation.source_test_case_id = c.id
+                       ORDER BY automation.id LIMIT 1
+                   ) AS automation_test_case_id,
+                   (
+                       SELECT automation.validation_status
+                       FROM automation_test_cases automation
+                       WHERE automation.source_test_case_id = c.id
+                       ORDER BY automation.id LIMIT 1
+                   ) AS automation_validation_status,
                    CASE WHEN EXISTS(
                        SELECT 1 FROM automation_test_cases automation
                        WHERE automation.source_test_case_id = c.id
@@ -250,9 +259,7 @@ def delete_source_test_case_import(import_id: int, confirm: bool = False) -> Res
         ).fetchone()
         if record is None:
             raise HTTPException(status_code=404, detail="导入记录不存在")
-        connection.execute(
-            "DELETE FROM source_test_cases WHERE import_record_id = ?", (import_id,)
-        )
+        connection.execute("DELETE FROM source_test_cases WHERE import_record_id = ?", (import_id,))
         connection.execute("DELETE FROM source_test_case_imports WHERE id = ?", (import_id,))
         connection.execute(
             "UPDATE projects SET updated_at = ? WHERE id = (SELECT project_id FROM product_versions WHERE id = ?)",

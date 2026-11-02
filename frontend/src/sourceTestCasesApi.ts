@@ -60,6 +60,8 @@ export type SourceTestCase = {
   selected: boolean;
   /** 已生成自动化候选的算自动化，其余默认人工。 */
   case_type?: "automation" | "manual";
+  automation_test_case_id?: number | null;
+  automation_validation_status?: string | null;
 };
 export type SourceTestCaseImportRecord = {
   id: number;

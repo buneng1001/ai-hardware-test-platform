@@ -39,6 +39,26 @@ export function V020SourceCasesScreen({
   const source = useV020SourceTestCases(versionId);
   const [page, setPage] = useState(1);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
+  // 加入测试组时按“执行方式”分派：有已校验自动化用例的进自动化集合，其余进人工集合。
+  const selectedCases = source.items.filter((item) =>
+    source.selectedIds.includes(item.id),
+  );
+  const selectedAutomationIds = selectedCases
+    .filter(
+      (item) =>
+        item.automation_validation_status === "passed" &&
+        item.automation_test_case_id != null,
+    )
+    .map((item) => item.automation_test_case_id as number);
+  const selectedManualIds = selectedCases
+    .filter(
+      (item) =>
+        !(
+          item.automation_validation_status === "passed" &&
+          item.automation_test_case_id != null
+        ),
+    )
+    .map((item) => item.id);
   const [groupNotice, setGroupNotice] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generatingWithAi, setGeneratingWithAi] = useState(false);
@@ -370,14 +390,21 @@ export function V020SourceCasesScreen({
       )}
 
       <V020AddToGroupDialog
-        automationIds={[]}
+        automationIds={selectedAutomationIds}
+        pendingAutomationCount={
+          selectedCases.filter(
+            (item) =>
+              item.case_type === "automation" &&
+              item.automation_validation_status !== "passed",
+          ).length
+        }
         onClose={() => setShowGroupDialog(false)}
         onDone={(message) => {
           setGroupNotice(message);
           void source.retry();
         }}
         open={showGroupDialog}
-        sourceIds={source.selectedIds}
+        sourceIds={selectedManualIds}
         versionId={versionId}
       />
     </>

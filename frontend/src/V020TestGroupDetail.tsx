@@ -27,7 +27,19 @@ type CaseRow = {
   position: number;
   packageIds: number[];
   validationStatus?: string;
+  /** 排序用：自动化用例回落到它的来源用例编号，保证同一用例的两种形态排在一起。 */
+  orderKey: string;
 };
+
+/** 按编号里的数字排序（TC-001 < TC-002 < TC-010）。 */
+function naturalCompare(left: string, right: string): number {
+  const leftNumber = Number(/(\d+)/.exec(left)?.[1] ?? Number.MAX_SAFE_INTEGER);
+  const rightNumber = Number(
+    /(\d+)/.exec(right)?.[1] ?? Number.MAX_SAFE_INTEGER,
+  );
+  if (leftNumber !== rightNumber) return leftNumber - rightNumber;
+  return left.localeCompare(right);
+}
 
 /** 测试组详情：一张用例表，人工与自动化混排，数据包直接在表里选。 */
 export function V020TestGroupDetail({
@@ -67,8 +79,13 @@ export function V020TestGroupDetail({
       );
   }, []);
 
+  // 同一条用例如果既有原始用例又有自动化用例，只保留自动化那一行，避免重复展示。
+  const automationSourceNumbers = new Set(
+    detail.automation_test_cases.map((item) => item.source_case_number),
+  );
   const rows: CaseRow[] = [
     ...detail.source_test_cases
+      .filter((item) => !automationSourceNumbers.has(item.case_number))
       .map((item) => ({
         id: item.id,
         kind: "source" as const,
@@ -78,6 +95,7 @@ export function V020TestGroupDetail({
         softwareVersion: item.software_version,
         position: item.position,
         packageIds: [],
+        orderKey: item.case_number,
       }))
       .sort((left, right) => left.position - right.position),
     ...detail.automation_test_cases
@@ -91,9 +109,10 @@ export function V020TestGroupDetail({
         position: item.position,
         packageIds: item.data_packages.map((entry) => entry.id),
         validationStatus: item.validation_status,
+        orderKey: item.source_case_number || item.case_number,
       }))
       .sort((left, right) => left.position - right.position),
-  ];
+  ].sort((left, right) => naturalCompare(left.orderKey, right.orderKey));
 
   // 换测试组后回到第一页
   useEffect(() => {
@@ -178,9 +197,10 @@ export function V020TestGroupDetail({
         <div>
           <strong>{detail.name}</strong>
           <p>
-            人工 {detail.source_test_case_count} 条 · 自动化{" "}
-            {detail.automation_test_case_count} 条 · 已分配数据包{" "}
-            {detail.data_package_assignment_count} 条
+            人工 {rows.filter((row) => row.kind === "source").length} 条 ·
+            自动化 {rows.filter((row) => row.kind === "automation").length} 条 ·
+            已分配数据包{" "}
+            {rows.filter((row) => row.packageIds.length > 0).length} 条
           </p>
         </div>
         <Status tone={detail.hidden ? "normal" : "good"}>

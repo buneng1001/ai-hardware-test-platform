@@ -85,6 +85,8 @@ def test_engineer_previews_confirms_and_filters_source_test_case_import(client):
             "software_version": "1.2.0",
             "selected": False,
             "case_type": "manual",
+            "automation_test_case_id": None,
+            "automation_validation_status": None,
         }
     ]
 
@@ -225,12 +227,8 @@ def test_xlsx_preview_and_import_record_deletion_explain_affected_source_cases(c
 
 def test_multi_row_case_is_merged_and_reimport_can_replace(client):
     """多行一条用例（编号只写在首行）要能导入；再次导入可覆盖旧用例表。"""
-    project = client.post(
-        "/api/projects", json={"name": "IRIS", "product_name": "Recorder", "description": ""}
-    ).json()
-    version_id = client.post(
-        f"/api/projects/{project['id']}/product-versions", json={"version": "EVT1"}
-    ).json()["id"]
+    project = client.post("/api/projects", json={"name": "IRIS", "product_name": "Recorder", "description": ""}).json()
+    version_id = client.post(f"/api/projects/{project['id']}/product-versions", json={"version": "EVT1"}).json()["id"]
     command = {
         "source_filename": "beta.csv",
         "field_mapping": {
@@ -247,9 +245,7 @@ def test_multi_row_case_is_merged_and_reimport_can_replace(client):
         "import_options": {},
     }
 
-    imported = client.post(
-        f"/api/product-versions/{version_id}/source-test-case-imports", json=command
-    )
+    imported = client.post(f"/api/product-versions/{version_id}/source-test-case-imports", json=command)
 
     assert imported.status_code == 201
     cases = client.get(f"/api/product-versions/{version_id}/source-test-cases").json()["items"]
