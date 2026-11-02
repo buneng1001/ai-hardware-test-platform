@@ -1,10 +1,13 @@
 import io
+import re
+import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
 
 from app.database import open_database
+from app.source_test_case_parsing import parse_source_case_file
 from app.main import app
 
 
@@ -263,3 +266,31 @@ def test_multi_row_case_is_merged_and_reimport_can_replace(client):
     assert [item["case_number"] for item in cases] == ["TC-001", "TC-002"]
     records = client.get(f"/api/product-versions/{version_id}/source-test-case-imports").json()
     assert len(records) == 1
+
+
+def _xlsx_with_broken_dimension() -> bytes:
+    """模拟 WPS 这类把工作表范围写成 A1 的文件。"""
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["用例编号", "测试用例标题"])
+    sheet.append(["TC-001", "录制检查"])
+    sheet.append(["TC-002", "回放检查"])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+
+    source = zipfile.ZipFile(io.BytesIO(buffer.getvalue()))
+    patched = io.BytesIO()
+    with zipfile.ZipFile(patched, "w", zipfile.ZIP_DEFLATED) as target:
+        for item in source.infolist():
+            data = source.read(item.filename)
+            if item.filename.endswith("sheet1.xml"):
+                data = re.sub(rb'<dimension ref="[^"]*"/>', b'<dimension ref="A1"/>', data)
+            target.writestr(item, data)
+    return patched.getvalue()
+
+
+def test_xlsx_with_broken_dimension_still_reads_all_rows():
+    """范围信息写坏时也要读到全部数据行，不能报“不包含数据行”。"""
+    columns, rows = parse_source_case_file("broken.xlsx", _xlsx_with_broken_dimension())
+    assert columns == ["用例编号", "测试用例标题"]
+    assert [row["用例编号"] for row in rows] == ["TC-001", "TC-002"]
