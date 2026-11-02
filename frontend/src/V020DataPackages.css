@@ -206,3 +206,10 @@
   background: transparent;
   box-shadow: none;
 }
+
+/* 筛选标签不允许竖排换行，避免窗口变窄时中文被挤成竖条。 */
+.prototype-filter-row label,
+.prototype-case-toolbar label,
+.prototype-case-toolbar .prototype-filter-row > span {
+  white-space: nowrap;
+}

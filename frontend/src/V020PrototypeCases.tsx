@@ -62,7 +62,6 @@ export function CasesSection({
           versionId={versionId}
           versionLabel={projectWorkspace.openedVersion?.version ?? ""}
           focusCaseId={focusedSourceCaseId}
-          onOpenGroups={() => setSection("groups")}
           onOpenAutomation={() => setCaseView("automation")}
         />
       )}

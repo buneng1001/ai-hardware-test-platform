@@ -28,13 +28,11 @@ export function V020SourceCasesScreen({
   versionId,
   versionLabel,
   focusCaseId,
-  onOpenGroups,
   onOpenAutomation,
 }: {
   versionId: number | null;
   versionLabel: string;
   focusCaseId: number | null;
-  onOpenGroups: () => void;
   onOpenAutomation: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -264,13 +262,6 @@ export function V020SourceCasesScreen({
             type="button"
           >
             加入测试组（已选 {source.selectedIds.length} 条）
-          </button>
-          <button
-            className="prototype-secondary"
-            onClick={onOpenGroups}
-            type="button"
-          >
-            查看测试组
           </button>
         </div>
       </div>
