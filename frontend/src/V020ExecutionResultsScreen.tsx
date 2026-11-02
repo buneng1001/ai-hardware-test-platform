@@ -21,6 +21,11 @@ export function V020ExecutionResultsScreen({
   const [groupId, setGroupId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  // 报告使用的记录：默认取各自最新一条，在两张卡片里切换。
+  const [reportExecutionId, setReportExecutionId] = useState<number | null>(
+    null,
+  );
+  const [reportBatchId, setReportBatchId] = useState<number | null>(null);
 
   useEffect(() => {
     if (versionId === null) {
@@ -100,16 +105,27 @@ export function V020ExecutionResultsScreen({
       )}
       {groupId !== null && (
         <div className="prototype-result-grid">
-          <V020ExecutionResultCard groupId={groupId} />
+          <V020ExecutionResultCard
+            groupId={groupId}
+            onSelectExecution={setReportExecutionId}
+            selectedExecutionId={reportExecutionId}
+          />
           <V020ManualResultSummaryCard
             groupId={groupId}
             groupName={groupName}
             onOpenManual={onOpenManual}
+            onSelectBatch={setReportBatchId}
+            selectedBatchId={reportBatchId}
           />
         </div>
       )}
       {groupId !== null && (
-        <V020ReportPanel groupId={groupId} groupName={groupName} />
+        <V020ReportPanel
+          batchId={reportBatchId}
+          executionId={reportExecutionId}
+          groupId={groupId}
+          groupName={groupName}
+        />
       )}
     </>
   );

@@ -57,3 +57,16 @@
 .prototype-preparation-checks a {
   color: var(--prototype-color-brand-strong);
 }
+
+/* 两张结果卡片：标题和选择下拉并排。 */
+.prototype-result-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.prototype-result-card-head select {
+  min-width: 180px;
+}

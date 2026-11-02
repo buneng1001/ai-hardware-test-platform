@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { executionRecord } from "./test/automationExecutionHarness";
@@ -64,11 +70,11 @@ test("生成最终报告后按固定顺序预览并下载 HTML 与纯文字", as
   });
   await openReportView();
 
-  fireEvent.click(await screen.findByRole("button", { name: "生成最终报告" }));
-  fireEvent.change(screen.getByLabelText("自动化执行记录"), {
+  // 选择在两张卡片里，默认就是最新一条。
+  fireEvent.change(await screen.findByLabelText("用于报告的自动化执行记录"), {
     target: { value: "3" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "生成事实报告" }));
+  fireEvent.click(await screen.findByRole("button", { name: "生成最终报告" }));
   fireEvent.click(await screen.findByRole("button", { name: "确认生成" }));
 
   expect(
@@ -137,8 +143,11 @@ test("只有人工记录时也允许生成报告", async () => {
   });
   await openReportView();
 
-  fireEvent.click(await screen.findByRole("button", { name: "生成最终报告" }));
-  fireEvent.click(screen.getByRole("button", { name: "生成事实报告" }));
+  // 人工记录卡里默认选中最新一批；等按钮可用再点。
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "生成最终报告" })).toBeEnabled(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "生成最终报告" }));
   fireEvent.click(await screen.findByRole("button", { name: "确认生成" }));
 
   expect(
