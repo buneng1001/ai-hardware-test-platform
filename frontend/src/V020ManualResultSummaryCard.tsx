@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Status } from "./V020PrototypeShared";
 import {
   getManualTestResultPage,
+  manualTestStatusLabels,
   type ManualTestResultPage,
 } from "./manualTestResultsApi";
 
@@ -37,6 +38,8 @@ export function V020ManualResultSummaryCard({
   }, [groupId, reloadToken]);
 
   const latest = page?.batches[0];
+  const selectedBatch =
+    page?.batches.find((item) => item.id === selectedBatchId) ?? latest;
 
   useEffect(() => {
     // 默认选中最新一批人工记录。
@@ -88,13 +91,47 @@ export function V020ManualResultSummaryCard({
         <p className="prototype-muted" role="status">
           正在加载人工测试记录…
         </p>
-      ) : latest ? (
+      ) : selectedBatch ? (
         <p>
-          最近批次 #{latest.batch_number}：已保存 {savedCount} 条，未执行{" "}
-          {pendingCount} 条。
+          批次 #{selectedBatch.batch_number}：已保存{" "}
+          {selectedBatch.results.length} 条，未执行 {pendingCount} 条。
         </p>
       ) : (
         <p>尚无人工记录；未填写项在报告中按未执行处理。</p>
+      )}
+      {selectedBatch && selectedBatch.results.length > 0 && (
+        <div className="prototype-table-wrap">
+          <table className="prototype-table prototype-manual-summary-table">
+            <thead>
+              <tr>
+                <th>用例编号</th>
+                <th>标题</th>
+                <th>结果</th>
+                <th>实际结果</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedBatch.results.map((result) => {
+                const testCase = page?.cases.find(
+                  (item) => item.id === result.source_test_case_id,
+                );
+                return (
+                  <tr key={result.id}>
+                    <td>
+                      {testCase?.case_number ??
+                        `#${result.source_test_case_id}`}
+                    </td>
+                    <td>{testCase?.title ?? "—"}</td>
+                    <td>
+                      {manualTestStatusLabels[result.status] ?? result.status}
+                    </td>
+                    <td>{result.actual_result || "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
       <button
         className="prototype-secondary"

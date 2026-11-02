@@ -38,7 +38,8 @@ def _create_data_package(client: TestClient, scenario: str) -> int:
 def test_v020_fixed_sample_covers_migrations_api_fallbacks_reports_and_trends(tmp_path, monkeypatch):
     """固定项目与合成样例覆盖 v0.2.0 交付链路，不访问设备或模型服务。"""
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
-    monkeypatch.delenv("REPORT_ANALYSIS_MODE", raising=False)
+    # 本用例验证“报告分析未启用”的降级路径。
+    monkeypatch.setenv("REPORT_ANALYSIS_MODE", "disabled")
 
     with TestClient(app) as client:
         # 数据包入口：正常样例应通过，已知故障样例应在自动化执行中失败。

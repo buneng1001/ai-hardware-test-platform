@@ -240,6 +240,8 @@ def test_fact_report_combines_snapshots_marks_conflicts_and_downloads(client):
 
 
 def test_report_analysis_is_optional_persisted_and_never_changes_fact_report(client, monkeypatch):
+    # 默认跟随 AI 配置；这里先显式关闭，验证“未启用”分支。
+    monkeypatch.setenv("REPORT_ANALYSIS_MODE", "disabled")
     package_id = _create_data_package(client, "video_drop")
     group_id, _ = _create_ready_group(client, [package_id])
     execution = client.post(f"/api/test-groups/{group_id}/automation-executions").json()

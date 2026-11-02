@@ -20,7 +20,7 @@ const typeLabels: Record<string, string> = {
 };
 
 /** 冻结版报告与历史记录：可查找自动化、人工记录和最终报告。 */
-const HISTORY_PAGE_SIZE = 20;
+const HISTORY_PAGE_SIZE = 8;
 
 export function V020ReportHistoryDialog({
   items,
@@ -42,6 +42,9 @@ export function V020ReportHistoryDialog({
   onClose: () => void;
 }) {
   const [historyPage, setHistoryPage] = useState(1);
+  const finalReportCount = items.filter(
+    (item) => item.record_type === "fact_report",
+  ).length;
 
   return (
     <div className="prototype-report-overlay">
@@ -91,6 +94,7 @@ export function V020ReportHistoryDialog({
         ) : (
           <div className="prototype-report-history-list">
             {items
+              .filter((item) => item.record_type === "fact_report")
               .slice(
                 (historyPage - 1) * HISTORY_PAGE_SIZE,
                 historyPage * HISTORY_PAGE_SIZE,
@@ -126,12 +130,12 @@ export function V020ReportHistoryDialog({
                   </div>
                 </article>
               ))}
-            {items.length > HISTORY_PAGE_SIZE && (
+            {finalReportCount > HISTORY_PAGE_SIZE && (
               <div className="prototype-source-pager" aria-label="历史记录分页">
                 <span>
                   第 {historyPage} /{" "}
-                  {Math.ceil(items.length / HISTORY_PAGE_SIZE)} 页 · 共{" "}
-                  {items.length} 条
+                  {Math.ceil(finalReportCount / HISTORY_PAGE_SIZE)} 页 · 共{" "}
+                  {finalReportCount} 条最终报告
                 </span>
                 <button
                   className="prototype-secondary"
@@ -144,7 +148,8 @@ export function V020ReportHistoryDialog({
                 <button
                   className="prototype-secondary"
                   disabled={
-                    historyPage >= Math.ceil(items.length / HISTORY_PAGE_SIZE)
+                    historyPage >=
+                    Math.ceil(finalReportCount / HISTORY_PAGE_SIZE)
                   }
                   onClick={() => setHistoryPage(historyPage + 1)}
                   type="button"

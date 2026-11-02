@@ -70,3 +70,22 @@
 .prototype-result-card-head select {
   min-width: 180px;
 }
+
+/* 人工记录卡片里的批次结果表：宽度可控，不挤压标题。 */
+.prototype-manual-summary-table {
+  width: 100%;
+  min-width: 0;
+  margin: 10px 0;
+  font-size: 0.86rem;
+}
+
+.prototype-manual-summary-table th,
+.prototype-manual-summary-table td {
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.prototype-manual-summary-table td:nth-child(2),
+.prototype-manual-summary-table td:nth-child(4) {
+  white-space: normal;
+}
