@@ -24,6 +24,28 @@ def _rate_text(block: dict[str, object] | None) -> str:
     )
 
 
+def _profile_lines(profile: object) -> list[str]:
+    """把产品画像写成报告里的可读描述。"""
+    if not isinstance(profile, dict):
+        return []
+    parts = [
+        f"实体按键 {profile.get('physical_keys', 0)} 个",
+        f"指示灯 {profile.get('indicator_lights', 0)} 个",
+        f"摄像头 {profile.get('cameras', 0)} 个",
+        f"麦克风{'有' if profile.get('microphone') else '无'}",
+        f"提示音{'有' if profile.get('buzzer') else '无'}",
+    ]
+    lines = [f"产品形态：{' · '.join(parts)}"]
+    if profile.get("interfaces"):
+        lines.append(f"通信接口：{profile['interfaces']}")
+    if profile.get("test_environment"):
+        lines.append(f"测试环境：{profile['test_environment']}")
+    platform = {"web": "网页 / 后台", "app": "手机 App"}.get(str(profile.get("platform")), "无")
+    detail = profile.get("web_url") or profile.get("app_package") or ""
+    lines.append(f"测试平台：{platform}{f'（{detail}）' if detail else ''}")
+    return lines
+
+
 def render_text(report: FactReport) -> str:
     data = report.snapshot
     basic = data["basic_information"]
@@ -31,7 +53,8 @@ def render_text(report: FactReport) -> str:
     issues = data.get("issues", {})
     lines = [
         "一、测试基本信息",
-        *(f"{key}：{value}" for key, value in basic.items() if value is not None),
+        *(f"{key}：{value}" for key, value in basic.items() if value is not None and key != "product_profile"),
+        *(_profile_lines(basic.get("product_profile"))),
         "",
         "二、总体结论与通过率",
         f"总体通过率：{_rate_text(pass_rate.get('overall'))}",

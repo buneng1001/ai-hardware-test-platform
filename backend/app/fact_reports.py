@@ -115,7 +115,8 @@ def _automation_snapshot_is_historical(connection: sqlite3.Connection, group_id:
 def _build_snapshot(connection: sqlite3.Connection, group_id: int, command: FactReportCreate) -> dict[str, object]:
     group = get_group_row(connection, group_id)
     version = connection.execute(
-        """SELECT version.version, version.name, project.name AS project_name, project.product_name
+        """SELECT version.version, version.name, project.name AS project_name,
+                  project.product_name, project.product_profile
            FROM product_versions version JOIN projects project ON project.id = version.project_id
            WHERE version.id = ?""",
         (group["product_version_id"],),
@@ -216,6 +217,14 @@ def _build_snapshot(connection: sqlite3.Connection, group_id: int, command: Fact
     ]
     warnings = ["当前记录来自历史配置，报告将使用历史快照。"] if historical_configuration else []
     all_counts = _status_counts(all_records)
+    # 产品形态与测试环境写进报告，保证报告能自解释“测的是什么”。
+    product_profile: dict[str, object] | None = None
+    raw_profile = version["product_profile"]
+    if raw_profile:
+        try:
+            product_profile = json.loads(raw_profile)
+        except json.JSONDecodeError:
+            product_profile = None
 
     def issues(status: str) -> list[dict[str, object]]:
         return [
@@ -238,6 +247,7 @@ def _build_snapshot(connection: sqlite3.Connection, group_id: int, command: Fact
             "product_version": version["version"],
             "test_group": group["name"],
             "generated_at": _now(),
+            "product_profile": product_profile,
             "contains": "自动化和人工结果"
             if automation_records and manual_records
             else "自动化结果"

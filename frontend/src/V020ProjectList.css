@@ -92,3 +92,17 @@
   border-color: var(--prototype-color-brand) !important;
   box-shadow: 0 0 0 3px rgb(13 148 136 / 14%) !important;
 }
+
+/* 产品画像区域：各字段之间留出间距，避免标签挤在一起。 */
+.prototype-project-profile {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+}
+
+.prototype-project-profile .prototype-filter-row {
+  gap: 14px;
+}

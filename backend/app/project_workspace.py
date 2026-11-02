@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import UTC, datetime
 from typing import Literal
@@ -6,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.database import open_database
 from app.project_models import (
+    ProductProfile,
     ProductVersion,
     ProductVersionCreate,
     ProductVersionDeletionImpact,
@@ -30,6 +32,20 @@ ASSET_TABLES = {
     "manual_test_result_attachments": "manual_test_result_attachments",
     "online_reports": "online_reports",
 }
+
+
+def _project_values(row: sqlite3.Row) -> dict[str, object]:
+    """把 projects.product_profile 的 JSON 字符串还原成对象。"""
+    values = dict(row)
+    raw = values.get("product_profile")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            values["product_profile"] = json.loads(raw)
+        except json.JSONDecodeError:
+            values["product_profile"] = None
+    else:
+        values["product_profile"] = None
+    return values
 
 
 def _now() -> str:
@@ -57,7 +73,10 @@ def _get_project(connection: sqlite3.Connection, project_id: int) -> ProjectDeta
         "SELECT * FROM product_versions WHERE project_id = ? ORDER BY created_at, id",
         (project_id,),
     ).fetchall()
-    return ProjectDetail(**dict(row), product_versions=[_version_from_row(item) for item in versions])
+    return ProjectDetail(
+        **_project_values(row),
+        product_versions=[_version_from_row(item) for item in versions],
+    )
 
 
 def _get_version(connection: sqlite3.Connection, version_id: int) -> ProductVersion:
@@ -111,10 +130,20 @@ def create_project(command: ProjectCreate) -> ProjectDetail:
         with open_database() as connection:
             cursor = connection.execute(
                 """
-                INSERT INTO projects (name, product_name, description, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO projects
+                    (name, product_name, description, product_profile, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (command.name, command.product_name, command.description, timestamp, timestamp),
+                (
+                    command.name,
+                    command.product_name,
+                    command.description,
+                    json.dumps(command.product_profile.model_dump(), ensure_ascii=False)
+                    if command.product_profile
+                    else None,
+                    timestamp,
+                    timestamp,
+                ),
             )
             return _get_project(connection, cursor.lastrowid)
     except sqlite3.IntegrityError as error:
@@ -144,12 +173,24 @@ def list_projects(
             """,
             (pattern, pattern),
         ).fetchall()
-    return [ProjectSummary(**dict(row)) for row in rows]
+    return [ProjectSummary(**_project_values(row)) for row in rows]
 
 
 @router.get("/api/projects/{project_id}", response_model=ProjectDetail)
 def get_project(project_id: int) -> ProjectDetail:
     with open_database() as connection:
+        return _get_project(connection, project_id)
+
+
+@router.put("/api/projects/{project_id}/product-profile", response_model=ProjectDetail)
+def update_product_profile(project_id: int, command: ProductProfile) -> ProjectDetail:
+    """更新被测产品画像：按键、指示灯、摄像头、测试环境等。"""
+    with open_database() as connection:
+        _get_project(connection, project_id)
+        connection.execute(
+            "UPDATE projects SET product_profile = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(command.model_dump(), ensure_ascii=False), _now(), project_id),
+        )
         return _get_project(connection, project_id)
 
 

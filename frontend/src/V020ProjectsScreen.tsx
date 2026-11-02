@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
 import { V020DeletionImpactPanel } from "./V020DeletionImpactPanel";
-import type { ProjectSort } from "./projectsApi";
+import {
+  defaultProductProfile,
+  type ProductProfile,
+  type ProjectSort,
+} from "./projectsApi";
 import type { V020ProjectWorkspace } from "./useV020ProjectWorkspace";
 import "./V020ProjectList.css";
 
@@ -30,6 +34,8 @@ export function V020ProjectsScreen({
   const [name, setName] = useState("");
   const [productName, setProductName] = useState("");
   const [description, setDescription] = useState("");
+  // 产品画像：新建时描述被测产品形态，供 AI 判定与报告使用。
+  const [profile, setProfile] = useState<ProductProfile>(defaultProductProfile);
   const createdNoticeRef = useRef<HTMLDivElement>(null);
 
   /** 新建成功后把提示和列表顶部滚进视野，避免新项目落在看不见的位置。 */
@@ -46,6 +52,7 @@ export function V020ProjectsScreen({
     setName("");
     setProductName("");
     setDescription("");
+    setProfile(defaultProductProfile);
   };
 
   const submitProject = async () => {
@@ -53,6 +60,7 @@ export function V020ProjectsScreen({
       name: name.trim(),
       product_name: productName.trim(),
       description: description.trim(),
+      product_profile: profile,
     });
     if (createdId === null) return;
     resetForm();
@@ -280,6 +288,159 @@ export function V020ProjectsScreen({
                 value={description}
               />
             </label>
+            <fieldset className="prototype-project-profile">
+              <legend>被测产品画像（决定 AI 判断与报告内容）</legend>
+              <div className="prototype-filter-row">
+                <label>
+                  实体按键
+                  <input
+                    aria-label="实体按键数量"
+                    min={0}
+                    max={999}
+                    onChange={(event) =>
+                      setProfile({
+                        ...profile,
+                        physical_keys: Number(event.target.value) || 0,
+                      })
+                    }
+                    type="number"
+                    value={profile.physical_keys}
+                  />
+                </label>
+                <label>
+                  指示灯
+                  <input
+                    aria-label="指示灯数量"
+                    min={0}
+                    max={999}
+                    onChange={(event) =>
+                      setProfile({
+                        ...profile,
+                        indicator_lights: Number(event.target.value) || 0,
+                      })
+                    }
+                    type="number"
+                    value={profile.indicator_lights}
+                  />
+                </label>
+                <label>
+                  摄像头
+                  <input
+                    aria-label="摄像头数量"
+                    min={0}
+                    max={999}
+                    onChange={(event) =>
+                      setProfile({
+                        ...profile,
+                        cameras: Number(event.target.value) || 0,
+                      })
+                    }
+                    type="number"
+                    value={profile.cameras}
+                  />
+                </label>
+                <label className="prototype-inline-check">
+                  <input
+                    aria-label="有麦克风"
+                    checked={profile.microphone}
+                    onChange={(event) =>
+                      setProfile({
+                        ...profile,
+                        microphone: event.target.checked,
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  麦克风
+                </label>
+                <label className="prototype-inline-check">
+                  <input
+                    aria-label="有提示音"
+                    checked={profile.buzzer}
+                    onChange={(event) =>
+                      setProfile({ ...profile, buzzer: event.target.checked })
+                    }
+                    type="checkbox"
+                  />
+                  提示音
+                </label>
+              </div>
+              <label>
+                通信接口
+                <input
+                  aria-label="通信接口"
+                  maxLength={100}
+                  onChange={(event) =>
+                    setProfile({ ...profile, interfaces: event.target.value })
+                  }
+                  placeholder="例如：USB、WiFi、蓝牙、ADB"
+                  value={profile.interfaces}
+                />
+              </label>
+              <label>
+                测试环境
+                <input
+                  aria-label="测试环境"
+                  maxLength={120}
+                  onChange={(event) =>
+                    setProfile({
+                      ...profile,
+                      test_environment: event.target.value,
+                    })
+                  }
+                  value={profile.test_environment}
+                />
+              </label>
+              <label>
+                测试平台
+                <select
+                  aria-label="测试平台"
+                  onChange={(event) =>
+                    setProfile({
+                      ...profile,
+                      platform: event.target
+                        .value as ProductProfile["platform"],
+                    })
+                  }
+                  value={profile.platform}
+                >
+                  <option value="none">无（纯硬件）</option>
+                  <option value="web">网页 / 后台</option>
+                  <option value="app">手机 App</option>
+                </select>
+              </label>
+              {profile.platform === "web" && (
+                <label>
+                  网站地址
+                  <input
+                    aria-label="网站地址"
+                    maxLength={200}
+                    onChange={(event) =>
+                      setProfile({ ...profile, web_url: event.target.value })
+                    }
+                    placeholder="例如：https://example.com"
+                    value={profile.web_url}
+                  />
+                </label>
+              )}
+              {profile.platform === "app" && (
+                <label>
+                  App 安装包名称
+                  <input
+                    aria-label="App 安装包"
+                    maxLength={120}
+                    onChange={(event) =>
+                      setProfile({
+                        ...profile,
+                        app_package: event.target.value,
+                      })
+                    }
+                    placeholder="填写安装包文件名"
+                    value={profile.app_package}
+                  />
+                </label>
+              )}
+            </fieldset>
             <div className="prototype-actions">
               <button
                 className="prototype-secondary"

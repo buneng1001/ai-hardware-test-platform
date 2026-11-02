@@ -26,13 +26,15 @@ from app.siliconflow import SiliconFlowError
 
 router = APIRouter(tags=["automation test cases"])
 
-PROMPT_VERSION = "automation-conversion-v1"
+PROMPT_VERSION = "automation-conversion-v2"
 CONFIDENCE_VALUES = {"high", "medium", "low"}
 
 SYSTEM_PROMPT = """你是硬件产品的测试用例评审助手。
 输入是一批原始测试用例。请逐条判断它能否做成自动化用例：
 - automation：输入和预期结果可以被程序确定性校验，适合用数据驱动模拟执行。
 - manual：依赖人工观察、外观手感、主观判断或真实设备操作，只能人工测试。
+输入中的 product_profile 是被测产品画像（实体按键、指示灯、摄像头、麦克风、提示音、接口等），
+请结合它判断这条用例依赖的是“物理观察/人工操作”还是“可程序校验的数据”。
 只输出一个 JSON 对象，不要输出解释文字：
 {"items":[{"source_case_id":数字,"decision":"automation"或"manual",
 "reason":"一行简短中文原因","title":"自动化用例标题","input":"输入",
@@ -63,9 +65,7 @@ def _resolve_target(command: AutomationCaseConversionAiCommand) -> tuple[str, st
     return provider, model, api_key
 
 
-def _parse_decisions(
-    payload: dict[str, object], known_ids: set[int]
-) -> dict[int, AutomationCaseAiDecision]:
+def _parse_decisions(payload: dict[str, object], known_ids: set[int]) -> dict[int, AutomationCaseAiDecision]:
     """把模型输出转换成按原始用例 id 索引的判定；无法解析的条目直接忽略。"""
     items = payload.get("items")
     if not isinstance(items, list):
@@ -177,6 +177,22 @@ def convert_source_cases_with_ai(
     removed_count = 0
     with open_database() as connection:
         _ensure_version(connection, version_id)
+        # 产品画像：按键/指示灯/摄像头等物理形态，作为判断能否自动化的依据。
+        profile_row = connection.execute(
+            """
+            SELECT project.product_profile
+            FROM product_versions version
+            JOIN projects project ON project.id = version.project_id
+            WHERE version.id = ?
+            """,
+            (version_id,),
+        ).fetchone()
+        product_profile = None
+        if profile_row is not None and profile_row["product_profile"]:
+            try:
+                product_profile = json.loads(profile_row["product_profile"])
+            except json.JSONDecodeError:
+                product_profile = None
         selected_ids = list(dict.fromkeys(command.source_case_ids))
         if selected_ids:
             # 用户勾选后点“AI 生成”，就按勾选范围重新判定，不再跳过已有候选的用例。
@@ -205,6 +221,7 @@ def convert_source_cases_with_ai(
             batch = source_cases[batch_start : batch_start + case_batch_size]
             rows_by_id = {int(row["id"]): dict(row) for row in batch}
             evidence = {
+                "product_profile": product_profile,
                 "cases": [
                     {
                         "source_case_id": int(row["id"]),
@@ -218,7 +235,7 @@ def convert_source_cases_with_ai(
                         "expected_result": row["expected_result"],
                     }
                     for row in batch
-                ]
+                ],
             }
             try:
                 payload = adapter.generate_json(
@@ -258,9 +275,7 @@ def convert_source_cases_with_ai(
                         confidence="low",
                     )
                 elif decision.case_number == "":
-                    decision = decision.model_copy(
-                        update={"case_number": str(source_case["case_number"])}
-                    )
+                    decision = decision.model_copy(update={"case_number": str(source_case["case_number"])})
                 decisions.append(decision)
                 connection.execute(
                     "UPDATE source_test_cases SET ai_decision = ? WHERE id = ?",
@@ -277,18 +292,14 @@ def convert_source_cases_with_ai(
                 if decision.decision == "automation":
                     if existing is not None:
                         # 已经有候选（例如之前跑过规则转换）就地更新，避免重复生成。
-                        _update_candidate(
-                            connection, int(existing["id"]), source_case, raw_entry, decision
-                        )
+                        _update_candidate(connection, int(existing["id"]), source_case, raw_entry, decision)
                         updated_count += 1
                     else:
                         _save_candidate(connection, version_id, source_case, raw_entry, decision)
                         created_count += 1
                 elif existing is not None:
                     # 判为人工的用例不再保留自动化候选，回到原始用例表按人工测试。
-                    connection.execute(
-                        "DELETE FROM automation_test_cases WHERE id = ?", (int(existing["id"]),)
-                    )
+                    connection.execute("DELETE FROM automation_test_cases WHERE id = ?", (int(existing["id"]),))
                     removed_count += 1
             # 每批写完立刻提交，避免模型调用期间长时间占着写事务，
             # 否则用户同时勾选用例会直接报 database is locked。

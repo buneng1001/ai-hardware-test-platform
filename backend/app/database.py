@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 33
+LATEST_SCHEMA_VERSION = 34
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -927,7 +927,6 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             """
         )
 
-
     if current_version < 32:
         # 运行指纹幂等与活动结果指针；历史运行全部保留，只有一条处于 active。
         available_tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
@@ -962,24 +961,35 @@ def migrate_database(connection: sqlite3.Connection) -> None:
                 """
             )
 
-
     if current_version < 33:
         # AI 转换判定结果：记录每条原始用例是否已被模型判定，避免重复消耗模型调用。
         has_source_table = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'source_test_cases'"
         ).fetchone()
         if has_source_table is not None:
-            source_columns = {
-                row[1] for row in connection.execute("PRAGMA table_info(source_test_cases)").fetchall()
-            }
+            source_columns = {row[1] for row in connection.execute("PRAGMA table_info(source_test_cases)").fetchall()}
             if "ai_decision" not in source_columns:
-                connection.execute(
-                    "ALTER TABLE source_test_cases ADD COLUMN ai_decision TEXT NOT NULL DEFAULT ''"
-                )
+                connection.execute("ALTER TABLE source_test_cases ADD COLUMN ai_decision TEXT NOT NULL DEFAULT ''")
         connection.executescript(
             """
             INSERT OR IGNORE INTO schema_migrations (version) VALUES (33);
             PRAGMA user_version = 33;
+            """
+        )
+
+    if current_version < 34:
+        # 项目级产品画像：新建项目时描述被测产品形态，供 AI 判定与最终报告使用。
+        has_projects = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'projects'"
+        ).fetchone()
+        if has_projects is not None:
+            project_columns = {row[1] for row in connection.execute("PRAGMA table_info(projects)").fetchall()}
+            if "product_profile" not in project_columns:
+                connection.execute("ALTER TABLE projects ADD COLUMN product_profile TEXT")
+        connection.executescript(
+            """
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (34);
+            PRAGMA user_version = 34;
             """
         )
 

@@ -127,6 +127,46 @@ export function V020ReportPreviewDialog({
             </p>
           </section>
 
+          {snapshot.basic_information.product_profile && (
+            <section>
+              <h2>产品形态与测试环境</h2>
+              <p>
+                实体按键{" "}
+                {snapshot.basic_information.product_profile.physical_keys} 个 ·
+                指示灯{" "}
+                {snapshot.basic_information.product_profile.indicator_lights} 个
+                · 摄像头 {snapshot.basic_information.product_profile.cameras} 个
+                · 麦克风
+                {snapshot.basic_information.product_profile.microphone
+                  ? "有"
+                  : "无"}
+                · 提示音
+                {snapshot.basic_information.product_profile.buzzer
+                  ? "有"
+                  : "无"}
+              </p>
+              {snapshot.basic_information.product_profile.interfaces && (
+                <p>
+                  通信接口：
+                  {snapshot.basic_information.product_profile.interfaces}
+                </p>
+              )}
+              <p>
+                测试环境：
+                {snapshot.basic_information.product_profile.test_environment}
+              </p>
+              <p>
+                测试平台：
+                {snapshot.basic_information.product_profile.platform === "web"
+                  ? `网页 / 后台（${snapshot.basic_information.product_profile.web_url || "未填网址"}）`
+                  : snapshot.basic_information.product_profile.platform ===
+                      "app"
+                    ? `手机 App（${snapshot.basic_information.product_profile.app_package || "未填安装包"}）`
+                    : "无（纯硬件）"}
+              </p>
+            </section>
+          )}
+
           <section>
             <h2>总体结论与通过率</h2>
             <p>

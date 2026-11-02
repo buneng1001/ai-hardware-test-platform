@@ -34,6 +34,19 @@ export type FactReportSnapshot = {
       batch_number: number;
       created_at: string;
     }>;
+    /** 产品画像：报告开头用它说明“测的是什么”。 */
+    product_profile?: {
+      physical_keys: number;
+      indicator_lights: number;
+      cameras: number;
+      microphone: boolean;
+      buzzer: boolean;
+      interfaces: string;
+      test_environment: string;
+      platform: "none" | "web" | "app";
+      web_url: string;
+      app_package: string;
+    } | null;
   };
   warnings: string[];
   stage_progress: { conclusion: string; basis: string[] };
