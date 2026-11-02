@@ -5,6 +5,7 @@ import { V020AutomationCaseTable } from "./V020AutomationCaseTable";
 import type { AutomationCaseCreateCommand } from "./automationTestCasesApi";
 import { useV020AutomationTestCases } from "./useV020AutomationTestCases";
 import { V020AddToGroupDialog } from "./V020AddToGroupDialog";
+import { V020ConfirmDialog } from "./V020ConfirmDialog";
 import "./V020AutomationCases.css";
 
 /**
@@ -29,6 +30,10 @@ export function V020AutomationCasesScreen({
   const [page, setPage] = useState(1);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
   const [groupNotice, setGroupNotice] = useState<string | null>(null);
+  // 删除自动化用例前弹窗确认，避免误点直接删掉资产。
+  const [pendingDeleteCase, setPendingDeleteCase] = useState<number | null>(
+    null,
+  );
   const submitHandlers = useRef(new Map<number, () => Promise<boolean>>());
   const pageSize = 20;
 
@@ -280,7 +285,10 @@ export function V020AutomationCasesScreen({
             productVersionId={versionId}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
-            onDelete={deleteCase}
+            onDelete={async (caseId: number) => {
+              setPendingDeleteCase(caseId);
+              return true;
+            }}
             onDirtyChange={handleDirtyChange}
             onFeedback={automation.submitFeedback}
             onOpenSource={onOpenSource}
@@ -319,6 +327,23 @@ export function V020AutomationCasesScreen({
         修改、新增、删除或重新生成后，用例立即变为未校验；未校验用例不能加入测试组或执行。删除资产不会删除历史快照。
       </div>
 
+      {pendingDeleteCase !== null && (
+        <V020ConfirmDialog
+          ariaLabel="删除自动化用例确认"
+          confirmLabel="确认删除自动化用例"
+          onCancel={() => setPendingDeleteCase(null)}
+          onConfirm={() => {
+            const target = pendingDeleteCase;
+            setPendingDeleteCase(null);
+            void deleteCase(target);
+          }}
+          title="删除自动化用例"
+        >
+          <p className="prototype-muted">
+            删除只移除自动化用例资产，历史执行快照不受影响。
+          </p>
+        </V020ConfirmDialog>
+      )}
       {groupNotice && (
         <div className="prototype-inline-note" role="status">
           {groupNotice}

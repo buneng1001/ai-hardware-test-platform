@@ -22,8 +22,10 @@ import {
 } from "./manualTestResultsApi";
 import { FactReportView } from "./FactReportView";
 import { ReportHistory } from "./ReportHistory";
+import { V020ConfirmDialog } from "./V020ConfirmDialog";
 
 export function FactReportPanel({ groupId }: { groupId: number }) {
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [executions, setExecutions] = useState<AutomationExecution[]>([]);
   const [batches, setBatches] = useState<ManualTestResultBatch[]>([]);
   const [executionId, setExecutionId] = useState<number | null>(null);
@@ -138,14 +140,15 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
     }
   };
 
+  /** 删除在线报告：先弹窗确认影响范围，再执行删除。 */
   const removeReport = async () => {
-    if (
-      !report ||
-      !window.confirm(
-        "删除在线报告不会删除自动化、人工记录或数据包。是否继续？",
-      )
-    )
-      return;
+    if (!report) return;
+    setDeleteConfirm(true);
+  };
+
+  const confirmRemoveReport = async () => {
+    if (!report) return;
+    setDeleteConfirm(false);
     setBusy(true);
     try {
       await deleteFactReport(report.id);
@@ -237,6 +240,20 @@ export function FactReportPanel({ groupId }: { groupId: number }) {
           onRetryAnalysis={() => void retryAnalysis()}
           onDelete={() => void removeReport()}
         />
+      )}
+      {deleteConfirm && report && (
+        <V020ConfirmDialog
+          ariaLabel="删除在线报告影响"
+          busy={busy}
+          confirmLabel="确认删除在线报告"
+          onCancel={() => setDeleteConfirm(false)}
+          onConfirm={() => void confirmRemoveReport()}
+          title="删除在线报告"
+        >
+          <p className="prototype-muted">
+            删除只移除在线报告本身，不会删除自动化执行记录、人工记录和数据包。
+          </p>
+        </V020ConfirmDialog>
       )}
       <ReportHistory
         items={history}

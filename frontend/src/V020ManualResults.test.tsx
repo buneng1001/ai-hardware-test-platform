@@ -168,10 +168,14 @@ test("人工结果和附件支持删除并提示报告过期", async () => {
   await screen.findByText("SRC-001");
 
   fireEvent.click(screen.getByRole("button", { name: "删除附件" }));
+  fireEvent.click(await screen.findByRole("button", { name: "确认删除附件" }));
   expect(await screen.findByText("附件已删除。")).toBeVisible();
   expect(screen.queryByRole("link", { name: "shot.png" })).toBeNull();
 
   fireEvent.click(screen.getByRole("button", { name: "删除人工结果" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "确认删除人工结果" }),
+  );
   expect(
     await screen.findByText("人工结果已删除；相关报告将在生成后标记为过期。"),
   ).toBeVisible();

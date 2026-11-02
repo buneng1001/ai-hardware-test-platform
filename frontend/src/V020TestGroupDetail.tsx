@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
 import { V020AutomationExecutionPanel } from "./V020AutomationExecutionPanel";
+import { V020ConfirmDialog } from "./V020ConfirmDialog";
 import { useV020AutomationExecution } from "./useV020AutomationExecution";
 import { listDataPackages, type DataPackage } from "./dataPackagesApi";
 import {
@@ -65,6 +66,8 @@ export function V020TestGroupDetail({
   const [message, setMessage] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
+  // 从组内移除用例前确认，避免误点把用例踢出范围。
+  const [pendingRemove, setPendingRemove] = useState<CaseRow | null>(null);
   const execution = useV020AutomationExecution(detail.id);
 
   useEffect(() => {
@@ -375,18 +378,7 @@ export function V020TestGroupDetail({
                   <button
                     className="prototype-secondary"
                     disabled={working}
-                    onClick={() =>
-                      void runAction(async () => {
-                        if (row.kind === "automation") {
-                          await removeTestGroupAutomationCase(
-                            detail.id,
-                            row.id,
-                          );
-                        } else {
-                          await removeTestGroupSourceCase(detail.id, row.id);
-                        }
-                      }, "已从测试组移除。")
-                    }
+                    onClick={() => setPendingRemove(row)}
                     type="button"
                   >
                     移除
@@ -423,6 +415,29 @@ export function V020TestGroupDetail({
         </div>
       )}
 
+      {pendingRemove && (
+        <V020ConfirmDialog
+          ariaLabel="从测试组移除用例确认"
+          confirmLabel="确认移除"
+          onCancel={() => setPendingRemove(null)}
+          onConfirm={() => {
+            const target = pendingRemove;
+            setPendingRemove(null);
+            void runAction(async () => {
+              if (target.kind === "automation") {
+                await removeTestGroupAutomationCase(detail.id, target.id);
+              } else {
+                await removeTestGroupSourceCase(detail.id, target.id);
+              }
+            }, "已从测试组移除。");
+          }}
+          title={`从测试组移除 ${pendingRemove.caseNumber}`}
+        >
+          <p className="prototype-muted">
+            只从本次测试范围移除，不会删除平台级用例。
+          </p>
+        </V020ConfirmDialog>
+      )}
       <V020AutomationExecutionPanel execution={execution} />
     </section>
   );

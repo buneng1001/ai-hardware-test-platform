@@ -75,6 +75,8 @@ test("测试组详情用一张表列出人工与自动化用例并支持移出",
   expect(automationRow).toHaveTextContent("自动化");
 
   fireEvent.click(within(automationRow).getByRole("button", { name: "移除" }));
+  // 移除也要先弹窗确认
+  fireEvent.click(await screen.findByRole("button", { name: "确认移除" }));
 
   await waitFor(() =>
     expect(

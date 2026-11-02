@@ -84,6 +84,9 @@ test("删除自动化用例后移除资产并保留历史快照说明", async ()
   await openAutomationView();
 
   fireEvent.click(screen.getByRole("button", { name: "删除" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "确认删除自动化用例" }),
+  );
 
   expect(
     await screen.findByText("自动化用例已删除；历史快照不受此操作影响。"),

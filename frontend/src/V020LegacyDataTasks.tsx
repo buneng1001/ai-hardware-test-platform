@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { CollectionTaskForm } from "./CollectionTaskForm";
+import { V020ConfirmDialog } from "./V020ConfirmDialog";
 import { ImportTaskPanel } from "./ImportTaskPanel";
 import { RunDetail } from "./RunDetail";
 import { SavedTasksPanel } from "./SavedTasksPanel";
@@ -26,6 +27,10 @@ export function V020LegacyDataTasks({
   onTaskCreated: (taskId: number) => void;
 }) {
   const controller = useAppController();
+  // 删除任务前弹窗确认，避免误删任务配置。
+  const [pendingDeleteTask, setPendingDeleteTask] = useState<number | null>(
+    null,
+  );
   // 创建成功后在最新一次渲染里取到新任务 id，交给父组件自动执行并登记数据包。
   const tasksRef = useRef(controller.tasks);
   tasksRef.current = controller.tasks;
@@ -136,7 +141,7 @@ export function V020LegacyDataTasks({
           }}
           onExecute={(id) => void controller.executeTask(id)}
           onArchive={(id) => void controller.archiveSavedTask(id)}
-          onDelete={(id) => void controller.removeSavedTask(id)}
+          onDelete={(id) => setPendingDeleteTask(id)}
         />
       )}
 
@@ -159,6 +164,23 @@ export function V020LegacyDataTasks({
             还没有选择运行记录。请先在“已保存任务与运行记录”里打开一条运行。
           </p>
         ))}
+      {pendingDeleteTask !== null && (
+        <V020ConfirmDialog
+          ariaLabel="删除任务确认"
+          confirmLabel="确认删除任务"
+          onCancel={() => setPendingDeleteTask(null)}
+          onConfirm={() => {
+            const target = pendingDeleteTask;
+            setPendingDeleteTask(null);
+            void controller.removeSavedTask(target);
+          }}
+          title="删除数据任务"
+        >
+          <p className="prototype-muted">
+            删除只移除任务配置与它的运行记录入口，已登记的数据包不受影响。
+          </p>
+        </V020ConfirmDialog>
+      )}
     </section>
   );
 }

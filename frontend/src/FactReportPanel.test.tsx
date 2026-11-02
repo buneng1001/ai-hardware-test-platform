@@ -281,6 +281,9 @@ test("测试工程师可以确认清理当前报告附件、查找历史并删�
     await screen.findByText("人工记录批次 #2：recorded"),
   ).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "删除在线报告" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "确认删除在线报告" }),
+  );
   expect(fetchMock).toHaveBeenCalledWith("/api/fact-reports/7", {
     method: "DELETE",
   });

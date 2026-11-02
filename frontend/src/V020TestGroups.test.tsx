@@ -156,7 +156,7 @@ test("测试组支持隐藏、恢复显示和确认影响后删除", async () =>
   const dialog = await screen.findByRole("dialog", {
     name: "删除测试组影响范围",
   });
-  expect(dialog).toHaveTextContent("原始用例：1");
+  expect(dialog).toHaveTextContent("人工用例：1");
   expect(dialog).toHaveTextContent("自动化用例：1");
   fireEvent.click(screen.getByRole("button", { name: "确认删除测试组" }));
 
