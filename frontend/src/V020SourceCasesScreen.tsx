@@ -360,7 +360,8 @@ export function V020SourceCasesScreen({
 
       <div className="prototype-inline-note">
         原始用例按产品版本独立保存；删除导入记录时会一并清除该记录下的原始用例，
-        以及由它们生成的自动化候选和测试组关联。重新导入时勾选“覆盖已有用例”即可替换旧用例表。
+        以及由它们生成的自动化候选和测试组关联。
+        重新导入同一份用例表时，在导入面板勾选“覆盖已有用例”，就不会堆成两份。
       </div>
 
       {groupNotice && (

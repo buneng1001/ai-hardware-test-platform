@@ -32,7 +32,7 @@ export function V020SourceCaseTable({
         </h3>
         <p className="prototype-muted">
           {hasCases
-            ? "调整模块、测试项、优先级或软件版本筛选后再查看。"
+            ? "模块、测试类型等筛选是“同时满足”的关系；清空其中一个筛选条件再试。"
             : "导入 Beta 产品需求或测试用例资料后，会形成独立导入记录和原始用例表。"}
         </p>
       </div>
