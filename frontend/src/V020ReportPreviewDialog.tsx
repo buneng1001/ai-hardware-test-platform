@@ -128,7 +128,19 @@ export function V020ReportPreviewDialog({
           </section>
 
           <section>
-            <h2>阶段推进事实依据</h2>
+            <h2>总体结论与通过率</h2>
+            <p>
+              总体通过率：
+              <strong>
+                {snapshot.pass_rate.overall.rate === null
+                  ? "无可统计结果"
+                  : `${snapshot.pass_rate.overall.rate}%`}
+              </strong>
+              （通过 {snapshot.pass_rate.overall.passed} / 已测{" "}
+              {snapshot.pass_rate.overall.tested}，共{" "}
+              {snapshot.pass_rate.overall.total} 条，未执行{" "}
+              {snapshot.pass_rate.overall.not_executed} 条）
+            </p>
             <h3>{snapshot.stage_progress.conclusion}</h3>
             <ul>
               {snapshot.stage_progress.basis.map((item) => (
@@ -137,36 +149,108 @@ export function V020ReportPreviewDialog({
             </ul>
           </section>
 
-          <V020ReportAnalysisSection
-            busy={busy}
-            onRefresh={onRefreshAnalysis}
-            onRerun={onRerunAnalysis}
-            onRetry={onRetryAnalysis}
-            report={report}
-          />
-
           <section>
-            <h2>范围总览</h2>
-            <div className="prototype-report-summary-grid">
-              <div>
-                <strong>{snapshot.scope_overview.original_case_count}</strong>
-                <span>原始用例</span>
-              </div>
-              <div>
-                <strong>{snapshot.scope_overview.module_count}</strong>
-                <span>模块</span>
-              </div>
-              <div>
-                <strong>{snapshot.scope_overview.automation_case_count}</strong>
-                <span>自动化结果</span>
-              </div>
-              <div>
-                <strong>{snapshot.scope_overview.manual_case_count}</strong>
-                <span>人工结果</span>
-              </div>
+            <h2>模块汇总</h2>
+            <div className="prototype-table-wrap">
+              <table className="prototype-table">
+                <thead>
+                  <tr>
+                    <th>编号</th>
+                    <th>模块</th>
+                    <th>用例数</th>
+                    <th>通过</th>
+                    <th>失败</th>
+                    <th>阻塞</th>
+                    <th>未执行</th>
+                    <th>通过率</th>
+                    <th>结论</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshot.module_summary.map((module, index) => (
+                    <tr key={module.name}>
+                      <td>{index + 1}</td>
+                      <td>{module.name}</td>
+                      <td>
+                        {Object.values(module.counts).reduce(
+                          (total, value) => total + value,
+                          0,
+                        )}
+                      </td>
+                      <td>{module.counts.passed ?? 0}</td>
+                      <td>{module.counts.failed ?? 0}</td>
+                      <td>{module.counts.blocked ?? 0}</td>
+                      <td>{module.counts.not_executed ?? 0}</td>
+                      <td>
+                        {module.pass_rate.rate === null
+                          ? "—"
+                          : `${module.pass_rate.rate}%`}
+                      </td>
+                      <td>{module.conclusion}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
 
+          <section>
+            <h2>未通过用例</h2>
+            {snapshot.issues.failed.length === 0 ? (
+              <p>没有未通过用例。</p>
+            ) : (
+              <ul>
+                {snapshot.issues.failed.map((item) => (
+                  <li key={`${item.case_number}-${item.source}`}>
+                    <strong>{item.case_number}</strong> {item.title}（
+                    {item.module}）：{item.actual_result}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <h2>阻塞与未执行</h2>
+            <p>
+              阻塞 {snapshot.issues.blocked.length} 条 · 未执行{" "}
+              {snapshot.issues.not_executed.length} 条
+            </p>
+            <ul>
+              {[
+                ...snapshot.issues.blocked,
+                ...snapshot.issues.not_executed,
+              ].map((item) => (
+                <li key={`${item.status}-${item.case_number}-${item.source}`}>
+                  <strong>{item.case_number}</strong> {item.title}（
+                  {statusLabels[item.status] ?? item.status}）：
+                  {item.actual_result}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section>
+            <h2>执行方式通过率</h2>
+            <ul>
+              <li>
+                自动化：
+                {snapshot.pass_rate.automation.rate === null
+                  ? "无可统计结果"
+                  : `${snapshot.pass_rate.automation.rate}%`}
+                （通过 {snapshot.pass_rate.automation.passed} / 已测{" "}
+                {snapshot.pass_rate.automation.tested}）
+              </li>
+              <li>
+                人工：
+                {snapshot.pass_rate.manual.rate === null
+                  ? "无可统计结果"
+                  : `${snapshot.pass_rate.manual.rate}%`}
+                （通过 {snapshot.pass_rate.manual.passed} / 已测{" "}
+                {snapshot.pass_rate.manual.tested}）
+              </li>
+            </ul>
+          </section>
           <section>
             <h2>模块详情</h2>
             {snapshot.modules.map((module) => (
@@ -195,8 +279,16 @@ export function V020ReportPreviewDialog({
             ))}
           </section>
 
+          <V020ReportAnalysisSection
+            busy={busy}
+            onRefresh={onRefreshAnalysis}
+            onRerun={onRerunAnalysis}
+            onRetry={onRetryAnalysis}
+            report={report}
+          />
+
           <section>
-            <h2>跨模块问题</h2>
+            <h2>附录：跨模块问题</h2>
             {snapshot.cross_module_issues.length === 0 ? (
               <p>无跨模块冲突。</p>
             ) : (

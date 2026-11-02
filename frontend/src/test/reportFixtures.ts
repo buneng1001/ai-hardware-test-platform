@@ -54,6 +54,74 @@ export function factReport(overrides: Partial<FactReport> = {}): FactReport {
         manual_case_count: 1,
         counts: { passed: 0, failed: 1, blocked: 0, not_executed: 1 },
       },
+      pass_rate: {
+        overall: {
+          tested: 1,
+          passed: 0,
+          failed: 1,
+          blocked: 0,
+          not_executed: 1,
+          total: 2,
+          rate: 0,
+        },
+        automation: {
+          tested: 1,
+          passed: 0,
+          failed: 1,
+          blocked: 0,
+          not_executed: 0,
+          total: 1,
+          rate: 0,
+        },
+        manual: {
+          tested: 0,
+          passed: 0,
+          failed: 0,
+          blocked: 0,
+          not_executed: 1,
+          total: 1,
+          rate: null,
+        },
+      },
+      issues: {
+        failed: [
+          {
+            case_number: "SRC-001",
+            title: "录制",
+            module: "采集",
+            source: "自动化",
+            status: "failed",
+            actual_result: "确定性检查实际结果：video_drop；未满足用例预期。",
+          },
+        ],
+        blocked: [],
+        not_executed: [
+          {
+            case_number: "SRC-002",
+            title: "人工检查",
+            module: "采集",
+            source: "人工",
+            status: "not_executed",
+            actual_result: "未填写补充说明",
+          },
+        ],
+      },
+      module_summary: [
+        {
+          name: "采集",
+          conclusion: "建议暂缓并补充验证",
+          counts: { passed: 0, failed: 1, blocked: 0, not_executed: 1 },
+          pass_rate: {
+            tested: 1,
+            passed: 0,
+            failed: 1,
+            blocked: 0,
+            not_executed: 1,
+            total: 2,
+            rate: 0,
+          },
+        },
+      ],
       modules: [
         {
           name: "采集",

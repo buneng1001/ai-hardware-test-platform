@@ -101,11 +101,11 @@ test("冻结版固定样例贯通用例、数据、测试组、执行、人工�
     .map((item) => item.textContent);
   expect(headings.slice(0, 6)).toEqual([
     "测试基本信息",
-    "阶段推进事实依据",
-    "AI 区域状态",
-    "范围总览",
-    "模块详情",
-    "跨模块问题",
+    "总体结论与通过率",
+    "模块汇总",
+    "未通过用例",
+    "阻塞与未执行",
+    "执行方式通过率",
   ]);
   expect(
     within(reportDialog).getByRole("link", { name: "下载 HTML 报告" }),

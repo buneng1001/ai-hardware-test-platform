@@ -203,14 +203,12 @@ def test_fact_report_combines_snapshots_marks_conflicts_and_downloads(client):
     markup = client.get(f"/api/fact-reports/{report['id']}.html").text
     assert "结果不一致" in text
     assert [
-        text.index(title)
-        for title in ("测试基本信息", "阶段推进事实依据", "AI 区域状态", "范围总览", "模块详情", "跨模块问题")
+        text.index(title) for title in ("测试基本信息", "总体结论与通过率", "模块汇总", "模块明细", "AI 分析", "附录")
     ] == sorted(
-        text.index(title)
-        for title in ("测试基本信息", "阶段推进事实依据", "AI 区域状态", "范围总览", "模块详情", "跨模块问题")
+        text.index(title) for title in ("测试基本信息", "总体结论与通过率", "模块汇总", "模块明细", "AI 分析", "附录")
     )
-    assert "模块详情" in markup
-    assert markup.index("阶段推进事实依据") < markup.index("模块详情")
+    assert "模块明细" in markup
+    assert markup.index("总体结论与通过率") < markup.index("模块明细")
     assert (
         client.put(
             f"/api/manual-test-result-batches/{batch['id']}",

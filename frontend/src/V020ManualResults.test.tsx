@@ -110,26 +110,41 @@ test("支持逐行保存和整批保存，未填写项按未执行提交", async
     notes: "已复现",
   });
 
+  // 再次保存会新建批次，不再覆盖旧批次。
+  const beforeBatchPosts = callsOf(fetchMock).filter(
+    ([input, init]) =>
+      String(input) === "/api/test-groups/21/manual-test-result-batches" &&
+      init?.method === "POST",
+  ).length;
   fireEvent.click(screen.getByRole("button", { name: "保存当前批次" }));
   await waitFor(() =>
     expect(
-      callsOf(fetchMock).some(
+      callsOf(fetchMock).filter(
         ([input, init]) =>
-          /\/manual-test-result-batches\/\d+$/.test(String(input)) &&
-          init?.method === "PUT",
+          String(input) === "/api/test-groups/21/manual-test-result-batches" &&
+          init?.method === "POST",
       ),
-    ).toBe(true),
+    ).toHaveLength(beforeBatchPosts + 1),
   );
-  const updated = callsOf(fetchMock).find(
-    ([input, init]) =>
-      /\/manual-test-result-batches\/\d+$/.test(String(input)) &&
-      init?.method === "PUT",
-  );
-  const updatedBody = JSON.parse(String(updated?.[1]?.body)) as {
+  expect(
+    callsOf(fetchMock).some(
+      ([input, init]) =>
+        /\/manual-test-result-batches\/\d+$/.test(String(input)) &&
+        init?.method === "PUT",
+    ),
+  ).toBe(false);
+  const createdBatch = callsOf(fetchMock)
+    .filter(
+      ([input, init]) =>
+        String(input) === "/api/test-groups/21/manual-test-result-batches" &&
+        init?.method === "POST",
+    )
+    .at(-1);
+  const createdBatchBody = JSON.parse(String(createdBatch?.[1]?.body)) as {
     results: Array<{ status: string }>;
   };
-  expect(updatedBody.results).toHaveLength(2);
-  expect(updatedBody.results[1].status).toBe("not_executed");
+  expect(createdBatchBody.results).toHaveLength(2);
+  expect(createdBatchBody.results[1].status).toBe("not_executed");
 });
 
 test("保存后重新打开页面可以恢复编辑内容", async () => {

@@ -161,7 +161,7 @@ def test_v020_fixed_sample_covers_migrations_api_fallbacks_reports_and_trends(tm
         for suffix in ("txt", "html"):
             downloaded = client.get(f"/api/fact-reports/{report_body['id']}.{suffix}")
             assert downloaded.status_code == 200, downloaded.text
-            assert "阶段推进事实依据" in downloaded.text
+            assert "总体结论与通过率" in downloaded.text
 
         # 分析服务故障不能影响已保存的报告事实。
         class UnavailableAdapter:

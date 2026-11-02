@@ -100,8 +100,9 @@ export function V020ReportPanel({
                 </p>
               ))}
               <p className="prototype-muted">
-                AI 区域状态：{report.snapshot.ai_analysis.status} ·{" "}
-                {report.snapshot.ai_analysis.message}
+                {/* 用实时分析状态，快照里的静态标记会一直显示“未配置”。 */}
+                AI 区域状态：{report.analysis.status} ·{" "}
+                {report.analysis.message}
               </p>
             </>
           ) : (

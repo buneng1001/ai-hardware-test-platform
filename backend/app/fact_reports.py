@@ -38,6 +38,21 @@ def _status_counts(records: list[dict[str, object]]) -> dict[str, int]:
     return {key: counts[key] for key in STATUS_LABELS}
 
 
+def _pass_rate(counts: dict[str, int]) -> dict[str, object]:
+    """通过率只统计已经执行过的用例：通过 /（通过+失败+阻塞）。"""
+    tested = counts["passed"] + counts["failed"] + counts["blocked"]
+    rate = round(counts["passed"] / tested * 100, 1) if tested else None
+    return {
+        "tested": tested,
+        "passed": counts["passed"],
+        "failed": counts["failed"],
+        "blocked": counts["blocked"],
+        "not_executed": counts["not_executed"],
+        "total": sum(counts.values()),
+        "rate": rate,
+    }
+
+
 def _stage_progress(counts: dict[str, int]) -> dict[str, object]:
     if not sum(counts.values()):
         conclusion = "信息不足，建议补充验证"
@@ -200,6 +215,22 @@ def _build_snapshot(connection: sqlite3.Connection, group_id: int, command: Fact
         for number in sorted(inconsistent_cases)
     ]
     warnings = ["当前记录来自历史配置，报告将使用历史快照。"] if historical_configuration else []
+    all_counts = _status_counts(all_records)
+
+    def issues(status: str) -> list[dict[str, object]]:
+        return [
+            {
+                "case_number": item["case_number"],
+                "title": item["title"],
+                "module": item["module"],
+                "source": item["source"],
+                "status": item["status"],
+                "actual_result": item["message"],
+            }
+            for item in all_records
+            if item["status"] == status
+        ]
+
     return {
         "basic_information": {
             "project_name": version["project_name"],
@@ -223,8 +254,27 @@ def _build_snapshot(connection: sqlite3.Connection, group_id: int, command: Fact
             "module_count": len(modules),
             "automation_case_count": len(automation_records),
             "manual_case_count": len(manual_records),
-            "counts": _status_counts(all_records),
+            "counts": all_counts,
         },
+        "pass_rate": {
+            "overall": _pass_rate(all_counts),
+            "automation": _pass_rate(_status_counts(automation_records)),
+            "manual": _pass_rate(_status_counts(manual_records)),
+        },
+        "issues": {
+            "failed": issues("failed"),
+            "blocked": issues("blocked"),
+            "not_executed": issues("not_executed"),
+        },
+        "module_summary": [
+            {
+                "name": module["name"],
+                "conclusion": module["conclusion"],
+                "counts": module["counts"],
+                "pass_rate": _pass_rate(module["counts"]),
+            }
+            for module in modules
+        ],
         "modules": modules,
         "cross_module_issues": cross_module_issues,
     }

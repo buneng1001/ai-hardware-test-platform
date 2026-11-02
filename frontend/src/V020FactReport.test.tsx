@@ -82,18 +82,18 @@ test("生成最终报告后按固定顺序预览并下载 HTML 与纯文字", as
   ).toBeVisible();
   const dialog = screen.getByRole("dialog", { name: "报告 #9 HTML 预览" });
   expect(
-    within(dialog).getByRole("heading", { name: "阶段推进事实依据" }),
+    within(dialog).getByRole("heading", { name: "总体结论与通过率" }),
   ).toBeVisible();
   const headings = within(dialog)
     .getAllByRole("heading", { level: 2 })
     .map((item) => item.textContent);
   expect(headings.slice(0, 6)).toEqual([
     "测试基本信息",
-    "阶段推进事实依据",
-    "AI 区域状态",
-    "范围总览",
-    "模块详情",
-    "跨模块问题",
+    "总体结论与通过率",
+    "模块汇总",
+    "未通过用例",
+    "阻塞与未执行",
+    "执行方式通过率",
   ]);
   expect(headings).toContain("已使用附件");
   expect(screen.getByTitle("事实报告 HTML 预览")).toHaveAttribute(

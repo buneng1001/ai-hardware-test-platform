@@ -40,6 +40,20 @@ export function V020ManualResultSummaryCard({
   const latest = page?.batches[0];
   const selectedBatch =
     page?.batches.find((item) => item.id === selectedBatchId) ?? latest;
+  const statusCounts = {
+    passed:
+      selectedBatch?.results.filter((item) => item.status === "passed")
+        .length ?? 0,
+    failed:
+      selectedBatch?.results.filter((item) => item.status === "failed")
+        .length ?? 0,
+    blocked:
+      selectedBatch?.results.filter((item) => item.status === "blocked")
+        .length ?? 0,
+    not_executed:
+      selectedBatch?.results.filter((item) => item.status === "not_executed")
+        .length ?? 0,
+  };
 
   useEffect(() => {
     // 默认选中最新一批人工记录。
@@ -99,40 +113,13 @@ export function V020ManualResultSummaryCard({
       ) : (
         <p>尚无人工记录；未填写项在报告中按未执行处理。</p>
       )}
-      {selectedBatch && selectedBatch.results.length > 0 && (
-        <div className="prototype-table-wrap">
-          <table className="prototype-table prototype-manual-summary-table">
-            <thead>
-              <tr>
-                <th>用例编号</th>
-                <th>标题</th>
-                <th>结果</th>
-                <th>实际结果</th>
-              </tr>
-            </thead>
-            <tbody>
-              {selectedBatch.results.map((result) => {
-                const testCase = page?.cases.find(
-                  (item) => item.id === result.source_test_case_id,
-                );
-                return (
-                  <tr key={result.id}>
-                    <td>
-                      {testCase?.case_number ??
-                        `#${result.source_test_case_id}`}
-                    </td>
-                    <td>{testCase?.title ?? "—"}</td>
-                    <td>
-                      {manualTestStatusLabels[result.status] ?? result.status}
-                    </td>
-                    <td>{result.actual_result || "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {selectedBatch && (
+        <p className="prototype-muted">
+          批次 #{selectedBatch.batch_number}：共 {selectedBatch.results.length}{" "}
+          条 · 通过 {statusCounts.passed} · 不通过 {statusCounts.failed} · 阻塞{" "}
+          {statusCounts.blocked} · 未执行 {statusCounts.not_executed}
+        </p>
+      )}{" "}
       <button
         className="prototype-secondary"
         onClick={() => onOpenManual({ id: groupId, name: groupName })}
