@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import "./V020DeletionImpactPanel.css";
+
 import {
   addTestGroupAutomationCases,
   addTestGroupSourceCases,

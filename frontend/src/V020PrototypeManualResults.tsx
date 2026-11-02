@@ -1,7 +1,11 @@
+import { useEffect, useState } from "react";
+
 import { V020ManualResultRow } from "./V020ManualResultRow";
 import { manualTestStatusLabels } from "./manualTestResultsApi";
 import { useV020ManualTestResults } from "./useV020ManualTestResults";
 import "./V020ManualResults.css";
+
+const pageSize = 20;
 
 export function ManualResultsPage({
   groupId,
@@ -13,6 +17,20 @@ export function ManualResultsPage({
   onBack: () => void;
 }) {
   const manual = useV020ManualTestResults(groupId);
+  const [resultPage, setResultPage] = useState(1);
+  const totalCases = manual.page?.cases.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCases / pageSize));
+  const currentPage = Math.min(resultPage, totalPages);
+  const pageItems =
+    manual.page?.cases.slice(
+      (currentPage - 1) * pageSize,
+      currentPage * pageSize,
+    ) ?? [];
+
+  /** 换测试组或批次后回到第一页，避免停在空页。 */
+  useEffect(() => {
+    setResultPage(1);
+  }, [groupId]);
 
   if (groupId === null) {
     return (
@@ -133,7 +151,7 @@ export function ManualResultsPage({
                 </tr>
               </thead>
               <tbody>
-                {page.cases.map((item) => (
+                {pageItems.map((item) => (
                   <V020ManualResultRow
                     busy={manual.busy}
                     draft={manual.drafts[item.id]}
@@ -156,6 +174,30 @@ export function ManualResultsPage({
                 ))}
               </tbody>
             </table>
+            {totalCases > pageSize && (
+              <div className="prototype-source-pager" aria-label="人工用例分页">
+                <span>
+                  第 {currentPage} / {totalPages} 页 · 共 {totalCases} 条，每页{" "}
+                  {pageSize} 条
+                </span>
+                <button
+                  className="prototype-secondary"
+                  disabled={currentPage <= 1}
+                  onClick={() => setResultPage(currentPage - 1)}
+                  type="button"
+                >
+                  上一页
+                </button>
+                <button
+                  className="prototype-secondary"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setResultPage(currentPage + 1)}
+                  type="button"
+                >
+                  下一页
+                </button>
+              </div>
+            )}
           </div>
         )
       )}

@@ -84,7 +84,7 @@ async function selectOption(select: HTMLElement, name: RegExp | string) {
   fireEvent.change(select);
 }
 
-test.skip("测试组详情可加入、排序和移除原始用例（待按新的加入测试组弹窗重写）", async () => {
+test("测试组详情可加入、排序和移除原始用例", async () => {
   const state = detailState({
     groups: [
       testGroupDetail({
@@ -113,9 +113,8 @@ test.skip("测试组详情可加入、排序和移除原始用例（待按新的
       ),
     ).toBe(true),
   );
-  expect(await screen.findByText("SRC-002")).toBeVisible();
 
-  await within(panel).findByText("已把数据包分配给勾选的用例。");
+  await within(panel).findByText("已加入原始用例。");
   fireEvent.click(within(panel).getAllByRole("button", { name: "下移" })[0]);
   await waitFor(() =>
     expect(
@@ -138,8 +137,7 @@ test.skip("测试组详情可加入、排序和移除原始用例（待按新的
     ).toBe(true),
   );
 });
-
-test.skip("自动化用例只列已校验候选，并支持批量关联和逐条取消数据包（待按新流程重写）", async () => {
+test("测试组自动化范围支持批量分配数据包与逐条取消", async () => {
   const state = detailState({
     groups: [
       testGroupDetail({
@@ -180,12 +178,11 @@ test.skip("自动化用例只列已校验候选，并支持批量关联和逐条
     ),
   ).toBeVisible();
   expect(screen.getByText("数据包 DP-000009 未校验，不能执行。")).toBeVisible();
-  expect(
-    callsOf(fetchMock).filter(([, init]) => (init?.method ?? "GET") === "PUT"),
-  ).toHaveLength(0);
 
   const panel = screen.getByLabelText("测试组自动化用例与数据包");
-  // 用例加入测试组改由“自动化用例表”负责，这里只验证批量分配与逐条取消。
+
+  // 只验证批量分配：先勾选行，再选数据包，点分配给勾选行。
+  expect(within(panel).getByText(/这里管理本次测试的自动化范围/)).toBeVisible();
   fireEvent.click(
     within(panel).getByLabelText("选择 AUTO-000001 用于批量关联"),
   );
@@ -195,6 +192,7 @@ test.skip("自动化用例只列已校验候选，并支持批量关联和逐条
   fireEvent.click(
     within(panel).getByRole("button", { name: /分配给已勾选的/ }),
   );
+
   await waitFor(() =>
     expect(
       callsOf(fetchMock).some(
@@ -204,30 +202,24 @@ test.skip("自动化用例只列已校验候选，并支持批量关联和逐条
       ),
     ).toBe(true),
   );
-
-  await within(panel).findByText("已把数据包分配给勾选的用例。");
-  fireEvent.click(within(panel).getAllByRole("button", { name: "下移" })[0]);
-  await waitFor(() =>
-    expect(
-      callsOf(fetchMock).some(
-        ([input, init]) =>
-          String(input).endsWith("/automation-test-cases/order") &&
-          init?.method === "PUT",
-      ),
-    ).toBe(true),
-  );
-
-  fireEvent.click(within(panel).getAllByRole("button", { name: "移除" })[0]);
-  await waitFor(() =>
-    expect(
-      callsOf(fetchMock).some(
-        ([input, init]) =>
-          /\/automation-test-cases\/\d+$/.test(String(input)) &&
-          init?.method === "DELETE",
-      ),
-    ).toBe(true),
-  );
   expect(
-    await screen.findByText("已从测试组移除；平台级自动化用例保留。"),
+    await within(panel).findByText("已把数据包分配给勾选的用例。"),
   ).toBeVisible();
+
+  // 逐条取消：清空该行已选数据包后应发出 PUT。
+  const packageSelect = within(panel).getByLabelText("AUTO-000001 数据包");
+  for (const option of within(packageSelect).getAllByRole("option")) {
+    (option as HTMLOptionElement).selected = false;
+  }
+  fireEvent.change(packageSelect);
+  await waitFor(() =>
+    expect(
+      callsOf(fetchMock).some(
+        ([input, init]) =>
+          String(input).endsWith("/automation-test-cases/1/data-packages") &&
+          init?.method === "PUT" &&
+          JSON.parse(String(init.body)).data_package_ids.length === 0,
+      ),
+    ).toBe(true),
+  );
 });
