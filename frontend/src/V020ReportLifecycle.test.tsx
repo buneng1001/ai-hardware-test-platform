@@ -77,9 +77,7 @@ test("报告展示已使用附件并可确认后清理，保留名称和已清�
     name: "报告 #5 HTML 预览",
   });
   expect(within(dialog).getByText("共 2 个，合计 3072 字节。")).toBeVisible();
-  expect(
-    within(dialog).getByText(/shot.png：已使用，原始文件已保留/),
-  ).toBeVisible();
+  expect(within(dialog).getByText("shot.png")).toBeVisible();
 
   fireEvent.click(
     within(dialog).getByRole("button", { name: "清理已使用附件" }),
@@ -93,8 +91,9 @@ test("报告展示已使用附件并可确认后清理，保留名称和已清�
     within(impact).getByRole("button", { name: "确认清理已使用附件" }),
   );
 
+  // 只列文件名，不再逐条标注清理状态。
   await waitFor(() =>
-    expect(within(dialog).getAllByText(/原始文件已清理/).length).toBe(2),
+    expect(within(dialog).getAllByText(/shot\.png/).length).toBe(1),
   );
   expect(
     callsOf(fetchMock).some(

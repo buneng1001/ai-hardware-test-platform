@@ -32,10 +32,7 @@ export function V020ReportAttachmentSection({
         <ul>
           {summary.attachments.map((attachment) => (
             <li key={`${attachment.id}-${attachment.filename}`}>
-              {attachment.filename}：已使用，
-              {attachment.storage_status === "cleaned"
-                ? "原始文件已清理"
-                : "原始文件已保留"}
+              {attachment.filename}
             </li>
           ))}
         </ul>

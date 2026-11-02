@@ -115,7 +115,8 @@ def test_online_report_lifecycle_attachment_cleanup_and_history(client: TestClie
         == "按键无响应"
     )
     downloaded_text = client.get(f"/api/fact-reports/{first['id']}.txt").text
-    assert "evidence.txt：已使用；已清理" in downloaded_text
+    # 附录只列附件名，不写清理状态。
+    assert "evidence.txt" in downloaded_text
 
     second = _create_report(client, group_id, execution["id"], batch["id"])
     assert client.get(f"/api/fact-reports/{first['id']}").json()["lifecycle_status"] == "superseded"

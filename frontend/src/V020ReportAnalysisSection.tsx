@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 import { Status } from "./V020PrototypeShared";
 import type { FactReport } from "./factReportsApi";
 
@@ -24,6 +26,24 @@ export function V020ReportAnalysisSection({
 }) {
   const analysis = report.analysis;
   const failed = analysis.status === "failed";
+  const [waited, setWaited] = useState(0);
+  const refreshRef = useRef(onRefresh);
+  refreshRef.current = onRefresh;
+
+  // 分析在后台跑：每 3 秒自动取一次状态，最多等 5 分钟，不需要用户一直点刷新。
+  useEffect(() => {
+    if (analysis.status !== "pending") {
+      setWaited(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = Math.round((Date.now() - startedAt) / 1000);
+      setWaited(elapsed);
+      if (elapsed <= 300) refreshRef.current();
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [analysis.status]);
   return (
     <section
       aria-label="报告 AI 分析区域"
@@ -43,6 +63,13 @@ export function V020ReportAnalysisSection({
           {statusLabels[analysis.status] ?? analysis.status}
         </Status>
         <p role={failed ? "alert" : undefined}>{analysis.message}</p>
+        {analysis.status === "pending" && (
+          <p className="prototype-muted">
+            已等待 {waited} 秒，系统每 3 秒自动检查一次，最多等 5 分钟；
+            可以关闭弹窗，稍后重新打开也能看到结果。
+            {waited > 300 && " 已超过 5 分钟，可点“重试报告分析”。"}
+          </p>
+        )}
         {failed && analysis.error?.action && (
           <p className="prototype-muted">下一步：{analysis.error.action}</p>
         )}
@@ -71,7 +98,7 @@ export function V020ReportAnalysisSection({
             onClick={onRefresh}
             type="button"
           >
-            刷新分析状态
+            立即刷新状态
           </button>
         )}
         <button

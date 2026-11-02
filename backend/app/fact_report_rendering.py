@@ -102,10 +102,8 @@ def render_text(report: FactReport) -> str:
     lines.extend(["", "九、附录"])
     lines.append("附件使用状态")
     if report.attachment_summary.attachments:
-        lines.extend(
-            f"- {item.filename}：已使用；{'已清理' if item.storage_status == 'cleaned' else '原始文件已保留'}"
-            for item in report.attachment_summary.attachments
-        )
+        # 附录只列文件名，不嵌入附件内容。
+        lines.extend(f"- {item.filename}" for item in report.attachment_summary.attachments)
     else:
         lines.append("无")
     lines.append("跨模块问题")
