@@ -44,7 +44,7 @@ export function V020LegacyDataTasks({
   };
 
   return (
-    <section className="prototype-card legacy-data-shell" aria-label="数据任务">
+    <section className="legacy-data-shell" aria-label="数据任务">
       <div className="legacy-data-head">
         <div>
           <div className="prototype-kicker">v0.1.0 数据任务</div>

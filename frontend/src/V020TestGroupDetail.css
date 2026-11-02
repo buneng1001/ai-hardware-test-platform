@@ -1,0 +1,69 @@
+/* 测试组详情：顶部操作条 + 表内数据包选择 */
+.test-group-topbar {
+  margin: 14px 0 18px;
+}
+
+.test-group-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  color: var(--prototype-color-muted);
+  font-weight: 700;
+}
+
+.test-group-bulk select {
+  min-width: 220px;
+}
+
+/* 表格铺满容器，不再横向溢出；标题列吃掉剩余宽度。 */
+.prototype-table.test-group-case-table {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.test-group-case-table th,
+.test-group-case-table td {
+  white-space: nowrap;
+}
+
+.test-group-case-table td:nth-child(4) {
+  white-space: normal;
+  word-break: normal;
+}
+
+.test-group-case-table th:nth-child(1) {
+  width: 40px;
+}
+
+.test-group-case-table th:nth-child(2) {
+  width: 50px;
+}
+
+.test-group-case-table th:nth-child(3) {
+  width: 96px;
+}
+
+.test-group-case-table th:nth-child(5),
+.test-group-case-table th:nth-child(6) {
+  width: 84px;
+}
+
+.test-group-case-table th:nth-child(7) {
+  width: 76px;
+}
+
+.test-group-case-table th:nth-child(8) {
+  width: 156px;
+}
+
+.test-group-case-table th:nth-child(9) {
+  width: 76px;
+}
+
+.test-group-case-table select {
+  width: 100%;
+  min-width: 0;
+}

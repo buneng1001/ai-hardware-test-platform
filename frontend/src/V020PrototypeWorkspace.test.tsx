@@ -101,8 +101,8 @@ test("测试数据支持复制编号且测试组数据包可输入或下拉选�
 
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
+  // 数据包改成表内单行下拉：一次一条用例，选项来自已校验数据包。
   const packageSelect = await screen.findByLabelText("AUTO-000001 数据包");
-  expect(packageSelect).toHaveAttribute("multiple");
   expect(
     await within(packageSelect).findByRole("option", { name: "DP-000007" }),
   ).toBeInTheDocument();
@@ -113,11 +113,13 @@ test("测试组名称仅在创建时填写且重新进入页签回到列表", as
 
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
-  expect(await screen.findByText("测试组名称创建后不可修改")).toBeVisible();
+  expect(
+    await screen.findByRole("button", { name: "执行自动化测试" }),
+  ).toBeVisible();
 
   fireEvent.click(screen.getByRole("button", { name: "测试数据" }));
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
-  expect(screen.queryByText("测试组名称创建后不可修改")).toBeNull();
+  expect(screen.queryByLabelText("测试组用例分页")).toBeNull();
   expect(
     await screen.findByRole("button", { name: "＋ 新建测试组" }),
   ).toBeVisible();
@@ -132,7 +134,9 @@ test("测试组名称仅在创建时填写且重新进入页签回到列表", as
 
   expect(await screen.findByText("EVT1 综合回归")).toBeVisible();
   expect(screen.queryByRole("textbox", { name: "测试组名称" })).toBeNull();
-  expect(screen.getByText("测试组名称创建后不可修改")).toBeVisible();
+  expect(
+    await screen.findByRole("button", { name: "执行自动化测试" }),
+  ).toBeVisible();
 });
 
 test("人工测试结果使用统一表格录入", async () => {
