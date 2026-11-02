@@ -68,8 +68,8 @@ test("生成最终报告后按固定顺序预览并下载 HTML 与纯文字", as
   fireEvent.change(screen.getByLabelText("自动化执行记录"), {
     target: { value: "3" },
   });
-  fireEvent.click(screen.getByLabelText("选择人工批次 #1"));
   fireEvent.click(screen.getByRole("button", { name: "生成事实报告" }));
+  fireEvent.click(await screen.findByRole("button", { name: "确认生成" }));
 
   expect(
     await screen.findByRole("heading", { name: "测试基本信息" }),
@@ -138,8 +138,8 @@ test("只有人工记录时也允许生成报告", async () => {
   await openReportView();
 
   fireEvent.click(await screen.findByRole("button", { name: "生成最终报告" }));
-  fireEvent.click(screen.getByLabelText("选择人工批次 #1"));
   fireEvent.click(screen.getByRole("button", { name: "生成事实报告" }));
+  fireEvent.click(await screen.findByRole("button", { name: "确认生成" }));
 
   expect(
     await screen.findByRole("dialog", { name: "报告 #10 HTML 预览" }),
