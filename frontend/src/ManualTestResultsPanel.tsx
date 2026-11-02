@@ -154,7 +154,7 @@ export function ManualTestResultsPanel({
         <div>
           <h3 id="manual-test-results-title">人工测试结果</h3>
           <p>
-            仅显示当前测试组的人工和混合用例；可逐行或按批次保存，并在下次打开时继续编辑。
+            仅显示当前测试组的人工用例；可逐行或按批次保存，并在下次打开时继续编辑。
           </p>
         </div>
         <button type="button" onClick={onBack}>
@@ -197,7 +197,7 @@ export function ManualTestResultsPanel({
             </div>
           )}
           {page.cases.length === 0 ? (
-            <p>当前测试组没有人工或混合用例。</p>
+            <p>当前测试组没有人工用例。</p>
           ) : (
             <div className="manual-test-result-list">
               {page.cases.map((item) => (

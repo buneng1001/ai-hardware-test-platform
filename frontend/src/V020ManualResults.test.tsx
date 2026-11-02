@@ -242,5 +242,5 @@ test("人工结果加载失败可重试，没有人工用例时展示空状态",
   cleanup();
   stubManualApi({ groups: [], cases: [], batches: [] });
   renderPage();
-  expect(await screen.findByText("当前测试组没有人工或混合用例")).toBeVisible();
+  expect(await screen.findByText("当前测试组里还没有人工用例")).toBeVisible();
 });

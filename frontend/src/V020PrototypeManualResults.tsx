@@ -88,7 +88,7 @@ export function ManualResultsPage({
       <h1>逐条录入人工测试</h1>
       <p className="prototype-muted">
         测试组：{groupName}
-        。只显示人工与混合用例；可逐行或按批次保存，关闭后重新进入会恢复已保存内容。
+        。只显示当前测试组的人工用例；可逐行或按批次保存，关闭后重新进入会恢复已保存内容。
       </p>
       {manual.message && (
         <p className="prototype-muted" role="status">
@@ -134,9 +134,9 @@ export function ManualResultsPage({
       )}
       {page && page.cases.length === 0 ? (
         <div className="prototype-card">
-          <h3>当前测试组没有人工或混合用例</h3>
+          <h3>当前测试组里还没有人工用例</h3>
           <p className="prototype-muted">
-            请在测试组的原始用例范围中加入测试类型为 manual 或 mixed 的用例。
+            请先到“测试用例表”勾选用例，点“加入测试组”，再回来录入人工结果。
           </p>
         </div>
       ) : (

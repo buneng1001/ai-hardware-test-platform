@@ -103,9 +103,15 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
     setScreen("projects");
   };
 
+  /** 侧边栏切页：如果在“逐条录入人工测试”等子页面，要回到工作区。 */
+  const navigateSection = (next: SectionKey) => {
+    setSection(next);
+    setScreen("workspace");
+  };
+
   const shellProps = {
     section,
-    onSectionChange: setSection,
+    onSectionChange: navigateSection,
     onOpenProjects: openProjects,
     onOpenHome: () => setScreen("home"),
     projectName: projectWorkspace.detail?.name,

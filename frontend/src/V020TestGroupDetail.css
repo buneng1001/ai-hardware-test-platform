@@ -46,13 +46,8 @@
 }
 
 .test-group-run-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 0 12px;
-  color: var(--prototype-color-text);
-  border-radius: 10px;
-  background: var(--prototype-color-brand-soft);
-  font-size: 0.88rem;
+  margin: 6px 0 0;
+  color: var(--prototype-color-muted);
+  font-size: 0.9rem;
   font-weight: 600;
 }
