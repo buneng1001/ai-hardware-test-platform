@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
 import { V020AutomationExecutionPanel } from "./V020AutomationExecutionPanel";
+import { useV020AutomationExecution } from "./useV020AutomationExecution";
 import { listDataPackages, type DataPackage } from "./dataPackagesApi";
 import {
   assignDataPackageToCases,
@@ -51,6 +52,8 @@ export function V020TestGroupDetail({
   const [page, setPage] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const execution = useV020AutomationExecution(detail.id);
 
   useEffect(() => {
     void listDataPackages()
@@ -167,7 +170,10 @@ export function V020TestGroupDetail({
   };
 
   return (
-    <section aria-label={`${detail.name} 测试组详情`}>
+    <section
+      aria-label={`${detail.name} 测试组详情`}
+      className="prototype-card test-group-detail-card"
+    >
       <div className="prototype-group-head">
         <div>
           <strong>{detail.name}</strong>
@@ -185,14 +191,19 @@ export function V020TestGroupDetail({
       <div className="prototype-actions test-group-topbar">
         <button
           className="prototype-primary"
-          onClick={() => {
-            document
-              .getElementById("test-group-automation-execution")
-              ?.scrollIntoView({ block: "start" });
-          }}
+          disabled={execution.busy || execution.status !== "ready"}
+          onClick={() => void execution.run()}
           type="button"
         >
-          执行自动化测试
+          {execution.busy ? "执行中…" : "执行自动化测试"}
+        </button>
+        <button
+          className="prototype-secondary"
+          disabled={!execution.busy}
+          onClick={() => execution.cancelRun()}
+          type="button"
+        >
+          取消本次测试
         </button>
         <button
           className="prototype-secondary"
@@ -315,7 +326,7 @@ export function V020TestGroupDetail({
                   {row.kind === "automation" ? (
                     <select
                       aria-label={`${row.caseNumber} 数据包`}
-                      disabled={working}
+                      disabled={working || rowBusy === rowKey(row)}
                       onChange={(event) =>
                         void runAction(async () => {
                           await replaceTestGroupCasePackages(
@@ -392,7 +403,7 @@ export function V020TestGroupDetail({
         </div>
       )}
 
-      <V020AutomationExecutionPanel groupId={detail.id} />
+      <V020AutomationExecutionPanel execution={execution} />
     </section>
   );
 }

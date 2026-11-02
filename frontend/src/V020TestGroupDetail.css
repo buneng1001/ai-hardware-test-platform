@@ -17,11 +17,11 @@
   min-width: 220px;
 }
 
-/* 表格铺满容器，不再横向溢出；标题列吃掉剩余宽度。 */
+/* 表格铺满容器：标题列给足宽度，其余列按内容收窄。 */
 .prototype-table.test-group-case-table {
   width: 100%;
   min-width: 0 !important;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .test-group-case-table th,
@@ -29,41 +29,13 @@
   white-space: nowrap;
 }
 
-.test-group-case-table td:nth-child(4) {
+.test-group-case-table td:nth-child(4),
+.test-group-case-table th:nth-child(4) {
+  min-width: 232px;
   white-space: normal;
-  word-break: normal;
-}
-
-.test-group-case-table th:nth-child(1) {
-  width: 40px;
-}
-
-.test-group-case-table th:nth-child(2) {
-  width: 50px;
-}
-
-.test-group-case-table th:nth-child(3) {
-  width: 96px;
-}
-
-.test-group-case-table th:nth-child(5),
-.test-group-case-table th:nth-child(6) {
-  width: 84px;
-}
-
-.test-group-case-table th:nth-child(7) {
-  width: 76px;
-}
-
-.test-group-case-table th:nth-child(8) {
-  width: 156px;
-}
-
-.test-group-case-table th:nth-child(9) {
-  width: 76px;
 }
 
 .test-group-case-table select {
-  width: 100%;
+  width: 142px;
   min-width: 0;
 }

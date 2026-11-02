@@ -32,6 +32,7 @@ export function V020AddToGroupDialog({
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);
   const [groupId, setGroupId] = useState("");
   const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,7 +85,7 @@ export function V020AddToGroupDialog({
       // 原始用例用后端“带入已勾选”能力，自动化用例单独补加。
       const created = await createTestGroup(versionId, {
         name,
-        description: "",
+        description: newDescription.trim(),
         include_selected_source_cases: sourceIds.length > 0,
       });
       if (automationIds.length > 0) {
@@ -154,6 +155,16 @@ export function V020AddToGroupDialog({
             onChange={(event) => setNewName(event.target.value)}
             placeholder="例如：EVT1 基础回归"
             value={newName}
+          />
+        </label>
+        <label>
+          描述或备注（可选）
+          <input
+            aria-label="新测试组描述"
+            disabled={busy}
+            onChange={(event) => setNewDescription(event.target.value)}
+            placeholder="例如：EVT1 阶段的断电恢复专项"
+            value={newDescription}
           />
         </label>
         <div className="prototype-actions">

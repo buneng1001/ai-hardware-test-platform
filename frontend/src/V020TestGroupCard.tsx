@@ -21,9 +21,9 @@ export function V020TestGroupCard({
       <h3>{item.name}</h3>
       <p>{item.description || "暂无说明"}</p>
       <p className="prototype-muted">
-        {item.source_test_case_count} 条原始用例 ·{" "}
-        {item.automation_test_case_count} 条自动化用例 ·{" "}
-        {item.data_package_assignment_count} 个数据包关联
+        人工 {item.source_test_case_count} 条 · 自动化{" "}
+        {item.automation_test_case_count} 条 · 已分配数据包{" "}
+        {item.data_package_assignment_count} 条
       </p>
       <div className="prototype-actions">
         <button

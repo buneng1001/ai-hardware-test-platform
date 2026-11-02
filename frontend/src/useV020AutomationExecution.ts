@@ -28,6 +28,8 @@ export function useV020AutomationExecution(groupId: number | null) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const requestToken = useRef(0);
+  // 取消标记：预检返回后如果用户点了取消，就不再创建执行记录。
+  const cancelledRef = useRef(false);
 
   const load = useCallback(async (id: number) => {
     const token = requestToken.current + 1;
@@ -104,6 +106,49 @@ export function useV020AutomationExecution(groupId: number | null) {
     }
   };
 
+  /** 一键执行：先自动预检，通过就立即开始，不再让用户点第二次。 */
+  const run = async () => {
+    if (groupId === null) return;
+    cancelledRef.current = false;
+    setBusy(true);
+    setActionError(null);
+    setMessage(null);
+    setChecks(null);
+    try {
+      const preparation = await prepareAutomationExecution(groupId);
+      setChecks(preparation.checks);
+      if (cancelledRef.current) {
+        setMessage("已取消本次测试，未创建执行记录。");
+        return;
+      }
+      if (!preparation.passed) {
+        setReady(false);
+        setMessage("预检未通过，请按提示修复后再执行。");
+        return;
+      }
+      setReady(true);
+      const record = await startAutomationExecution(groupId);
+      setRecords((current) => [record, ...current]);
+      setChecks(null);
+      setReady(false);
+      const summary = record.summary;
+      setMessage(
+        `执行完成：通过 ${summary.passed} · 失败 ${summary.failed} · ` +
+          `阻塞 ${summary.blocked} · 未执行 ${summary.not_executed}。`,
+      );
+    } catch (caught) {
+      setActionError(errorMessage(caught, "执行失败"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 取消本次测试：预检后不再开始，或结束当前等待。 */
+  const cancelRun = () => {
+    cancelledRef.current = true;
+    if (!busy) setMessage("已取消本次测试，未创建执行记录。");
+  };
+
   const cancelPreparation = () => {
     setChecks(null);
     setReady(false);
@@ -125,6 +170,8 @@ export function useV020AutomationExecution(groupId: number | null) {
     message,
     prepare,
     execute,
+    run,
+    cancelRun,
     cancelPreparation,
     refresh,
     retry: refresh,

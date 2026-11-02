@@ -196,3 +196,13 @@
   border-radius: 10px;
   background: transparent;
 }
+
+/* 旧任务面板的大外框（task-panel / task-list）与页面卡片重复，嵌入时去掉。 */
+.legacy-data-shell .task-panel,
+.legacy-data-shell .task-list {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
