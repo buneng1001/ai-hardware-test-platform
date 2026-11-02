@@ -96,10 +96,8 @@ test("生成最终报告后按固定顺序预览并下载 HTML 与纯文字", as
     "执行方式通过率",
   ]);
   expect(headings).toContain("已使用附件");
-  expect(screen.getByTitle("事实报告 HTML 预览")).toHaveAttribute(
-    "src",
-    "/api/fact-reports/9.html",
-  );
+  // 预览不再内嵌 iframe，只保留下载入口。
+  expect(screen.queryByTitle("事实报告 HTML 预览")).toBeNull();
   expect(screen.getByRole("link", { name: "下载 HTML 报告" })).toHaveAttribute(
     "href",
     "/api/fact-reports/9.html",

@@ -311,10 +311,6 @@ export function V020ReportPreviewDialog({
             report={report}
           />
 
-          <iframe
-            title="事实报告 HTML 预览"
-            src={`/api/fact-reports/${report.id}.html`}
-          />
           <p>
             <a href={`/api/fact-reports/${report.id}.html`} download>
               下载 HTML 报告
