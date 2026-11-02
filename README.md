@@ -116,7 +116,11 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload --env-file .env --port 8020
 ```
 
-然后在 `frontend/.env.development` 里改代理目标（只需改一次）：
+然后在 `frontend/.env.development` 里改代理目标（只需改一次；也可以直接设置同名环境变量）：
+
+```powershell
+Copy-Item frontend/.env.development.example frontend/.env.development
+```
 
 ```text
 VITE_API_PROXY_TARGET=http://127.0.0.1:8020
