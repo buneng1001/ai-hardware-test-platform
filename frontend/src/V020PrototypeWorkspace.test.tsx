@@ -160,7 +160,7 @@ test("人工测试结果使用统一表格录入", async () => {
   ).toBeVisible();
 });
 
-test("执行结果使用浅色测试组选择区并展示真实最终报告和 HTML 预览", async () => {
+test("执行结果使用浅色测试组选择区并展示真实最终报告与下载入口", async () => {
   await renderWorkspace();
 
   expect(screen.getByTestId("prototype-sidebar-brand-glyph")).toHaveClass(
@@ -186,10 +186,11 @@ test("执行结果使用浅色测试组选择区并展示真实最终报告和 H
   expect(
     within(previewDialog).getByRole("heading", { name: "AI 区域状态" }),
   ).toBeVisible();
-  expect(screen.getByTitle("事实报告 HTML 预览")).toHaveAttribute(
-    "src",
-    "/api/fact-reports/5.html",
-  );
+  // 预览不再内嵌 HTML iframe。
+  expect(screen.queryByTitle("事实报告 HTML 预览")).toBeNull();
+  expect(
+    within(previewDialog).getByRole("link", { name: "下载 HTML 报告" }),
+  ).toHaveAttribute("href", "/api/fact-reports/5.html");
 
   fireEvent.click(screen.getByRole("button", { name: "返回报告列表" }));
   const historyDialog = await screen.findByRole("dialog", {
