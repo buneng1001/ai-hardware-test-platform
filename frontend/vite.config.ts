@@ -5,16 +5,16 @@ import { defineConfig, loadEnv } from "vite";
 declare const process: { env: Record<string, string | undefined> };
 
 /**
- * 开发代理目标从环境变量读取，默认 8000。
- * 端口被占用时只需设置 VITE_API_PROXY_TARGET（环境变量或在 .env.development 里），
- * 不需要改这段代码。
+ * 开发代理目标从环境变量读取，默认 8020（比 8000 更不容易和其它项目撞车）。
+ * 需要换端口时设置 VITE_API_PROXY_TARGET（环境变量或 .env.development），
+ * 不需要改这段代码；scripts/dev.ps1 会自动挑空闲端口并写好这个变量。
  */
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
   const proxyTarget =
     process.env.VITE_API_PROXY_TARGET ||
     env.VITE_API_PROXY_TARGET ||
-    "http://127.0.0.1:8000";
+    "http://127.0.0.1:8020";
   return {
     plugins: [react()],
     server: {
