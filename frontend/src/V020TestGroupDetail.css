@@ -39,3 +39,20 @@
   width: 142px;
   min-width: 0;
 }
+
+/* 执行按钮宽度固定，状态反馈放在按钮旁边，避免点了看不到变化。 */
+.test-group-topbar .prototype-primary {
+  min-width: 140px;
+}
+
+.test-group-run-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  color: var(--prototype-color-text);
+  border-radius: 10px;
+  background: var(--prototype-color-brand-soft);
+  font-size: 0.88rem;
+  font-weight: 600;
+}

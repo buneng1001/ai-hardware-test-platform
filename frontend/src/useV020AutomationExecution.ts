@@ -109,6 +109,7 @@ export function useV020AutomationExecution(groupId: number | null) {
   /** 一键执行：先自动预检，通过就立即开始，不再让用户点第二次。 */
   const run = async () => {
     if (groupId === null) return;
+    const startedAt = Date.now();
     cancelledRef.current = false;
     setBusy(true);
     setActionError(null);
@@ -139,6 +140,11 @@ export function useV020AutomationExecution(groupId: number | null) {
     } catch (caught) {
       setActionError(errorMessage(caught, "执行失败"));
     } finally {
+      // 执行本身很快，至少让“执行中”状态出现 700ms，避免按钮闪一下就恢复。
+      const remain = 700 - (Date.now() - startedAt);
+      if (remain > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remain));
+      }
       setBusy(false);
     }
   };

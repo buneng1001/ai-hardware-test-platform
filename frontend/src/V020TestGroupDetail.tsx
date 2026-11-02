@@ -229,6 +229,13 @@ export function V020TestGroupDetail({
         >
           取消本次测试
         </button>
+        {(execution.busy || execution.message || execution.actionError) && (
+          <span className="test-group-run-status" role="status">
+            {execution.busy
+              ? "正在执行：先预检，再按数据包跑用例…"
+              : (execution.actionError ?? execution.message)}
+          </span>
+        )}
         <button
           className="prototype-secondary"
           disabled={busy || working}
