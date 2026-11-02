@@ -213,3 +213,12 @@
 .prototype-case-toolbar .prototype-filter-row > span {
   white-space: nowrap;
 }
+
+/* 类型列附注：不抢主徽章的视觉重量。 */
+.prototype-badge-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--prototype-color-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}

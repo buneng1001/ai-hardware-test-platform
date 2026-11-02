@@ -88,19 +88,17 @@ export function V020SourceCaseTable({
                 </td>
                 <td className="is-title">{item.title}</td>
                 <td className="is-narrow">
-                  <span
-                    className={
-                      item.case_type === "automation"
-                        ? "prototype-type-badge prototype-type-automation"
-                        : "prototype-type-badge prototype-type-manual"
-                    }
-                  >
-                    {item.case_type === "automation"
-                      ? item.automation_validation_status === "passed"
-                        ? "自动化"
-                        : "自动化·待校验"
-                      : "人工"}
+                  {/* 原始用例永远是人工执行；已生成自动化版本只是附注，不代表这条会变成自动化。 */}
+                  <span className="prototype-type-badge prototype-type-manual">
+                    人工
                   </span>
+                  {item.case_type === "automation" && (
+                    <small className="prototype-badge-hint">
+                      {item.automation_validation_status === "passed"
+                        ? "已生成自动化"
+                        : "自动化待校验"}
+                    </small>
+                  )}
                 </td>
                 <td className="is-long-text">
                   {item.preconditions || "未填写"}

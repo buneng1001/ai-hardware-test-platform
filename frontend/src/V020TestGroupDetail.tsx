@@ -82,13 +82,9 @@ export function V020TestGroupDetail({
       );
   }, []);
 
-  // 同一条用例如果既有原始用例又有自动化用例，只保留自动化那一行，避免重复展示。
-  const automationSourceNumbers = new Set(
-    detail.automation_test_cases.map((item) => item.source_case_number),
-  );
+  // 原始用例是人工执行，自动化用例是生成出来的另一条；两者可以同时存在。
   const rows: CaseRow[] = [
     ...detail.source_test_cases
-      .filter((item) => !automationSourceNumbers.has(item.case_number))
       .map((item) => ({
         id: item.id,
         kind: "source" as const,
@@ -115,7 +111,12 @@ export function V020TestGroupDetail({
         orderKey: item.source_case_number || item.case_number,
       }))
       .sort((left, right) => left.position - right.position),
-  ].sort((left, right) => naturalCompare(left.orderKey, right.orderKey));
+  ].sort((left, right) => {
+    const byKey = naturalCompare(left.orderKey, right.orderKey);
+    if (byKey !== 0) return byKey;
+    // 同一条用例：人工行排在前，自动化行紧跟其后。
+    return left.kind === right.kind ? 0 : left.kind === "source" ? -1 : 1;
+  });
 
   // 换测试组后回到第一页
   useEffect(() => {
