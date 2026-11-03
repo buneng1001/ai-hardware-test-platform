@@ -83,7 +83,7 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 终端 2：启动前端。
 
 ```powershell
-pnpm --dir frontend dev
+pnpm --dir frontend dev --host 127.0.0.1
 ```
 
 浏览器打开：

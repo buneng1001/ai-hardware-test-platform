@@ -18,6 +18,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
+      // 固定 IPv4：否则 Windows 只监听 ::1，浏览器打开 127.0.0.1 会被拒绝。
+      host: "127.0.0.1",
       proxy: {
         "/api": proxyTarget,
       },
