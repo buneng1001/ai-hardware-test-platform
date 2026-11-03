@@ -78,9 +78,18 @@ export function V020ProjectsScreen({
             选择一个项目进入版本、趋势和测试工作区。
           </p>
         </div>
-        <button className="prototype-secondary" onClick={onBack}>
-          回到首页
-        </button>
+        <div className="prototype-actions">
+          <button
+            className="prototype-primary"
+            onClick={() => setCreating(true)}
+            type="button"
+          >
+            ＋ 新建项目
+          </button>
+          <button className="prototype-secondary" onClick={onBack}>
+            回到首页
+          </button>
+        </div>
       </div>
 
       <div className="prototype-filter-row prototype-project-filters">
@@ -242,7 +251,7 @@ export function V020ProjectsScreen({
 
       <V020DeletionImpactPanel workspace={workspace} />
 
-      {creating ? (
+      {creating && (
         // 新建项目改用弹窗，避免表单在页面底部弹开把列表挤得跳动。
         <div className="prototype-modal-backdrop">
           <form
@@ -458,14 +467,6 @@ export function V020ProjectsScreen({
             </div>
           </form>
         </div>
-      ) : (
-        <button
-          className="prototype-secondary"
-          onClick={() => setCreating(true)}
-          type="button"
-        >
-          ＋ 新建项目
-        </button>
       )}
     </div>
   );
