@@ -47,7 +47,7 @@ async function openDetailWith(state: GroupStubState) {
   stubGroupsApi(state);
   await openGroupsView();
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
-  await screen.findByRole("button", { name: "执行自动化测试" });
+  await screen.findByRole("button", { name: "返回设置列表" });
 }
 
 test("测试组详情用一张表列出人工与自动化用例并支持移出", async () => {
@@ -65,7 +65,7 @@ test("测试组详情用一张表列出人工与自动化用例并支持移出",
   );
   await openGroupsView();
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
-  await screen.findByRole("button", { name: "执行自动化测试" });
+  await screen.findByRole("button", { name: "返回设置列表" });
 
   const sourceRow = screen.getByText("TC-001").closest("tr") as HTMLElement;
   expect(sourceRow).toHaveTextContent("人工");
@@ -104,7 +104,7 @@ test("数据包可以在表内逐条选择，也可以批量分配", async () =>
   );
   await openGroupsView();
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
-  await screen.findByRole("button", { name: "执行自动化测试" });
+  await screen.findByRole("button", { name: "返回设置列表" });
 
   const packageSelect = screen.getByLabelText("AUTO-000001 数据包");
   await within(packageSelect).findByRole("option", { name: "DP-000008" });

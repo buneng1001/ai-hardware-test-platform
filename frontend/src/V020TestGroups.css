@@ -35,3 +35,96 @@
 .prototype-group-list {
   margin-top: 18px;
 }
+
+/* 测试组卡片里的执行器选择 */
+.prototype-runner-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 14px;
+  color: var(--prototype-color-muted);
+  font-weight: 600;
+}
+
+.prototype-runner-select select {
+  min-width: 200px;
+}
+
+.prototype-runner-missing {
+  color: #b42318;
+  font-weight: 700;
+}
+
+/* 执行器管理弹窗 */
+.prototype-runner-modal {
+  width: min(680px, 100%);
+}
+
+.prototype-runner-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+
+/* 弹窗里的模式切换：未选中是白底，选中才用品牌色。 */
+.prototype-modal .prototype-runner-tab {
+  padding: 8px 14px;
+  color: var(--prototype-color-text);
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.prototype-modal .prototype-runner-tab.is-selected {
+  color: var(--prototype-color-brand-strong);
+  border-color: var(--prototype-color-brand);
+  background: var(--prototype-color-brand-soft);
+  font-weight: 700;
+}
+
+.prototype-runner-check {
+  margin: 6px 0 0;
+  font-weight: 600;
+}
+
+.prototype-runner-check.is-ok {
+  color: #08786f;
+}
+
+.prototype-runner-check.is-fail {
+  color: #b42318;
+}
+
+.prototype-runner-list {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prototype-runner-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+}
+
+.prototype-runner-dot {
+  margin-left: auto;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.prototype-runner-dot.is-ok {
+  color: #08786f;
+}
+
+.prototype-runner-dot.is-fail {
+  color: #b42318;
+}

@@ -143,9 +143,11 @@ test("测试组支持隐藏、恢复显示和确认影响后删除", async () =>
   await openGroupsView();
   await screen.findByText("EVT1 基础回归");
   fireEvent.click(screen.getByRole("button", { name: "编辑设置" }));
+  // 详情页顶部和列表卡片都有执行入口，这里只确认详情已经打开且存在执行按钮。
+  await screen.findByRole("button", { name: "返回设置列表" });
   expect(
-    await screen.findByRole("button", { name: "执行自动化测试" }),
-  ).toBeVisible();
+    screen.getAllByRole("button", { name: "执行自动化测试" }).length,
+  ).toBeGreaterThan(0);
 
   fireEvent.click(screen.getByRole("button", { name: "隐藏" }));
   expect(await screen.findByText("已隐藏")).toBeVisible();

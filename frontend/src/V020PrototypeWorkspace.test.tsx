@@ -113,9 +113,11 @@ test("测试组名称仅在创建时填写且重新进入页签回到列表", as
 
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
+  // 列表卡片和详情顶部都有执行入口，这里只确认详情已打开。
+  await screen.findByRole("button", { name: "返回设置列表" });
   expect(
-    await screen.findByRole("button", { name: "执行自动化测试" }),
-  ).toBeVisible();
+    screen.getAllByRole("button", { name: "执行自动化测试" }).length,
+  ).toBeGreaterThan(0);
 
   fireEvent.click(screen.getByRole("button", { name: "测试数据" }));
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
@@ -134,9 +136,11 @@ test("测试组名称仅在创建时填写且重新进入页签回到列表", as
 
   expect(await screen.findByText("EVT1 综合回归")).toBeVisible();
   expect(screen.queryByRole("textbox", { name: "测试组名称" })).toBeNull();
+  // 列表卡片和详情顶部都有执行入口，这里只确认详情已打开。
+  await screen.findByRole("button", { name: "返回设置列表" });
   expect(
-    await screen.findByRole("button", { name: "执行自动化测试" }),
-  ).toBeVisible();
+    screen.getAllByRole("button", { name: "执行自动化测试" }).length,
+  ).toBeGreaterThan(0);
 });
 
 test("人工测试结果使用统一表格录入", async () => {
