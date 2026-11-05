@@ -201,8 +201,7 @@ export function V020SourceCasesScreen({
 
       <div className="prototype-case-toolbar">
         <p className="prototype-muted">
-          当前勾选 {source.selectedIds.length} 条，关闭页面后仍会保留；共
-          {source.totalCount} 条原始用例。
+          已选 {source.selectedIds.length} / 共 {source.totalCount} 条
         </p>
         <div className="prototype-filter-row prototype-source-filters">
           {filterControls.map(([field, label, emptyLabel]) => (
@@ -272,17 +271,21 @@ export function V020SourceCasesScreen({
           </button>
           <button
             className="prototype-secondary"
-            onClick={source.selectAllFiltered}
+            onClick={() =>
+              source.allFilteredSelected
+                ? source.clearSelection()
+                : source.selectAllFiltered()
+            }
             type="button"
           >
-            全选当前筛选结果
+            {source.allFilteredSelected ? "取消全选" : "全选"}
           </button>
           <button
             className="prototype-secondary"
             onClick={source.invertFiltered}
             type="button"
           >
-            反选当前筛选结果
+            {source.inverted ? "取消反选" : "反选"}
           </button>
           <button
             className="prototype-secondary"

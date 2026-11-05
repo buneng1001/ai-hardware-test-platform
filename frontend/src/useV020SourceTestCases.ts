@@ -163,12 +163,24 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     void persistSelection(next);
   };
 
+  // 全选/反选的状态用于按钮文字切换，不改动选择逻辑。
+  const [inverted, setInverted] = useState(false);
+  const allFilteredSelected =
+    items.length > 0 && items.every((item) => selectedIds.includes(item.id));
+
+  const clearSelection = () => {
+    // 只清除当前筛选结果里的勾选，其它用例保持原样。
+    const visible = new Set(items.map((item) => item.id));
+    void persistSelection(selectedIds.filter((id) => !visible.has(id)));
+  };
+
   const selectAllFiltered = () => {
     const next = new Set([...selectedIds, ...items.map((item) => item.id)]);
     void persistSelection([...next]);
   };
 
   const invertFiltered = () => {
+    setInverted((current) => !current);
     const next = new Set(selectedIds);
     items.forEach((item) =>
       next.has(item.id) ? next.delete(item.id) : next.add(item.id),
@@ -264,6 +276,9 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     records,
     selectedIds,
     totalCount: allItems.length,
+    allFilteredSelected,
+    clearSelection,
+    inverted,
     filters,
     filterOptions,
     draft,

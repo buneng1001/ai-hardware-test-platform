@@ -179,7 +179,8 @@
 }
 
 .prototype-case-toolbar .prototype-actions {
-  justify-content: flex-end;
+  /* 按钮从左侧开始，和卡片左边缘对齐。 */
+  justify-content: flex-start;
 }
 
 .prototype-table-wrap {

@@ -47,7 +47,7 @@ test("测试用例表加载真实数据并恢复已保存的勾选清单", async
   ).not.toBeChecked();
   expect(screen.getByRole("columnheader", { name: "用例编号" })).toBeVisible();
   expect(screen.getByRole("columnheader", { name: "操作步骤" })).toBeVisible();
-  expect(screen.getByText(/当前勾选 1 条/)).toBeVisible();
+  expect(screen.getByText(/已选 1 \/ 共 \d+ 条/)).toBeVisible();
 });
 
 test("筛选、全选、反选和勾选都会按产品版本保存选择清单", async () => {
@@ -83,14 +83,14 @@ test("筛选、全选、反选和勾选都会按产品版本保存选择清单",
   expect(await screen.findByText("断电恢复")).toBeVisible();
   expect(screen.queryByText("录制文件完整")).toBeNull();
 
-  fireEvent.click(screen.getByRole("button", { name: "全选当前筛选结果" }));
+  fireEvent.click(screen.getByRole("button", { name: "全选" }));
   await waitFor(() =>
     expect(
       screen.getByRole("checkbox", { name: "选择用例 POWER-002" }),
     ).toBeChecked(),
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "反选当前筛选结果" }));
+  fireEvent.click(screen.getByRole("button", { name: "反选" }));
   await waitFor(() =>
     expect(
       screen.getByRole("checkbox", { name: "选择用例 POWER-002" }),

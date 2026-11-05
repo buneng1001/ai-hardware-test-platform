@@ -44,19 +44,20 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 10px;
   margin: 4px 0 14px;
   color: var(--prototype-color-muted);
 }
 
-/* 工具栏按钮保持等距换行，不会挤在一起导致点错。 */
+/* 工具栏按钮从左侧开始排列，和卡片左边缘对齐。 */
 .prototype-case-toolbar .prototype-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 10px;
+  width: 100%;
 }
 
 .prototype-source-filters label {
@@ -260,35 +261,49 @@
   background: rgb(180 83 9 / 10%);
 }
 
-/* AI 生成范围选择：每个选项一行，带数量与说明。 */
+/* AI 生成范围选择：单选点和标题同一行，说明文字更小更浅。 */
 .prototype-ai-scope {
   display: grid;
   gap: 10px;
   margin: 12px 0;
 }
 
-.prototype-ai-scope-option {
+/* 弹窗里的 label 默认是 grid（表单风格），这里用更高优先级改成一行。 */
+.prototype-modal .prototype-ai-scope-option {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-start;
-  padding: 10px 12px;
+  padding: 12px 14px;
+  color: var(--prototype-color-text);
   border: 1px solid var(--prototype-color-line);
   border-radius: 10px;
+  background: var(--prototype-color-surface);
+  font-weight: 400;
   cursor: pointer;
+}
+
+.prototype-modal .prototype-ai-scope-option input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
 }
 
 .prototype-ai-scope-option strong {
   display: block;
-  font-size: 0.92rem;
+  font-size: 1rem;
+  line-height: 1.45;
 }
 
 .prototype-ai-scope-option small {
   display: block;
   margin-top: 4px;
   color: var(--prototype-color-muted);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
-.prototype-ai-scope-option.is-disabled {
+.prototype-modal .prototype-ai-scope-option.is-disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
