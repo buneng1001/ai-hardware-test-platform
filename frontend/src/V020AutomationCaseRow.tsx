@@ -131,9 +131,8 @@ export function V020AutomationCaseRow({
               {validationLabel(item)}
             </Status>
           </div>
-          <p className="prototype-row-note">
-            {failed ? item.review_note : `低可信度 · ${item.review_note}`}
-          </p>
+          {/* 转换失败时才展示原因；规则/AI 候选不再显示“低可信度”这类内部说明。 */}
+          {failed && <p className="prototype-row-note">{item.review_note}</p>}
           {item.validation_message && (
             <p
               className="prototype-row-note prototype-row-note--warning"

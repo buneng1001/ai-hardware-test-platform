@@ -19,7 +19,7 @@ afterEach(() => {
   window.sessionStorage.clear();
 });
 
-test("自动化用例表展示真实候选、低可信度、来源链接和失败行原因", async () => {
+test("自动化用例表展示真实候选、来源链接和失败行原因", async () => {
   stubApi({
     cases: [
       sourceCase({ id: 4, case_number: "REC-001" }),
@@ -53,7 +53,8 @@ test("自动化用例表展示真实候选、低可信度、来源链接和失�
     "href",
     "#source-test-case-4",
   );
-  expect(screen.getByText(/低可信度/)).toBeVisible();
+  // 规则候选不再展示“低可信度”这类内部说明。
+  expect(screen.queryByText(/低可信度/)).toBeNull();
   expect(screen.getByText("缺少测试用例标题")).toBeVisible();
   expect(screen.getByText("缺少测试用例标题").closest("tr")).toHaveClass(
     "prototype-row-warning",
