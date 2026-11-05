@@ -46,6 +46,8 @@ class AutomationCaseAiDecision(BaseModel):
     expected_signal: str = ""
     data_source: str = ""
     blocker: str = "none"
+    # 模型给出的可执行预期结果，用于提前检查是否可断言。
+    expected_result: str = ""
     confidence: str = "medium"
 
 

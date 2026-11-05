@@ -1,6 +1,7 @@
 import { Status } from "./V020PrototypeShared";
 import { V020ReportAnalysisSection } from "./V020ReportAnalysisSection";
 import { V020ReportAttachmentSection } from "./V020ReportAttachmentSection";
+import "./V020ReportPreviewDialog.css";
 import type {
   FactReport,
   ReportAttachmentCleanupImpact,
@@ -79,6 +80,46 @@ export function V020ReportPreviewDialog({
             ×
           </button>
         </div>
+        <details className="prototype-report-toc">
+          <summary>目录</summary>
+          <ol>
+            <li>
+              <a href="#rpt-basic">一、测试基本信息</a>
+            </li>
+            {snapshot.basic_information.product_profile && (
+              <li>
+                <a href="#rpt-profile">产品形态与测试环境</a>
+              </li>
+            )}
+            <li>
+              <a href="#rpt-overview">二、总体结论与通过率</a>
+            </li>
+            <li>
+              <a href="#rpt-modules">三、模块汇总</a>
+            </li>
+            <li>
+              <a href="#rpt-failed">四、未通过用例</a>
+            </li>
+            <li>
+              <a href="#rpt-blocked">五、阻塞与未执行</a>
+            </li>
+            <li>
+              <a href="#rpt-methods">六、执行方式通过率</a>
+            </li>
+            <li>
+              <a href="#rpt-details">七、模块详情</a>
+            </li>
+            <li>
+              <a href="#rpt-ai">八、AI 分析</a>
+            </li>
+            <li>
+              <a href="#rpt-attachments">九、附件</a>
+            </li>
+            <li>
+              <a href="#rpt-appendix">附录：跨模块问题</a>
+            </li>
+          </ol>
+        </details>
         <article className="prototype-report-document">
           <header>
             <div>
@@ -112,7 +153,7 @@ export function V020ReportPreviewDialog({
           )}
 
           <section>
-            <h2>测试基本信息</h2>
+            <h2 id="rpt-basic">测试基本信息</h2>
             <p>
               数据来源：{snapshot.basic_information.contains} · 自动化执行：
               {snapshot.basic_information.automation_execution
@@ -129,7 +170,7 @@ export function V020ReportPreviewDialog({
 
           {snapshot.basic_information.product_profile && (
             <section>
-              <h2>产品形态与测试环境</h2>
+              <h2 id="rpt-profile">产品形态与测试环境</h2>
               <p>
                 实体按键{" "}
                 {snapshot.basic_information.product_profile.physical_keys} 个 ·
@@ -168,7 +209,7 @@ export function V020ReportPreviewDialog({
           )}
 
           <section>
-            <h2>总体结论与通过率</h2>
+            <h2 id="rpt-overview">总体结论与通过率</h2>
             <p>
               总体通过率：
               <strong>
@@ -190,7 +231,7 @@ export function V020ReportPreviewDialog({
           </section>
 
           <section>
-            <h2>模块汇总</h2>
+            <h2 id="rpt-modules">模块汇总</h2>
             <div className="prototype-table-wrap">
               <table className="prototype-table">
                 <thead>
@@ -235,7 +276,7 @@ export function V020ReportPreviewDialog({
           </section>
 
           <section>
-            <h2>未通过用例</h2>
+            <h2 id="rpt-failed">未通过用例</h2>
             {snapshot.issues.failed.length === 0 ? (
               <p>没有未通过用例。</p>
             ) : (
@@ -251,7 +292,7 @@ export function V020ReportPreviewDialog({
           </section>
 
           <section>
-            <h2>阻塞与未执行</h2>
+            <h2 id="rpt-blocked">阻塞与未执行</h2>
             <p>
               阻塞 {snapshot.issues.blocked.length} 条 · 未执行{" "}
               {snapshot.issues.not_executed.length} 条
@@ -271,7 +312,7 @@ export function V020ReportPreviewDialog({
           </section>
 
           <section>
-            <h2>执行方式通过率</h2>
+            <h2 id="rpt-methods">执行方式通过率</h2>
             <ul>
               <li>
                 自动化：
@@ -292,7 +333,7 @@ export function V020ReportPreviewDialog({
             </ul>
           </section>
           <section>
-            <h2>模块详情</h2>
+            <h2 id="rpt-details">模块详情</h2>
             {snapshot.modules.map((module) => (
               <div className="prototype-report-module" key={module.name}>
                 <h3>{module.name}</h3>
@@ -328,7 +369,7 @@ export function V020ReportPreviewDialog({
           />
 
           <section>
-            <h2>附录：跨模块问题</h2>
+            <h2 id="rpt-appendix">附录：跨模块问题</h2>
             {snapshot.cross_module_issues.length === 0 ? (
               <p>无跨模块冲突。</p>
             ) : (

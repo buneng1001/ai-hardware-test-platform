@@ -103,6 +103,17 @@ export function V020TestGroupsScreen({
           onApply={groups.applyDetail}
           onBack={groups.closeDetail}
           onDelete={() => void groups.previewDeletion(groups.detail!.id)}
+          onExecuteFlow={() =>
+            groups.detail &&
+            runGroup({
+              id: groups.detail.id,
+              name: groups.detail.name,
+              automation_test_case_count:
+                groups.detail.automation_test_case_count,
+              data_package_assignment_count:
+                groups.detail.data_package_assignment_count,
+            })
+          }
           onSaveDescription={(value) => void groups.saveDescription(value)}
           onToggleHidden={() => void groups.toggleHidden()}
         />
@@ -114,6 +125,22 @@ export function V020TestGroupsScreen({
             onConfirm={() => void groups.confirmDeletion()}
           />
         )}
+        <V020ExecuteFlowDialog
+          group={flowGroup}
+          onClose={() => setFlowGroup(null)}
+          onFinished={(message) => {
+            if (!flowGroup) return;
+            setRunMessages((current) => ({
+              ...current,
+              [flowGroup.id]: message,
+            }));
+          }}
+          runnerName={flowGroup ? runnerNameOf(flowGroup.id) : null}
+        />
+        <V020FlowNoticeDialog
+          message={setupError}
+          onClose={() => setSetupError(null)}
+        />
       </>
     );
   }
@@ -236,12 +263,7 @@ export function V020TestGroupsScreen({
                     busy={groups.busy}
                     item={item}
                     key={item.id}
-                    onCancel={() => {
-                      setRunMessages((current) => ({
-                        ...current,
-                        [item.id]: "已取消本次测试，执行器侧结果不会回传。",
-                      }));
-                    }}
+
                     onDelete={() => void groups.previewDeletion(item.id)}
                     onOpen={() => void groups.openDetail(item.id)}
                     onRun={() => runGroup(item)}

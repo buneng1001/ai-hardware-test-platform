@@ -50,6 +50,7 @@ export function V020TestGroupDetail({
   onToggleHidden,
   onDelete,
   onBack,
+  onExecuteFlow,
 }: {
   detail: TestGroupDetail;
   busy: boolean;
@@ -58,6 +59,8 @@ export function V020TestGroupDetail({
   onToggleHidden: () => void;
   onDelete: () => void;
   onBack: () => void;
+  /** 与列表页一致：打开“生成→审核→执行”流程弹窗。 */
+  onExecuteFlow: () => void;
 }) {
   const [packages, setPackages] = useState<DataPackage[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -215,19 +218,11 @@ export function V020TestGroupDetail({
       <div className="prototype-actions test-group-topbar">
         <button
           className="prototype-primary"
-          disabled={execution.busy || execution.status !== "ready"}
-          onClick={() => void execution.run()}
+          disabled={execution.busy}
+          onClick={onExecuteFlow}
           type="button"
         >
-          {execution.busy ? "执行中…" : "执行自动化测试"}
-        </button>
-        <button
-          className="prototype-secondary"
-          disabled={!execution.busy}
-          onClick={() => execution.cancelRun()}
-          type="button"
-        >
-          取消本次测试
+          执行自动化测试
         </button>
 
         <button

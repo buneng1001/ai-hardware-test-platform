@@ -204,3 +204,17 @@
   font-size: 1.02rem;
   font-weight: 700;
 }
+
+/* 弹窗里的勾选项：方框和文字同一行（弹窗 label 默认是纵向网格）。 */
+.prototype-modal .prototype-inline-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--prototype-color-text);
+  font-weight: 600;
+}
+
+.prototype-modal .prototype-inline-check input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin: 0;
+}

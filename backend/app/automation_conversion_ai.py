@@ -114,6 +114,7 @@ def _parse_decisions(payload: dict[str, object], known_ids: set[int]) -> dict[in
             decision=decision,
             reason=str(entry.get("reason", "")).strip()[:500] or "模型未给出原因",
             expected_signal=str(entry.get("expected_signal", "")).strip()[:300],
+            expected_result=str(entry.get("expected_result", "")).strip()[:1000],
             data_source=str(entry.get("data_source", "")).strip()[:200],
             blocker=(
                 str(entry.get("blocker", "")).strip()

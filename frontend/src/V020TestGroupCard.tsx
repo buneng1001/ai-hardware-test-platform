@@ -13,7 +13,6 @@ export function V020TestGroupCard({
   onOpen,
   onDelete,
   onRun,
-  onCancel,
 }: {
   item: TestGroupSummary;
   busy: boolean;
@@ -26,7 +25,6 @@ export function V020TestGroupCard({
   onOpen: () => void;
   onDelete: () => void;
   onRun: () => void;
-  onCancel: () => void;
 }) {
   return (
     <div className="prototype-card">
@@ -65,14 +63,7 @@ export function V020TestGroupCard({
         >
           {running ? "执行中…" : "执行自动化测试"}
         </button>
-        <button
-          className="prototype-secondary"
-          disabled={!running}
-          onClick={onCancel}
-          type="button"
-        >
-          取消本次测试
-        </button>
+
         <button
           className="prototype-secondary"
           disabled={busy || running}

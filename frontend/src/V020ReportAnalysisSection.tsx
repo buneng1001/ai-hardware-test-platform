@@ -49,7 +49,7 @@ export function V020ReportAnalysisSection({
       aria-label="报告 AI 分析区域"
       className="prototype-report-ai-section"
     >
-      <h2>AI 区域状态</h2>
+      <h2 id="rpt-ai">AI 区域状态</h2>
       <div className="prototype-report-ai-status">
         <Status
           tone={

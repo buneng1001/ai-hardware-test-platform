@@ -86,10 +86,6 @@ export function V020ExecuteFlowDialog({
       message: "这个测试组还没有自动化用例",
     });
   }
-  warningIssues.push({
-    level: "warning",
-    message: "部分用例的预期结果没有明确阈值，建议补成可断言的数值范围",
-  });
 
   const generate = () => {
     const cases =
@@ -213,6 +209,10 @@ export function V020ExecuteFlowDialog({
               已生成 <strong>{generated.cases}</strong> 条可执行用例， 约{" "}
               {Math.round(generated.bytes / 1024)} KB。
             </p>
+            <p className="prototype-muted">
+              下面是文件开头的一条示例；完整文件含全部 {generated.cases}{" "}
+              条用例，结构相同。
+            </p>
             <pre className="prototype-json-preview">{`{
   "group": "${group.name}",
   "runner": "${runnerName ?? "未选择"}",
@@ -235,7 +235,10 @@ export function V020ExecuteFlowDialog({
                 </li>
               ))}
               {blockingIssues.length === 0 && (
-                <li className="is-ok">结构校验通过，没有阻断问题</li>
+                <li className="is-ok">
+                  结构校验通过，没有阻断问题。上面只展示 1 条示例，其余{" "}
+                  {generated.cases - 1} 条按同样结构生成，不需要逐条查看。
+                </li>
               )}
             </ul>
             <label className="prototype-inline-check">

@@ -1,0 +1,49 @@
+/* 报告预览里的折叠目录：固定在右上角，默认收起。 */
+.prototype-report-toc {
+  position: fixed;
+  top: 84px;
+  right: 28px;
+  z-index: 20;
+  font-size: 0.86rem;
+}
+
+.prototype-report-toc > summary {
+  padding: 8px 14px;
+  color: var(--prototype-color-text);
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgb(20 34 50 / 12%);
+  cursor: pointer;
+  list-style: none;
+}
+
+.prototype-report-toc > summary::-webkit-details-marker {
+  display: none;
+}
+
+.prototype-report-toc[open] > summary {
+  border-radius: 10px 10px 0 0;
+}
+
+.prototype-report-toc ol {
+  max-height: 60vh;
+  margin: 0;
+  padding: 10px 16px 10px 16px;
+  list-style: none;
+  overflow: auto;
+  border: 1px solid var(--prototype-color-line);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgb(20 34 50 / 12%);
+}
+
+.prototype-report-toc a {
+  color: var(--prototype-color-brand-strong);
+  text-decoration: none;
+}
+
+.prototype-report-toc a:hover {
+  text-decoration: underline;
+}

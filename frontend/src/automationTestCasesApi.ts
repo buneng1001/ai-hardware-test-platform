@@ -143,6 +143,7 @@ export type AutomationCaseAiDecision = {
   expected_signal?: string;
   data_source?: string;
   blocker?: string;
+  expected_result?: string;
   confidence: string;
 };
 

@@ -71,6 +71,8 @@ export function V020SourceCasesScreen({
       expectedSignal: string;
       dataSource: string;
     }>;
+    /** 判为自动化但预期结果没有可断言阈值的用例。 */
+    vagueItems: Array<{ caseNumber: string; expectedResult: string }>;
   } | null>(null);
 
   // 每页固定 20 条；用例数量或筛选变化后回到第一页，避免停在空页。
@@ -181,6 +183,18 @@ export function V020SourceCasesScreen({
           expectedSignal: item.expected_signal ?? "",
           dataSource: item.data_source ?? "",
         })),
+        // 预期结果里没有数字或比较符，说明执行时没法断言，提前提示去补。
+        vagueItems: result.decisions
+          .filter(
+            (item) =>
+              item.decision === "automation" &&
+              !/[0-9]/.test(item.expected_result ?? "") &&
+              !/[≥≤><=]/.test(item.expected_result ?? ""),
+          )
+          .map((item) => ({
+            caseNumber: item.case_number,
+            expectedResult: item.expected_result ?? "",
+          })),
       });
       // 判定后重新拉一次原始用例，让“自动化/人工”标签立即更新。
       await source.retry();
@@ -319,6 +333,29 @@ export function V020SourceCasesScreen({
             新增 {aiSummary.created} 条候选，更新 {aiSummary.updated} 条， 移除{" "}
             {aiSummary.removed} 条转为人工的候选。
           </p>
+          {aiSummary.vagueItems.length > 0 && (
+            <div className="prototype-ai-vague">
+              <p>
+                有 <strong>{aiSummary.vagueItems.length}</strong>{" "}
+                条自动化用例的预期结果没有可断言的阈值，执行时无法判定：
+              </p>
+              <ul>
+                {aiSummary.vagueItems.slice(0, 5).map((item) => (
+                  <li key={item.caseNumber}>
+                    <strong>{item.caseNumber}</strong>：
+                    {item.expectedResult || "（预期结果为空）"}
+                  </li>
+                ))}
+              </ul>
+              <button
+                className="prototype-secondary"
+                onClick={onOpenAutomation}
+                type="button"
+              >
+                去自动化用例表补充阈值
+              </button>
+            </div>
+          )}
           {aiSummary.manualItems.length > 0 && (
             <ul className="prototype-ai-manual-list">
               {aiSummary.manualItems.map((item) => (
