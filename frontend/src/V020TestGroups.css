@@ -128,3 +128,79 @@
 .prototype-runner-dot.is-fail {
   color: #b42318;
 }
+
+/* 执行流程演示弹窗 */
+.prototype-execute-flow {
+  width: min(720px, 100%);
+}
+
+.prototype-json-preview {
+  margin: 10px 0;
+  padding: 12px 14px;
+  overflow: auto;
+  color: #0f2b33;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+  background: var(--prototype-color-surface-muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.prototype-issue-list {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.prototype-issue-list li {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.prototype-issue-list .is-blocking {
+  color: #b42318;
+  border: 1px solid #f2b8b5;
+  background: #fef3f2;
+}
+
+.prototype-issue-list .is-warning {
+  color: #93370d;
+  border: 1px solid #fcd34d;
+  background: #fffaeb;
+}
+
+.prototype-issue-list .is-ok {
+  color: #08786f;
+  border: 1px solid var(--prototype-color-brand);
+  background: var(--prototype-color-brand-soft);
+}
+
+.prototype-run-timeline {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.prototype-run-timeline li {
+  color: var(--prototype-color-muted);
+  font-weight: 600;
+}
+
+.prototype-run-timeline li.is-done {
+  color: #08786f;
+}
+
+.prototype-run-result {
+  padding: 12px 14px;
+  border: 1px solid var(--prototype-color-brand);
+  border-radius: 10px;
+  background: var(--prototype-color-brand-soft);
+  font-size: 1.02rem;
+  font-weight: 700;
+}

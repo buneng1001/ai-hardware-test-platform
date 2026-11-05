@@ -3,10 +3,10 @@ import { useState } from "react";
 import { V020TestGroupCard } from "./V020TestGroupCard";
 
 import {
-  prepareAutomationExecution,
-  startAutomationExecution,
-} from "./automationExecutionsApi";
-import { V020ConfirmDialog } from "./V020ConfirmDialog";
+  V020ExecuteFlowDialog,
+  V020FlowNoticeDialog,
+  type ExecuteFlowGroup,
+} from "./V020ExecuteFlowDialog";
 import { V020RunnerDialog } from "./V020RunnerDialog";
 import {
   linkGroupRunner,
@@ -37,8 +37,8 @@ export function V020TestGroupsScreen({
   const [runnerLinks, setRunnerLinks] = useState(readGroupRunnerLinks);
   const [runnerFilter, setRunnerFilter] = useState("");
   const [showRunnerDialog, setShowRunnerDialog] = useState(false);
-  const [runningGroupId, setRunningGroupId] = useState<number | null>(null);
   const [runMessages, setRunMessages] = useState<Record<number, string>>({});
+  const [flowGroup, setFlowGroup] = useState<ExecuteFlowGroup | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
 
   const runnerNameOf = (groupId: number) => {
@@ -46,40 +46,25 @@ export function V020TestGroupsScreen({
     return runners.find((item) => item.id === runnerId)?.name ?? null;
   };
 
-  /** 列表页直接执行：先预检，未配置执行器或预检失败都弹窗说明。 */
-  const runGroup = async (item: { id: number; name: string }) => {
+  /** 列表页执行入口：没有执行器先弹窗，有则打开“生成→审核→执行”演示流程。 */
+  const runGroup = (item: {
+    id: number;
+    name: string;
+    automation_test_case_count: number;
+    data_package_assignment_count: number;
+  }) => {
     if (!runnerNameOf(item.id)) {
       setSetupError(
         "这个测试组还没有选择执行器。请先在“执行器管理”里创建并测试连接，再回来选择执行器。",
       );
       return;
     }
-    setRunningGroupId(item.id);
-    setRunMessages((current) => ({ ...current, [item.id]: "正在预检…" }));
-    try {
-      const preparation = await prepareAutomationExecution(item.id);
-      if (!preparation.passed) {
-        setSetupError(
-          `「${item.name}」预检未通过：` +
-            preparation.checks
-              .map((check) => check.suggestion || check.code)
-              .join("；"),
-        );
-        return;
-      }
-      const record = await startAutomationExecution(item.id);
-      setRunMessages((current) => ({
-        ...current,
-        [item.id]: `执行完成：通过 ${record.summary.passed} · 失败 ${record.summary.failed} · 阻塞 ${record.summary.blocked} · 未执行 ${record.summary.not_executed}`,
-      }));
-    } catch (caught) {
-      setRunMessages((current) => ({
-        ...current,
-        [item.id]: caught instanceof Error ? caught.message : "自动化执行失败",
-      }));
-    } finally {
-      setRunningGroupId(null);
-    }
+    setFlowGroup({
+      id: item.id,
+      name: item.name,
+      automationCount: item.automation_test_case_count,
+      packageCount: item.data_package_assignment_count,
+    });
   };
   const resetCreate = () => {
     setShowCreate(false);
@@ -252,15 +237,15 @@ export function V020TestGroupsScreen({
                     item={item}
                     key={item.id}
                     onCancel={() => {
-                      setRunningGroupId(null);
                       setRunMessages((current) => ({
                         ...current,
-                        [item.id]: "已取消本次测试（前端停止等待）。",
+                        [item.id]: "已取消本次测试，执行器侧结果不会回传。",
                       }));
                     }}
                     onDelete={() => void groups.previewDeletion(item.id)}
                     onOpen={() => void groups.openDetail(item.id)}
-                    onRun={() => void runGroup(item)}
+                    onRun={() => runGroup(item)}
+                    running={flowGroup?.id === item.id}
                     onRunnerChange={(runnerId) => {
                       linkGroupRunner(item.id, runnerId);
                       setRunnerLinks(readGroupRunnerLinks());
@@ -268,7 +253,6 @@ export function V020TestGroupsScreen({
                     runMessage={runMessages[item.id] ?? null}
                     runnerName={runnerNameOf(item.id)}
                     runners={runners}
-                    running={runningGroupId === item.id}
                   />
                 ))}
             </div>
@@ -311,17 +295,22 @@ export function V020TestGroupsScreen({
         onClose={() => setShowRunnerDialog(false)}
         open={showRunnerDialog}
       />
-      {setupError && (
-        <V020ConfirmDialog
-          ariaLabel="无法执行自动化测试"
-          confirmLabel="知道了"
-          onCancel={() => setSetupError(null)}
-          onConfirm={() => setSetupError(null)}
-          title="还不能执行自动化测试"
-        >
-          <p className="prototype-muted">{setupError}</p>
-        </V020ConfirmDialog>
-      )}
+      <V020ExecuteFlowDialog
+        group={flowGroup}
+        onClose={() => setFlowGroup(null)}
+        onFinished={(message) => {
+          if (!flowGroup) return;
+          setRunMessages((current) => ({
+            ...current,
+            [flowGroup.id]: message,
+          }));
+        }}
+        runnerName={flowGroup ? runnerNameOf(flowGroup.id) : null}
+      />
+      <V020FlowNoticeDialog
+        message={setupError}
+        onClose={() => setSetupError(null)}
+      />
       {groups.impact && (
         <V020TestGroupDeletionDialog
           busy={groups.busy}
