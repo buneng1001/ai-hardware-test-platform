@@ -139,6 +139,10 @@ export type AutomationCaseAiDecision = {
   title: string;
   decision: "automation" | "manual";
   reason: string;
+  /** 判定依据：信号、数据来源、未过的门槛。 */
+  expected_signal?: string;
+  data_source?: string;
+  blocker?: string;
   confidence: string;
 };
 
@@ -157,6 +161,7 @@ export function convertSourceTestCasesWithAi(
   versionId: number,
   apiKey = "",
   sourceCaseIds: number[] = [],
+  mode: "missing" | "all" | "selected" = "missing",
 ) {
   return request<AutomationCaseAiConversionBatch>(
     `/api/product-versions/${versionId}/automation-test-case-conversions/ai`,
@@ -165,6 +170,7 @@ export function convertSourceTestCasesWithAi(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: apiKey,
+        mode,
         source_case_ids: sourceCaseIds,
       }),
     },

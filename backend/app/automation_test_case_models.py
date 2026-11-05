@@ -42,6 +42,10 @@ class AutomationCaseAiDecision(BaseModel):
     title: str
     decision: Literal["automation", "manual"]
     reason: str
+    # 判定依据：用什么信号、数据从哪来、卡在哪条门槛。
+    expected_signal: str = ""
+    data_source: str = ""
+    blocker: str = "none"
     confidence: str = "medium"
 
 

@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -26,28 +27,53 @@ from app.siliconflow import SiliconFlowError
 
 router = APIRouter(tags=["automation test cases"])
 
-PROMPT_VERSION = "automation-conversion-v2"
+PROMPT_VERSION = "automation-conversion-v3"
 CONFIDENCE_VALUES = {"high", "medium", "low"}
+BLOCKER_VALUES = {
+    "result_not_assertable",
+    "data_unavailable",
+    "subjective",
+    "physical_action",
+    "none",
+}
 
-SYSTEM_PROMPT = """你是硬件产品的测试用例评审助手。
-输入是一批原始测试用例。请逐条判断它能否做成自动化用例：
-- automation：输入和预期结果可以被程序确定性校验，适合用数据驱动模拟执行。
-- manual：依赖人工观察、外观手感、主观判断或真实设备操作，只能人工测试。
-输入中的 product_profile 是被测产品画像（实体按键、指示灯、摄像头、麦克风、提示音、接口等），
-请结合它判断这条用例依赖的是“物理观察/人工操作”还是“可程序校验的数据”。
-只输出一个 JSON 对象，不要输出解释文字：
+SYSTEM_PROMPT = """你是硬件产品的测试用例评审助手。判断一条用例能否做成“自动化用例”，必须同时满足下面四道硬门槛，缺一即判 manual：
+
+【硬门槛】
+1. 结果可量化：预期结果能写成程序断言（数值区间、布尔真假、字符串/正则匹配、计数、集合相等）。
+   “看起来清晰”“手感正常”“声音清脆”“灯色好看”这类判断不满足。
+2. 数据可获取：判定所需的数据能从已登记数据包（视频、IMU、日志、mcap 解析结果）或设备接口读到。
+   如果判定需要读一个平台拿不到的量（例如人眼观察、暗室主观亮度感受），不满足。
+3. 不依赖主观感受：外观、手感、听感、颜色观感、体验好坏都不满足。
+4. 不依赖物理动作：需要人按按键、插卡/拔卡、遮挡镜头、摆放样机、切换真实设备状态的动作不满足。
+   平台目前只能做数据驱动模拟，没有真机控制能力。
+
+【判定方法】
+- 先看“预期结果”能否写成断言；再确认判定信号（帧率、码率、分辨率、丢帧数、GOP 长度、亮度/色差统计、IMU 数值范围等）能否从数据里算出来。
+- 输入里的 product_profile 是被测产品画像（实体按键、指示灯、摄像头、麦克风、提示音、接口等），
+  用来判断用例是否依赖物理实体：依赖实体就可能是 manual，除非该实体状态能从数据中间接判定。
+- 同时给出判断依据：expected_signal 说明用什么信号判定，data_source 说明数据从哪来，blocker 说明是哪条门槛没过。
+
+【输出】只输出一个 JSON 对象，不要解释文字：
 {"items":[{"source_case_id":数字,"decision":"automation"或"manual",
-"reason":"一行简短中文原因","title":"自动化用例标题","input":"输入",
-"steps":"操作步骤","expected_result":"预期结果","confidence":"high|medium|low"}]}
+"reason":"一行简短中文原因",
+"expected_signal":"用什么信号/指标判定，manual 可留空",
+"data_source":"数据包中的视频/IMU/日志/mcap/接口，manual 可留空",
+"blocker":"result_not_assertable|data_unavailable|subjective|physical_action|none",
+"title":"自动化用例标题","input":"输入","steps":"操作步骤",
+"expected_result":"必须引用原用例预期结果里的关键阈值或条件",
+"confidence":"high|medium|low"}]}
+
 要求：source_case_id 必须来自输入，不能新增或遗漏；manual 条目的 title/input/steps/expected_result 可以是空字符串；
-不要编造输入里没有的用例。"""
+blocker 必须是给定枚举之一；不要编造输入里没有的用例。"""
 
 
 class AutomationCaseConversionAiCommand(BaseModel):
     provider: str | None = Field(default=None, max_length=40)
     model: str | None = Field(default=None, max_length=200)
     api_key: str = Field(default="", max_length=400)
-    # 用户勾选的原始用例；不传时只处理尚未判定的用例。
+    # 生成范围：missing=只处理还没生成过自动化的用例；all=全部重新判定；selected=只处理勾选的用例。
+    mode: Literal["missing", "all", "selected"] = "missing"
     source_case_ids: list[int] = Field(default_factory=list)
 
 
@@ -87,6 +113,13 @@ def _parse_decisions(payload: dict[str, object], known_ids: set[int]) -> dict[in
             title=str(entry.get("title", "")),
             decision=decision,
             reason=str(entry.get("reason", "")).strip()[:500] or "模型未给出原因",
+            expected_signal=str(entry.get("expected_signal", "")).strip()[:300],
+            data_source=str(entry.get("data_source", "")).strip()[:200],
+            blocker=(
+                str(entry.get("blocker", "")).strip()
+                if str(entry.get("blocker", "")).strip() in BLOCKER_VALUES
+                else "none"
+            ),
             confidence=confidence if confidence in CONFIDENCE_VALUES else "medium",
         )
     return decisions
@@ -194,8 +227,11 @@ def convert_source_cases_with_ai(
             except json.JSONDecodeError:
                 product_profile = None
         selected_ids = list(dict.fromkeys(command.source_case_ids))
-        if selected_ids:
-            # 用户勾选后点“AI 生成”，就按勾选范围重新判定，不再跳过已有候选的用例。
+        # 兼容旧前端：带了勾选 id 却没指定范围时，按“只处理勾选”执行。
+        mode = command.mode if command.mode != "missing" or not selected_ids else "selected"
+        if mode == "selected":
+            if not selected_ids:
+                raise HTTPException(status_code=422, detail="选择了“仅勾选用例”，但没有勾选任何用例")
             placeholders = ",".join("?" for _ in selected_ids)
             source_cases = connection.execute(
                 f"""
@@ -204,6 +240,16 @@ def convert_source_cases_with_ai(
                 ORDER BY source.id
                 """,
                 (version_id, *selected_ids),
+            ).fetchall()
+        elif mode == "all":
+            # 全部重新判定：已有自动化用例的也会重新判，判定为 manual 的会被移除。
+            source_cases = connection.execute(
+                """
+                SELECT source.* FROM source_test_cases source
+                WHERE source.product_version_id = ?
+                ORDER BY source.id
+                """,
+                (version_id,),
             ).fetchall()
         else:
             source_cases = connection.execute(

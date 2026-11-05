@@ -6,12 +6,25 @@ import {
 } from "./automationTestCasesApi";
 import { V020CaseTemplatePanel } from "./V020CaseTemplatePanel";
 import { V020AddToGroupDialog } from "./V020AddToGroupDialog";
+import {
+  V020AiGenerateDialog,
+  type AiGenerateMode,
+} from "./V020AiGenerateDialog";
 import { V020SourceCaseImportPanel } from "./V020SourceCaseImportPanel";
 import { V020SourceCaseRecords } from "./V020SourceCaseRecords";
 import { V020SourceCaseTable } from "./V020SourceCaseTable";
 import type { SourceCaseFilters } from "./sourceCaseQuery";
 import { useV020SourceTestCases } from "./useV020SourceTestCases";
 import "./V020SourceCases.css";
+
+/** 模型给出的“没过哪条门槛”，用于人工复核清单。 */
+const blockerLabels: Record<string, string> = {
+  result_not_assertable: "结果无法断言",
+  data_unavailable: "数据拿不到",
+  subjective: "依赖主观判断",
+  physical_action: "依赖物理操作",
+  none: "未说明",
+};
 
 const filterControls: Array<[keyof SourceCaseFilters, string, string]> = [
   ["module", "模块筛选", "全部模块"],
@@ -42,6 +55,7 @@ export function V020SourceCasesScreen({
   const [groupNotice, setGroupNotice] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generatingWithAi, setGeneratingWithAi] = useState(false);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generateNotice, setGenerateNotice] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState<{
@@ -50,7 +64,13 @@ export function V020SourceCasesScreen({
     created: number;
     updated: number;
     removed: number;
-    manualItems: Array<{ caseNumber: string; reason: string }>;
+    manualItems: Array<{
+      caseNumber: string;
+      reason: string;
+      blocker: string;
+      expectedSignal: string;
+      dataSource: string;
+    }>;
   } | null>(null);
 
   // 每页固定 20 条；用例数量或筛选变化后回到第一页，避免停在空页。
@@ -131,21 +151,19 @@ export function V020SourceCasesScreen({
   };
 
   /** AI 转换：把勾选的原始用例交给模型，由模型判定哪些可自动化、哪些转人工。 */
-  const generateAutomationCasesWithAi = async () => {
+  const generateAutomationCasesWithAi = async (mode: AiGenerateMode) => {
     if (versionId === null) return;
+    setAiDialogOpen(false);
     setGeneratingWithAi(true);
     setGenerateError(null);
     setGenerateNotice(null);
     try {
-      // 勾选了多少条就判多少条；没有勾选时按当前筛选结果全部判定。
-      const targetIds =
-        source.selectedIds.length > 0
-          ? source.selectedIds
-          : source.items.map((item) => item.id);
+      // 按用户选的范围判定；selected 模式只带勾选的用例。
       const result = await convertSourceTestCasesWithAi(
         versionId,
         readTemporaryKey(),
-        targetIds,
+        mode === "selected" ? source.selectedIds : [],
+        mode,
       );
       const manual = result.decisions.filter(
         (item) => item.decision === "manual",
@@ -159,6 +177,9 @@ export function V020SourceCasesScreen({
         manualItems: manual.map((item) => ({
           caseNumber: item.case_number,
           reason: item.reason,
+          blocker: item.blocker ?? "none",
+          expectedSignal: item.expected_signal ?? "",
+          dataSource: item.data_source ?? "",
         })),
       });
       // 判定后重新拉一次原始用例，让“自动化/人工”标签立即更新。
@@ -222,10 +243,23 @@ export function V020SourceCasesScreen({
           <button
             className="prototype-primary"
             disabled={source.busy || generating || generatingWithAi}
-            onClick={() => void generateAutomationCasesWithAi()}
+            onClick={() => setAiDialogOpen(true)}
             type="button"
           >
             {generatingWithAi ? "AI 判定中…" : "AI 生成自动化用例"}
+          </button>
+          <button
+            aria-pressed={source.onlyMissing}
+            className={
+              source.onlyMissing
+                ? "prototype-secondary is-selected"
+                : "prototype-secondary"
+            }
+            onClick={() => source.setOnlyMissing(!source.onlyMissing)}
+            title="只显示还没有自动化版本的用例"
+            type="button"
+          >
+            {source.onlyMissing ? "显示全部用例" : "只看未自动化"}
           </button>
           <button
             className="prototype-secondary"
@@ -286,7 +320,11 @@ export function V020SourceCasesScreen({
             <ul className="prototype-ai-manual-list">
               {aiSummary.manualItems.map((item) => (
                 <li key={item.caseNumber}>
-                  <strong>{item.caseNumber}</strong>：{item.reason}
+                  <strong>{item.caseNumber}</strong>：
+                  {blockerLabels[item.blocker] ?? "未说明"} · {item.reason}
+                  {item.expectedSignal && (
+                    <small>（判定信号：{item.expectedSignal}）</small>
+                  )}
                 </li>
               ))}
             </ul>
@@ -364,6 +402,15 @@ export function V020SourceCasesScreen({
         重新导入同一份用例表时，在导入面板勾选“覆盖已有用例”，就不会堆成两份。
       </div>
 
+      <V020AiGenerateDialog
+        busy={generatingWithAi}
+        missingCount={source.missingAutomationCount}
+        onCancel={() => setAiDialogOpen(false)}
+        onConfirm={(mode) => void generateAutomationCasesWithAi(mode)}
+        open={aiDialogOpen}
+        selectedCount={source.selectedIds.length}
+        totalCount={source.totalCount}
+      />
       {groupNotice && (
         <div className="prototype-inline-note" role="status">
           {groupNotice}

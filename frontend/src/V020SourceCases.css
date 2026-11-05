@@ -259,3 +259,36 @@
   border: 1px solid rgb(180 83 9 / 24%);
   background: rgb(180 83 9 / 10%);
 }
+
+/* AI 生成范围选择：每个选项一行，带数量与说明。 */
+.prototype-ai-scope {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.prototype-ai-scope-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.prototype-ai-scope-option strong {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.prototype-ai-scope-option small {
+  display: block;
+  margin-top: 4px;
+  color: var(--prototype-color-muted);
+}
+
+.prototype-ai-scope-option.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

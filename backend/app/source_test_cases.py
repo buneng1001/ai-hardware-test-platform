@@ -150,6 +150,8 @@ def list_source_test_cases(
     test_item: str = Query(default="", max_length=120),
     priority: str = Query(default="", max_length=80),
     software_version: str = Query(default="", max_length=120),
+    # automation=missing 只返回还没有自动化版本的用例，用来“排除已自动化”。
+    automation: str = Query(default="", max_length=20),
 ) -> SourceTestCaseList:
     filters = {
         "module": module.strip(),
@@ -164,6 +166,10 @@ def list_source_test_cases(
         if value:
             clauses.append(f"c.{field} = ?")
             parameters.append(value)
+    if automation.strip() == "missing":
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM automation_test_cases candidate WHERE candidate.source_test_case_id = c.id)"
+        )
     source_case_columns = ",".join(f"c.{field}" for field in SOURCE_CASE_FIELDS)
     with open_database() as connection:
         _ensure_version(connection, version_id)

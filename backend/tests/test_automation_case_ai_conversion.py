@@ -193,3 +193,29 @@ def test_import_can_use_current_product_version_instead_of_imported_column(clien
 
     cases = client.get(f"/api/product-versions/{version_id}/source-test-cases").json()["items"]
     assert cases[0]["software_version"] == "EVT2"
+
+
+def test_ai_conversion_mode_all_rejudges_existing_candidates(client, monkeypatch):
+    """mode=all 会把已有自动化用例一起重判，判为人工的会被移除。"""
+    adapter = DecisionAdapter()
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _provider: adapter)
+    version_id = create_version_with_source_cases(client)
+    rules = client.post(f"/api/product-versions/{version_id}/automation-test-case-conversions/rules").json()
+    assert rules["created_count"] == 2
+
+    # 默认 missing 模式此时没有可处理的用例。
+    skipped = client.post(
+        f"/api/product-versions/{version_id}/automation-test-case-conversions/ai",
+        json={"mode": "missing"},
+    ).json()
+    assert skipped["decisions"] == []
+
+    rejudged = client.post(
+        f"/api/product-versions/{version_id}/automation-test-case-conversions/ai",
+        json={"mode": "all"},
+    ).json()
+    assert rejudged["automation_count"] == 1
+    assert rejudged["manual_count"] == 1
+    assert rejudged["removed_count"] == 1
+    listed = client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"]
+    assert [item["source_case_number"] for item in listed] == ["REC-001"]
