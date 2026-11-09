@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 from openpyxl import Workbook
 
 from app.database import open_database
-from app.source_test_case_parsing import parse_source_case_file
 from app.main import app
+from app.source_test_case_parsing import parse_source_case_file
 
 
 @pytest.fixture

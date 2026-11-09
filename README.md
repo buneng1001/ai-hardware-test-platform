@@ -19,6 +19,8 @@ v0.1.0 已完成的是“合成/导入数据测试执行与诊断”基础闭环
 
 后续路线见 [分阶段开发计划](DEVELOPMENT_PLAN.md)、[版本路线图](docs/version-roadmap.md) 和 [平台设计结论](docs/platform-design-conclusions.md)。
 
+v0.2.0 人工验收的改动、根因与改进规则见 [v0.2.0 验收复盘](docs/v0.2.0-acceptance-retrospective.md)，逐项结果见 [验收清单](docs/v0.2.0-manual-acceptance-checklist.md)。
+
 测试工程师使用流程见[测试工程师使用手册](docs/test-engineer-guide.md)，涵盖任务创建、实际测试 ZIP 导入、运行、人工结果、
 诊断和证据导出。
 

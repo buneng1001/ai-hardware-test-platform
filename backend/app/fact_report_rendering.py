@@ -165,7 +165,8 @@ li { margin: 4px 0; }
           list-style: none;
           border: 1px solid #cbd5e1; border-top: 0; border-radius: 0 0 10px 10px;
           background: #fff; box-shadow: 0 8px 20px rgb(20 34 50 / 12%); }
-.toc ol ol { max-height: none; overflow: visible; padding: 6px 0 2px 20px; border: 0; box-shadow: none;\n             list-style: decimal; font-size: 0.82rem; }
+.toc ol ol { max-height: none; overflow: visible; padding: 6px 0 2px 20px;
+             border: 0; box-shadow: none; list-style: decimal; font-size: 0.82rem; }
 .toc a { color: #0f766e; text-decoration: none; }
 .toc a:hover { text-decoration: underline; }
 .toc .sub { padding-left: 14px; }
