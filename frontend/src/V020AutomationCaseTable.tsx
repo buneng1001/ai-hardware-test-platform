@@ -9,6 +9,8 @@ export function V020AutomationCaseTable({
   items,
   productVersionId,
   busy,
+  selectedIds,
+  onToggleSelect,
   onOpenSource,
   onSave,
   onFeedback,
@@ -20,6 +22,8 @@ export function V020AutomationCaseTable({
   items: AutomationTestCase[];
   productVersionId: number;
   busy: boolean;
+  selectedIds: number[];
+  onToggleSelect: (caseId: number) => void;
   onOpenSource: (sourceTestCaseId: number) => void;
   onSave: (caseId: number, draft: AutomationTestCaseDraft) => Promise<boolean>;
   onFeedback: (caseId: number, feedback: string) => Promise<boolean>;
@@ -36,6 +40,7 @@ export function V020AutomationCaseTable({
       <table className="prototype-table prototype-case-table">
         <thead>
           <tr>
+            <th>选择</th>
             <th>用例编号</th>
             <th>标题</th>
             <th>来源用例</th>
@@ -53,6 +58,8 @@ export function V020AutomationCaseTable({
               item={item}
               key={item.id}
               productVersionId={productVersionId}
+              selected={selectedIds.includes(item.id)}
+              onToggleSelect={onToggleSelect}
               onDelete={onDelete}
               onDirtyChange={onDirtyChange}
               onFeedback={onFeedback}

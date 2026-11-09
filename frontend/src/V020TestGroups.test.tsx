@@ -120,14 +120,13 @@ test("创建测试组时可带入当前待加入的原始用例并进入详情",
   fireEvent.change(screen.getByLabelText("测试组名称"), {
     target: { value: "EVT1 故障专项" },
   });
-  fireEvent.change(screen.getByLabelText("测试组说明"), {
-    target: { value: "只验证断电恢复" },
-  });
   fireEvent.click(screen.getByRole("button", { name: "创建测试组" }));
 
   expect(await screen.findByText("EVT1 故障专项")).toBeVisible();
   expect(screen.getByText("断电恢复")).toBeVisible();
-  expect(screen.getByText("测试组名称创建后不可修改")).toBeVisible();
+  expect(
+    await screen.findByRole("button", { name: "执行自动化测试" }),
+  ).toBeVisible();
   const posted = callsOf(fetchMock).find(
     ([input, init]) =>
       String(input) === "/api/product-versions/11/test-groups" &&
@@ -144,13 +143,11 @@ test("测试组支持隐藏、恢复显示和确认影响后删除", async () =>
   await openGroupsView();
   await screen.findByText("EVT1 基础回归");
   fireEvent.click(screen.getByRole("button", { name: "编辑设置" }));
-  expect(await screen.findByText("测试组名称创建后不可修改")).toBeVisible();
-
-  fireEvent.change(screen.getByLabelText("测试组说明"), {
-    target: { value: "更新后的说明" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "保存说明" }));
-  expect(await screen.findByText("测试组说明已保存。")).toBeVisible();
+  // 详情页顶部和列表卡片都有执行入口，这里只确认详情已经打开且存在执行按钮。
+  await screen.findByRole("button", { name: "返回设置列表" });
+  expect(
+    screen.getAllByRole("button", { name: "执行自动化测试" }).length,
+  ).toBeGreaterThan(0);
 
   fireEvent.click(screen.getByRole("button", { name: "隐藏" }));
   expect(await screen.findByText("已隐藏")).toBeVisible();
@@ -161,7 +158,7 @@ test("测试组支持隐藏、恢复显示和确认影响后删除", async () =>
   const dialog = await screen.findByRole("dialog", {
     name: "删除测试组影响范围",
   });
-  expect(dialog).toHaveTextContent("原始用例：1");
+  expect(dialog).toHaveTextContent("人工用例：1");
   expect(dialog).toHaveTextContent("自动化用例：1");
   fireEvent.click(screen.getByRole("button", { name: "确认删除测试组" }));
 

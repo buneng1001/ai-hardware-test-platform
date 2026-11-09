@@ -3,10 +3,26 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
+class ProductProfile(BaseModel):
+    """被测产品画像：新建项目时填写，供 AI 判定和最终报告使用。"""
+
+    physical_keys: int = Field(default=0, ge=0, le=999)
+    indicator_lights: int = Field(default=0, ge=0, le=999)
+    cameras: int = Field(default=0, ge=0, le=999)
+    microphone: bool = False
+    buzzer: bool = False
+    interfaces: str = Field(default="", max_length=300)
+    test_environment: str = Field(default="办公室常温，温度：26℃~28℃", max_length=300)
+    platform: Literal["none", "web", "app"] = "none"
+    web_url: str = Field(default="", max_length=300)
+    app_package: str = Field(default="", max_length=300)
+
+
 class ProjectCreate(BaseModel):
     name: str = Field(max_length=120)
     product_name: str = Field(max_length=120)
     description: str = Field(default="", max_length=1000)
+    product_profile: ProductProfile | None = None
 
     @field_validator("name", "product_name")
     @classmethod
@@ -80,6 +96,7 @@ class ProjectSummary(BaseModel):
     product_name: str
     description: str
     product_version_count: int
+    product_profile: ProductProfile | None = None
     created_at: str
     updated_at: str
 

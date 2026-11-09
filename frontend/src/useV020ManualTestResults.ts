@@ -5,7 +5,6 @@ import {
   deleteManualTestAttachment,
   deleteManualTestResult,
   getManualTestResultPage,
-  saveManualTestResultBatch,
   type ManualTestResultBatch,
   type ManualTestResultCommand,
   type ManualTestResultPage,
@@ -136,11 +135,15 @@ export function useV020ManualTestResults(groupId: number | null) {
     setActionError(null);
     setMessage(null);
     try {
-      const commands = await Promise.all(caseIds.map(commandFor));
-      const saved =
-        batchId === null
-          ? await createManualTestResultBatch(groupId, commands)
-          : await saveManualTestResultBatch(batchId, commands);
+      // 人工结果不可变：每次保存都新建一个批次，旧批次原样保留。
+      // 单行保存时也要带上原批次已有的结果，保证新批次是完整快照。
+      const ids = new Set<number>(caseIds);
+      const currentBatch = page.batches.find((item) => item.id === batchId);
+      currentBatch?.results.forEach((result) =>
+        ids.add(result.source_test_case_id),
+      );
+      const commands = await Promise.all([...ids].map(commandFor));
+      const saved = await createManualTestResultBatch(groupId, commands);
       const nextPage = {
         ...page,
         batches: [

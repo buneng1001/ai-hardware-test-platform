@@ -14,6 +14,7 @@ export type ProjectSummary = {
   product_name: string;
   description: string;
   product_version_count: number;
+  product_profile?: ProductProfile | null;
   created_at: string;
   updated_at: string;
 };
@@ -128,10 +129,38 @@ export type ReportComparison = {
 
 export type ProjectSort = "updated_desc" | "name_asc" | "created_asc";
 
+/** 被测产品画像：新建项目时填写，供 AI 判定与最终报告使用。 */
+export type ProductProfile = {
+  physical_keys: number;
+  indicator_lights: number;
+  cameras: number;
+  microphone: boolean;
+  buzzer: boolean;
+  interfaces: string;
+  test_environment: string;
+  platform: "none" | "web" | "app";
+  web_url: string;
+  app_package: string;
+};
+
+export const defaultProductProfile: ProductProfile = {
+  physical_keys: 0,
+  indicator_lights: 0,
+  cameras: 0,
+  microphone: false,
+  buzzer: false,
+  interfaces: "",
+  test_environment: "办公室常温，温度：26℃~28℃",
+  platform: "none",
+  web_url: "",
+  app_package: "",
+};
+
 export type ProjectCommand = {
   name: string;
   product_name: string;
   description: string;
+  product_profile?: ProductProfile | null;
 };
 
 export type VersionCommand = {
@@ -163,10 +192,22 @@ export function listProjects(search = "", sort: ProjectSort = "updated_desc") {
   return request<ProjectSummary[]>(`/api/projects?${query.toString()}`);
 }
 
+export function updateProductProfile(
+  projectId: number,
+  profile: ProductProfile,
+) {
+  return request<ProjectDetail>(`/api/projects/${projectId}/product-profile`, {
+    method: "PUT",
+    headers: jsonHeaders,
+    body: JSON.stringify(profile),
+  });
+}
+
 export function createProject(command: {
   name: string;
   product_name: string;
   description: string;
+  product_profile?: ProductProfile | null;
 }) {
   return request<ProjectDetail>("/api/projects", {
     method: "POST",

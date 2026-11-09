@@ -63,3 +63,162 @@
   margin: 8px 0;
   padding-left: 20px;
 }
+
+/* v0.1.0 数据任务嵌在 v0.2.0 测试数据页里时的容器样式 */
+.legacy-data-shell {
+  margin-top: 18px;
+  padding: 20px;
+}
+
+.legacy-data-shell .legacy-data-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+/* v0.1.0 面板原本是深色主题，嵌入浅色 v0.2.0 页面时统一改成浅色，保证文字可读。 */
+.legacy-data-shell section,
+.legacy-data-shell .task-panel,
+.legacy-data-shell .saved-task-page {
+  padding: 0;
+  color: var(--prototype-color-text);
+  background: transparent;
+}
+
+.legacy-data-shell h2,
+.legacy-data-shell h3,
+.legacy-data-shell h4,
+.legacy-data-shell p,
+.legacy-data-shell label,
+.legacy-data-shell dt,
+.legacy-data-shell dd,
+.legacy-data-shell li,
+.legacy-data-shell strong,
+.legacy-data-shell small,
+.legacy-data-shell span:not([class*="badge"]) {
+  color: var(--prototype-color-text);
+}
+
+.legacy-data-shell .eyebrow,
+.legacy-data-shell .field-help,
+.legacy-data-shell .prototype-muted {
+  color: var(--prototype-color-muted);
+}
+
+.legacy-data-shell input,
+.legacy-data-shell select,
+.legacy-data-shell textarea {
+  color: var(--prototype-color-text);
+  background: #fff;
+  border: 1px solid var(--prototype-color-line);
+}
+
+.legacy-data-shell [class*="card"],
+.legacy-data-shell .task-list,
+.legacy-data-shell .task-group {
+  color: var(--prototype-color-text);
+  background: #fff;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: var(--prototype-radius-card);
+}
+
+.legacy-data-shell button {
+  color: #fff;
+  background: var(--prototype-color-brand);
+  border: 1px solid var(--prototype-color-brand);
+}
+
+.legacy-data-shell button.secondary-button,
+.legacy-data-shell button.prototype-secondary {
+  color: var(--prototype-color-text);
+  background: #fff;
+  border: 1px solid var(--prototype-color-line);
+}
+
+.legacy-data-shell button.danger-button {
+  color: #b42318;
+  background: #fff;
+  border: 1px solid #f2b8b5;
+}
+
+.legacy-data-shell table {
+  color: var(--prototype-color-text);
+  background: #fff;
+}
+
+.legacy-data-shell th {
+  color: var(--prototype-color-muted);
+  background: var(--prototype-color-surface-muted);
+}
+
+.legacy-data-shell td {
+  border-color: var(--prototype-color-line);
+}
+
+/* 旧表单里的 details 原来是深色底，换成浅色并保证文字可见。 */
+.legacy-data-shell details {
+  padding: 10px 14px;
+  color: var(--prototype-color-text);
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+  background: var(--prototype-color-surface-muted);
+}
+
+.legacy-data-shell details summary {
+  color: var(--prototype-color-text);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.legacy-data-shell details p {
+  margin: 8px 0 0;
+  color: var(--prototype-color-muted);
+  line-height: 1.6;
+}
+
+/* 嵌入面板不再套一层卡片边框，直接铺在页面里。 */
+.legacy-data-shell {
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* 旧表单里的 preset-summary 是深色底，嵌入浅色页面时改成浅色，避免出现黑条。 */
+.legacy-data-shell .preset-summary {
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  color: var(--prototype-color-muted);
+  border: 1px dashed var(--prototype-color-line);
+  border-radius: 10px;
+  background: transparent;
+}
+
+/* 旧任务面板的大外框（task-panel / task-list）与页面卡片重复，嵌入时去掉。 */
+.legacy-data-shell .task-panel,
+.legacy-data-shell .task-list {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* 筛选标签不允许竖排换行，避免窗口变窄时中文被挤成竖条。 */
+.prototype-filter-row label,
+.prototype-case-toolbar label,
+.prototype-case-toolbar .prototype-filter-row > span {
+  white-space: nowrap;
+}
+
+/* 类型列附注：不抢主徽章的视觉重量。 */
+.prototype-badge-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--prototype-color-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}

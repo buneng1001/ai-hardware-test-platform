@@ -32,6 +32,10 @@ export type SourceTestCaseImportDraft = {
   field_mapping: Partial<Record<SourceCaseField, string>>;
   rows: Array<Record<string, string>>;
   import_options: Partial<ImportOptions>;
+  /** 软件版本来源：imported 保留文件里的版本列，current 统一用当前产品版本。 */
+  software_version_source?: "imported" | "current";
+  /** 覆盖该版本之前导入的用例表。 */
+  replace_existing?: boolean;
 };
 export type SourceTestCase = {
   id: number;
@@ -54,6 +58,10 @@ export type SourceTestCase = {
   attachment: string;
   software_version: string;
   selected: boolean;
+  /** 已生成自动化候选的算自动化，其余默认人工。 */
+  case_type?: "automation" | "manual";
+  automation_test_case_id?: number | null;
+  automation_validation_status?: string | null;
 };
 export type SourceTestCaseImportRecord = {
   id: number;

@@ -26,3 +26,195 @@
 .prototype-filter-row select[multiple] {
   min-height: 96px;
 }
+
+/* 新建测试组按钮与上方内容留出间距，不贴着输入框。 */
+.prototype-create-group {
+  margin-top: 20px;
+}
+
+.prototype-group-list {
+  margin-top: 18px;
+}
+
+/* 测试组卡片里的执行器选择 */
+.prototype-runner-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 14px;
+  color: var(--prototype-color-muted);
+  font-weight: 600;
+}
+
+.prototype-runner-select select {
+  min-width: 200px;
+}
+
+.prototype-runner-missing {
+  color: #b42318;
+  font-weight: 700;
+}
+
+/* 执行器管理弹窗 */
+.prototype-runner-modal {
+  width: min(680px, 100%);
+}
+
+.prototype-runner-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+
+/* 弹窗里的模式切换：未选中是白底，选中才用品牌色。 */
+.prototype-modal .prototype-runner-tab {
+  padding: 8px 14px;
+  color: var(--prototype-color-text);
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.prototype-modal .prototype-runner-tab.is-selected {
+  color: var(--prototype-color-brand-strong);
+  border-color: var(--prototype-color-brand);
+  background: var(--prototype-color-brand-soft);
+  font-weight: 700;
+}
+
+.prototype-runner-check {
+  margin: 6px 0 0;
+  font-weight: 600;
+}
+
+.prototype-runner-check.is-ok {
+  color: #08786f;
+}
+
+.prototype-runner-check.is-fail {
+  color: #b42318;
+}
+
+.prototype-runner-list {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prototype-runner-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+}
+
+.prototype-runner-dot {
+  margin-left: auto;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.prototype-runner-dot.is-ok {
+  color: #08786f;
+}
+
+.prototype-runner-dot.is-fail {
+  color: #b42318;
+}
+
+/* 执行流程演示弹窗 */
+.prototype-execute-flow {
+  width: min(720px, 100%);
+}
+
+.prototype-json-preview {
+  margin: 10px 0;
+  padding: 12px 14px;
+  overflow: auto;
+  color: #0f2b33;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+  background: var(--prototype-color-surface-muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.prototype-issue-list {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.prototype-issue-list li {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.prototype-issue-list .is-blocking {
+  color: #b42318;
+  border: 1px solid #f2b8b5;
+  background: #fef3f2;
+}
+
+.prototype-issue-list .is-warning {
+  color: #93370d;
+  border: 1px solid #fcd34d;
+  background: #fffaeb;
+}
+
+.prototype-issue-list .is-ok {
+  color: #08786f;
+  border: 1px solid var(--prototype-color-brand);
+  background: var(--prototype-color-brand-soft);
+}
+
+.prototype-run-timeline {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.prototype-run-timeline li {
+  color: var(--prototype-color-muted);
+  font-weight: 600;
+}
+
+.prototype-run-timeline li.is-done {
+  color: #08786f;
+}
+
+.prototype-run-result {
+  padding: 12px 14px;
+  border: 1px solid var(--prototype-color-brand);
+  border-radius: 10px;
+  background: var(--prototype-color-brand-soft);
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+/* 弹窗里的勾选项：方框和文字同一行（弹窗 label 默认是纵向网格）。 */
+.prototype-modal .prototype-inline-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--prototype-color-text);
+  font-weight: 600;
+}
+
+.prototype-modal .prototype-inline-check input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin: 0;
+}

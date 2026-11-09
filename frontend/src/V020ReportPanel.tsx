@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
 import { V020ReportDeleteDialog } from "./V020ReportDeleteDialog";
-import { V020ReportGenerateForm } from "./V020ReportGenerateForm";
+import { V020ConfirmDialog } from "./V020ConfirmDialog";
 import { V020ReportHistoryDialog } from "./V020ReportHistoryDialog";
 import { V020ReportPreviewDialog } from "./V020ReportPreviewDialog";
 import { useV020FactReports } from "./useV020FactReports";
@@ -20,14 +20,23 @@ const lifecycleLabels: Record<string, string> = {
 export function V020ReportPanel({
   groupId,
   groupName,
+  executionId,
+  batchId,
 }: {
   groupId: number;
   groupName: string;
+  /** 上方两张卡片里选中的记录，用来生成报告。 */
+  executionId: number | null;
+  batchId: number | null;
 }) {
   const reports = useV020FactReports(groupId);
   const [view, setView] = useState<ReportView>("closed");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const report = reports.report;
+  const chosenExecution = reports.executions.find(
+    (item) => item.id === executionId,
+  );
+  const chosenBatch = reports.batches.find((item) => item.id === batchId);
 
   if (reports.status === "loading" || reports.status === "idle") {
     return (
@@ -91,8 +100,9 @@ export function V020ReportPanel({
                 </p>
               ))}
               <p className="prototype-muted">
-                AI 区域状态：{report.snapshot.ai_analysis.status} ·{" "}
-                {report.snapshot.ai_analysis.message}
+                {/* 用实时分析状态，快照里的静态标记会一直显示“未配置”。 */}
+                AI 区域状态：{report.analysis.status} ·{" "}
+                {report.analysis.message}
               </p>
             </>
           ) : (
@@ -105,6 +115,9 @@ export function V020ReportPanel({
         <div className="prototype-actions">
           <button
             className="prototype-primary"
+            disabled={
+              reports.busy || (executionId === null && batchId === null)
+            }
             onClick={() => setView("generate")}
             type="button"
           >
@@ -163,17 +176,34 @@ export function V020ReportPanel({
       )}
 
       {view === "generate" && (
-        <V020ReportGenerateForm
-          batches={reports.batches}
+        <V020ConfirmDialog
+          ariaLabel="确认生成最终报告"
           busy={reports.busy}
-          executions={reports.executions}
+          confirmLabel="确认生成"
           onCancel={() => setView("closed")}
-          onGenerate={async (executionId, batchIds) => {
-            const created = await reports.generate(executionId, batchIds);
-            if (created) setView("preview");
-            return created;
+          onConfirm={() => {
+            setView("closed");
+            void reports
+              .generate(executionId, batchId === null ? [] : [batchId])
+              .then((created) => {
+                if (created) setView("preview");
+              });
           }}
-        />
+          title="确认生成最终报告"
+        >
+          <ul>
+            <li>
+              自动化执行记录：
+              {chosenExecution
+                ? `#${chosenExecution.execution_number}`
+                : "不使用"}
+            </li>
+            <li>
+              人工测试记录：
+              {chosenBatch ? `批次 #${chosenBatch.batch_number}` : "不使用"}
+            </li>
+          </ul>
+        </V020ConfirmDialog>
       )}
       {view === "history" && (
         <V020ReportHistoryDialog

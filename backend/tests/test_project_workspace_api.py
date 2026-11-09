@@ -25,6 +25,29 @@ def test_engineer_can_create_open_and_edit_project_versions(client):
     assert project["name"] == "IRIS"
     assert project["product_name"] == "多传感器记录仪"
     assert project["product_versions"] == []
+    # 没填产品画像时返回空，不报错。
+    assert project["product_profile"] is None
+
+    profiled = client.put(
+        f"/api/projects/{project['id']}/product-profile",
+        json={
+            "physical_keys": 2,
+            "indicator_lights": 3,
+            "cameras": 5,
+            "microphone": True,
+            "buzzer": True,
+            "interfaces": "USB、WiFi、蓝牙",
+            "test_environment": "办公室常温，温度：26℃~28℃",
+            "platform": "web",
+            "web_url": "https://example.com",
+            "app_package": "",
+        },
+    )
+    assert profiled.status_code == 200
+    profile = profiled.json()["product_profile"]
+    assert profile["physical_keys"] == 2
+    assert profile["cameras"] == 5
+    assert profile["platform"] == "web"
 
     version_response = client.post(
         f"/api/projects/{project['id']}/product-versions",

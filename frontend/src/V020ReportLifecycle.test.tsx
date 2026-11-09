@@ -77,9 +77,7 @@ test("报告展示已使用附件并可确认后清理，保留名称和已清�
     name: "报告 #5 HTML 预览",
   });
   expect(within(dialog).getByText("共 2 个，合计 3072 字节。")).toBeVisible();
-  expect(
-    within(dialog).getByText(/shot.png：已使用，原始文件已保留/),
-  ).toBeVisible();
+  expect(within(dialog).getByText("shot.png")).toBeVisible();
 
   fireEvent.click(
     within(dialog).getByRole("button", { name: "清理已使用附件" }),
@@ -93,8 +91,9 @@ test("报告展示已使用附件并可确认后清理，保留名称和已清�
     within(impact).getByRole("button", { name: "确认清理已使用附件" }),
   );
 
+  // 只列文件名，不再逐条标注清理状态。
   await waitFor(() =>
-    expect(within(dialog).getAllByText(/原始文件已清理/).length).toBe(2),
+    expect(within(dialog).getAllByText(/shot\.png/).length).toBe(1),
   );
   expect(
     callsOf(fetchMock).some(
@@ -140,7 +139,8 @@ test("删除在线报告前展示影响，且不删除执行、人工记录或�
   ).toBe(true);
 });
 
-test("报告与历史记录可查找自动化执行、人工记录和最终报告", async () => {
+test("报告与历史记录只列最终报告并支持查找", async () => {
+  // 历史里混着执行记录和人工批次，列表只保留最终报告。
   const historyItems: ReportHistoryItem[] = [
     reportHistoryItem(5),
     {
@@ -170,12 +170,13 @@ test("报告与历史记录可查找自动化执行、人工记录和最终报�
   const dialog = await screen.findByRole("dialog", {
     name: "历史报告列表",
   });
-  expect(within(dialog).getByText("自动化执行 #3")).toBeVisible();
-  expect(within(dialog).getByText("人工记录批次 #1")).toBeVisible();
   expect(within(dialog).getByText("最终报告 #5")).toBeVisible();
+  // 自动化执行和人工批次不再出现在最终报告列表里。
+  expect(within(dialog).queryByText("自动化执行 #3")).toBeNull();
+  expect(within(dialog).queryByText("人工记录批次 #1")).toBeNull();
 
   fireEvent.change(within(dialog).getByLabelText("查找报告与历史记录"), {
-    target: { value: "人工" },
+    target: { value: "回归" },
   });
   fireEvent.click(within(dialog).getByRole("button", { name: "查找" }));
 
@@ -185,11 +186,9 @@ test("报告与历史记录可查找自动化执行、人工记录和最终报�
         const url = new URL(String(input), "http://local");
         return (
           url.pathname.endsWith("/report-history") &&
-          url.searchParams.get("query") === "人工"
+          url.searchParams.get("query") === "回归"
         );
       }),
     ).toBe(true),
   );
-  expect(await within(dialog).findByText("人工记录批次 #1")).toBeVisible();
-  expect(within(dialog).queryByText("自动化执行 #3")).toBeNull();
 });

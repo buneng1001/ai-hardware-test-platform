@@ -73,6 +73,20 @@ def create_source_test_case_import(version_id: int, command: SourceTestCaseImpor
     source_placeholders = ",".join("?" for _ in SOURCE_CASE_FIELDS)
     with open_database() as connection:
         _ensure_version(connection, version_id)
+        version_row = connection.execute("SELECT version FROM product_versions WHERE id = ?", (version_id,)).fetchone()
+        current_version = str(version_row["version"]) if version_row else ""
+        if command.replace_existing:
+            # 覆盖导入：先清掉该版本已有的导入记录和原始用例，
+            # 自动化候选通过外键级联删除，避免同一批用例重复堆叠。
+            connection.execute(
+                "DELETE FROM source_test_cases WHERE import_record_id IN "
+                "(SELECT id FROM source_test_case_imports WHERE product_version_id = ?)",
+                (version_id,),
+            )
+            connection.execute(
+                "DELETE FROM source_test_case_imports WHERE product_version_id = ?",
+                (version_id,),
+            )
         cursor = connection.execute(
             """
             INSERT INTO source_test_case_imports
@@ -92,6 +106,9 @@ def create_source_test_case_import(version_id: int, command: SourceTestCaseImpor
             raise HTTPException(status_code=500, detail="导入记录保存失败")
         for row in command.rows:
             values = _mapped_case_values(row, command.field_mapping, options)
+            if command.software_version_source == "current":
+                # 用户明确选择“使用当前产品版本”时，统一覆盖为当前产品版本号。
+                values["software_version"] = current_version
             connection.execute(
                 f"""
                 INSERT INTO source_test_cases
@@ -129,12 +146,16 @@ def list_source_test_case_imports(version_id: int) -> list[SourceTestCaseImportR
 def list_source_test_cases(
     version_id: int,
     module: str = Query(default="", max_length=120),
+    test_type: str = Query(default="", max_length=120),
     test_item: str = Query(default="", max_length=120),
     priority: str = Query(default="", max_length=80),
     software_version: str = Query(default="", max_length=120),
+    # automation=missing 只返回还没有自动化版本的用例，用来“排除已自动化”。
+    automation: str = Query(default="", max_length=20),
 ) -> SourceTestCaseList:
     filters = {
         "module": module.strip(),
+        "test_type": test_type.strip(),
         "test_item": test_item.strip(),
         "priority": priority.strip(),
         "software_version": software_version.strip(),
@@ -145,6 +166,10 @@ def list_source_test_cases(
         if value:
             clauses.append(f"c.{field} = ?")
             parameters.append(value)
+    if automation.strip() == "missing":
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM automation_test_cases candidate WHERE candidate.source_test_case_id = c.id)"
+        )
     source_case_columns = ",".join(f"c.{field}" for field in SOURCE_CASE_FIELDS)
     with open_database() as connection:
         _ensure_version(connection, version_id)
@@ -155,7 +180,22 @@ def list_source_test_cases(
                        SELECT 1 FROM source_test_case_selections selection
                        WHERE selection.product_version_id = c.product_version_id
                          AND selection.source_test_case_id = c.id
-                   ) AS selected
+                   ) AS selected,
+                   (
+                       SELECT automation.id FROM automation_test_cases automation
+                       WHERE automation.source_test_case_id = c.id
+                       ORDER BY automation.id LIMIT 1
+                   ) AS automation_test_case_id,
+                   (
+                       SELECT automation.validation_status
+                       FROM automation_test_cases automation
+                       WHERE automation.source_test_case_id = c.id
+                       ORDER BY automation.id LIMIT 1
+                   ) AS automation_validation_status,
+                   CASE WHEN EXISTS(
+                       SELECT 1 FROM automation_test_cases automation
+                       WHERE automation.source_test_case_id = c.id
+                   ) THEN 'automation' ELSE 'manual' END AS case_type
             FROM source_test_cases c
             WHERE {" AND ".join(clauses)}
             ORDER BY c.id
@@ -211,7 +251,7 @@ def get_source_test_case_import_deletion_impact(import_id: int) -> ImportDeletio
         import_record_id=import_id,
         source_test_cases=source_test_cases,
         automation_test_cases=automation_test_cases,
-        message="删除后原始用例保留，但其来源会标记为“导入记录已删除”；已有自动化用例不会被删除。",
+        message="删除后会同时清除该导入记录下的原始用例，以及由这些用例生成的自动化候选和测试组关联；数据包和其他导入记录不受影响。",
     )
 
 
@@ -225,9 +265,7 @@ def delete_source_test_case_import(import_id: int, confirm: bool = False) -> Res
         ).fetchone()
         if record is None:
             raise HTTPException(status_code=404, detail="导入记录不存在")
-        connection.execute(
-            "UPDATE source_test_cases SET source_import_deleted = 1 WHERE import_record_id = ?", (import_id,)
-        )
+        connection.execute("DELETE FROM source_test_cases WHERE import_record_id = ?", (import_id,))
         connection.execute("DELETE FROM source_test_case_imports WHERE id = ?", (import_id,))
         connection.execute(
             "UPDATE projects SET updated_at = ? WHERE id = (SELECT project_id FROM product_versions WHERE id = ?)",

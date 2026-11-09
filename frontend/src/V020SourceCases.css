@@ -1,6 +1,63 @@
 .prototype-source-filters {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px 18px;
+  gap: 14px 18px;
+}
+
+/* 原始用例表：按内容撑开，窄屏横向滚动，避免列被压成一个字一行。 */
+.prototype-source-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.prototype-source-table th,
+.prototype-source-table td {
+  white-space: normal;
+  word-break: normal;
+}
+
+.prototype-source-table .is-narrow {
+  white-space: nowrap;
+}
+
+.prototype-source-table .is-title {
+  min-width: 220px;
+}
+
+.prototype-source-table .is-steps {
+  min-width: 260px;
+}
+
+.prototype-source-table .is-long-text {
+  min-width: 160px;
+  white-space: pre-line;
+}
+
+.prototype-test-steps--plain p {
+  margin: 0 0 4px;
+}
+
+.prototype-test-steps--plain p:last-child {
+  margin-bottom: 0;
+}
+
+.prototype-source-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin: 4px 0 14px;
+  color: var(--prototype-color-muted);
+}
+
+/* 工具栏按钮从左侧开始排列，和卡片左边缘对齐。 */
+.prototype-case-toolbar .prototype-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
 }
 
 .prototype-source-filters label {
@@ -92,4 +149,161 @@
 .prototype-table tbody tr.prototype-row-highlight:hover {
   background: #ecfdf5;
   box-shadow: inset 3px 0 0 var(--prototype-color-brand, #0d9488);
+}
+
+.prototype-case-template {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: var(--prototype-radius-card);
+  background: var(--prototype-color-surface);
+}
+
+.prototype-case-template-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.prototype-case-template-head h3 {
+  margin: 0 0 6px;
+}
+
+.prototype-template-badge {
+  padding: 4px 12px;
+  color: var(--prototype-color-brand-strong);
+  border: 1px solid var(--prototype-color-brand-soft);
+  border-radius: 999px;
+  background: var(--prototype-color-brand-soft);
+  font-size: 0.82rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.prototype-template-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prototype-template-switch .is-selected {
+  color: var(--prototype-color-brand-strong);
+  border: 1px solid var(--prototype-color-brand);
+  background: var(--prototype-color-brand-soft);
+}
+
+.prototype-template-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prototype-template-columns span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 999px;
+  background: var(--prototype-color-surface-muted);
+  font-size: 0.84rem;
+}
+
+.prototype-template-columns em {
+  color: var(--prototype-color-brand-strong);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.prototype-template-upload {
+  display: grid;
+  gap: 12px;
+}
+
+.prototype-template-upload p {
+  margin: 0;
+}
+
+.prototype-ai-manual-list {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.prototype-ai-manual-list li {
+  line-height: 1.6;
+}
+
+.prototype-type-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.prototype-type-automation {
+  color: var(--prototype-color-brand-strong);
+  border: 1px solid var(--prototype-color-brand-soft);
+  background: var(--prototype-color-brand-soft);
+}
+
+.prototype-type-manual {
+  color: var(--prototype-color-warn-strong, #b45309);
+  border: 1px solid rgb(180 83 9 / 24%);
+  background: rgb(180 83 9 / 10%);
+}
+
+/* AI 生成范围选择：单选点和标题同一行，说明文字更小更浅。 */
+.prototype-ai-scope {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+/* 弹窗里的 label 默认是 grid（表单风格），这里用更高优先级改成一行。 */
+.prototype-modal .prototype-ai-scope-option {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  color: var(--prototype-color-text);
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+  background: var(--prototype-color-surface);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.prototype-modal .prototype-ai-scope-option input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.prototype-ai-scope-option strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.prototype-ai-scope-option small {
+  display: block;
+  margin-top: 4px;
+  color: var(--prototype-color-muted);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.prototype-modal .prototype-ai-scope-option.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }

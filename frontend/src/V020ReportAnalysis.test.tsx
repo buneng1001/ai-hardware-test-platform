@@ -178,7 +178,7 @@ test("AI 分析完成后只展示建议区域且事实结论保持不变", async
     within(dialog).getByRole("heading", { name: "AI 回归建议" }),
   ).toBeVisible();
   expect(
-    within(dialog).getByRole("heading", { name: "阶段推进事实依据" }),
+    within(dialog).getByRole("heading", { name: "总体结论与通过率" }),
   ).toBeVisible();
   expect(
     within(dialog).getAllByText("建议暂缓并补充验证").length,

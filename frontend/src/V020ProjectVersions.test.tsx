@@ -40,6 +40,8 @@ test("版本与趋势页展示项目版本上下文和趋势空状态", async ()
   expect(screen.getByText("项目 / IRIS 头环")).toBeVisible();
   expect(screen.getByText("当前版本")).toBeVisible();
   expect(screen.getByText("尚无最终报告，暂无趋势数据")).toBeVisible();
+  // 侧边栏和顶栏改为显示真实项目与版本，不再保留写死的演示文案。
+  expect(screen.queryByText(/开发验证阶段/)).toBeNull();
 });
 
 test("新建产品版本只需填写版本号即可打开", async () => {
@@ -113,6 +115,7 @@ test("删除产品版本前展示影响范围并在确认后移除", async () =>
   fireEvent.click(screen.getByRole("button", { name: "删除版本" }));
 
   const dialog = await screen.findByRole("dialog", { name: "删除影响确认" });
+  expect(dialog).toHaveAttribute("aria-modal", "true");
   expect(dialog).toHaveTextContent("涉及 1 个产品版本：EVT1");
   expect(dialog).toHaveTextContent("共影响 5 项资产");
   fireEvent.click(screen.getByRole("button", { name: "确认删除" }));

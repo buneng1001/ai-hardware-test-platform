@@ -56,6 +56,7 @@ export function sourceCase(overrides: Partial<SourceTestCase>): SourceTestCase {
     attachment: "",
     software_version: "EVT1-0.2.0",
     selected: false,
+    case_type: "manual",
     ...overrides,
   };
 }

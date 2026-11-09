@@ -66,12 +66,23 @@
 .prototype-automation-feedback {
   display: grid;
   gap: 5px;
+  min-width: 0;
   color: var(--prototype-color-muted);
   font-weight: 750;
 }
 
+.prototype-automation-editor-grid input,
+.prototype-automation-editor-grid textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .prototype-automation-create {
+  display: grid;
+  gap: 14px;
   margin: 16px 0;
+  padding: 20px;
 }
 
 .prototype-automation-history-source {

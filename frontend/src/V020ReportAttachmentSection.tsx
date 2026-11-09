@@ -22,7 +22,7 @@ export function V020ReportAttachmentSection({
   const summary = report.attachment_summary;
   return (
     <section aria-label="报告附件与清理">
-      <h2>已使用附件</h2>
+      <h2 id="rpt-attachments">已使用附件</h2>
       <p>
         共 {summary.attachment_count} 个，合计 {summary.total_size_bytes} 字节。
       </p>
@@ -32,10 +32,7 @@ export function V020ReportAttachmentSection({
         <ul>
           {summary.attachments.map((attachment) => (
             <li key={`${attachment.id}-${attachment.filename}`}>
-              {attachment.filename}：已使用，
-              {attachment.storage_status === "cleaned"
-                ? "原始文件已清理"
-                : "原始文件已保留"}
+              {attachment.filename}
             </li>
           ))}
         </ul>

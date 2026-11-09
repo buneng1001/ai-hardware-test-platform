@@ -1,6 +1,18 @@
 import { useState } from "react";
 
 import { V020TestGroupCard } from "./V020TestGroupCard";
+
+import {
+  V020ExecuteFlowDialog,
+  V020FlowNoticeDialog,
+  type ExecuteFlowGroup,
+} from "./V020ExecuteFlowDialog";
+import { V020RunnerDialog } from "./V020RunnerDialog";
+import {
+  linkGroupRunner,
+  readGroupRunnerLinks,
+  readRunners,
+} from "./mockRunners";
 import { V020TestGroupCreateForm } from "./V020TestGroupCreateForm";
 import { V020TestGroupDeletionDialog } from "./V020TestGroupDeletionDialog";
 import { V020TestGroupDetail } from "./V020TestGroupDetail";
@@ -20,15 +32,40 @@ export function V020TestGroupsScreen({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [includeSelected, setIncludeSelected] = useState(true);
+  // 演示版执行器：保存在本地，选择后挂在测试组上。
+  const [runners] = useState(readRunners);
+  const [runnerLinks, setRunnerLinks] = useState(readGroupRunnerLinks);
+  const [runnerFilter, setRunnerFilter] = useState("");
+  const [showRunnerDialog, setShowRunnerDialog] = useState(false);
+  const [runMessages, setRunMessages] = useState<Record<number, string>>({});
+  const [flowGroup, setFlowGroup] = useState<ExecuteFlowGroup | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
-  if (versionId === null) {
-    return (
-      <div className="prototype-inline-note">
-        请先在“版本与趋势”中打开一个产品版本，再创建测试组。
-      </div>
-    );
-  }
+  const runnerNameOf = (groupId: number) => {
+    const runnerId = runnerLinks[String(groupId)];
+    return runners.find((item) => item.id === runnerId)?.name ?? null;
+  };
 
+  /** 列表页执行入口：没有执行器先弹窗，有则打开“生成→审核→执行”演示流程。 */
+  const runGroup = (item: {
+    id: number;
+    name: string;
+    automation_test_case_count: number;
+    data_package_assignment_count: number;
+  }) => {
+    if (!runnerNameOf(item.id)) {
+      setSetupError(
+        "这个测试组还没有选择执行器。请先在“执行器管理”里创建并测试连接，再回来选择执行器。",
+      );
+      return;
+    }
+    setFlowGroup({
+      id: item.id,
+      name: item.name,
+      automationCount: item.automation_test_case_count,
+      packageCount: item.data_package_assignment_count,
+    });
+  };
   const resetCreate = () => {
     setShowCreate(false);
     setName("");
@@ -66,6 +103,17 @@ export function V020TestGroupsScreen({
           onApply={groups.applyDetail}
           onBack={groups.closeDetail}
           onDelete={() => void groups.previewDeletion(groups.detail!.id)}
+          onExecuteFlow={() =>
+            groups.detail &&
+            runGroup({
+              id: groups.detail.id,
+              name: groups.detail.name,
+              automation_test_case_count:
+                groups.detail.automation_test_case_count,
+              data_package_assignment_count:
+                groups.detail.data_package_assignment_count,
+            })
+          }
           onSaveDescription={(value) => void groups.saveDescription(value)}
           onToggleHidden={() => void groups.toggleHidden()}
         />
@@ -77,6 +125,22 @@ export function V020TestGroupsScreen({
             onConfirm={() => void groups.confirmDeletion()}
           />
         )}
+        <V020ExecuteFlowDialog
+          group={flowGroup}
+          onClose={() => setFlowGroup(null)}
+          onFinished={(message) => {
+            if (!flowGroup) return;
+            setRunMessages((current) => ({
+              ...current,
+              [flowGroup.id]: message,
+            }));
+          }}
+          runnerName={flowGroup ? runnerNameOf(flowGroup.id) : null}
+        />
+        <V020FlowNoticeDialog
+          message={setupError}
+          onClose={() => setSetupError(null)}
+        />
       </>
     );
   }
@@ -88,6 +152,22 @@ export function V020TestGroupsScreen({
       <p className="prototype-muted">
         一个产品版本可以建立多个测试组，分别配置人工与自动化用例、测试范围和数据。
       </p>
+      <div className="prototype-actions">
+        <button
+          className="prototype-primary"
+          onClick={() => setShowCreate(true)}
+          type="button"
+        >
+          ＋ 新建测试组
+        </button>
+        <button
+          className="prototype-secondary"
+          onClick={() => setShowRunnerDialog(true)}
+          type="button"
+        >
+          执行器管理
+        </button>
+      </div>
       {groups.message && (
         <p className="prototype-muted" role="status">
           {groups.message}
@@ -123,7 +203,19 @@ export function V020TestGroupsScreen({
               <option value="name_asc">名称升序</option>
               <option value="name_desc">名称降序</option>
             </select>
-            <label>
+            <select
+              aria-label="执行器筛选"
+              onChange={(event) => setRunnerFilter(event.target.value)}
+              value={runnerFilter}
+            >
+              <option value="">全部执行器</option>
+              {runners.map((runner) => (
+                <option key={runner.id} value={runner.id}>
+                  {runner.name}
+                </option>
+              ))}
+            </select>
+            <label className="prototype-inline-check">
               <input
                 aria-label="显示已隐藏测试组"
                 checked={groups.showHidden}
@@ -160,15 +252,31 @@ export function V020TestGroupsScreen({
           )}
           {groups.page && groups.page.items.length > 0 && (
             <div className="prototype-group-list">
-              {groups.page.items.map((item) => (
-                <V020TestGroupCard
-                  busy={groups.busy}
-                  item={item}
-                  key={item.id}
-                  onDelete={() => void groups.previewDeletion(item.id)}
-                  onOpen={() => void groups.openDetail(item.id)}
-                />
-              ))}
+              {groups.page.items
+                .filter(
+                  (item) =>
+                    runnerFilter === "" ||
+                    runnerLinks[String(item.id)] === runnerFilter,
+                )
+                .map((item) => (
+                  <V020TestGroupCard
+                    busy={groups.busy}
+                    item={item}
+                    key={item.id}
+
+                    onDelete={() => void groups.previewDeletion(item.id)}
+                    onOpen={() => void groups.openDetail(item.id)}
+                    onRun={() => runGroup(item)}
+                    running={flowGroup?.id === item.id}
+                    onRunnerChange={(runnerId) => {
+                      linkGroupRunner(item.id, runnerId);
+                      setRunnerLinks(readGroupRunnerLinks());
+                    }}
+                    runMessage={runMessages[item.id] ?? null}
+                    runnerName={runnerNameOf(item.id)}
+                    runners={runners}
+                  />
+                ))}
             </div>
           )}
           {groups.page && groups.page.total > groups.page.page_size && (
@@ -198,13 +306,6 @@ export function V020TestGroupsScreen({
               </button>
             </div>
           )}
-          <button
-            className="prototype-primary"
-            onClick={() => setShowCreate(true)}
-            type="button"
-          >
-            ＋ 新建测试组
-          </button>
         </>
       )}
       {groups.actionError && (
@@ -212,6 +313,26 @@ export function V020TestGroupsScreen({
           {groups.actionError}
         </div>
       )}
+      <V020RunnerDialog
+        onClose={() => setShowRunnerDialog(false)}
+        open={showRunnerDialog}
+      />
+      <V020ExecuteFlowDialog
+        group={flowGroup}
+        onClose={() => setFlowGroup(null)}
+        onFinished={(message) => {
+          if (!flowGroup) return;
+          setRunMessages((current) => ({
+            ...current,
+            [flowGroup.id]: message,
+          }));
+        }}
+        runnerName={flowGroup ? runnerNameOf(flowGroup.id) : null}
+      />
+      <V020FlowNoticeDialog
+        message={setupError}
+        onClose={() => setSetupError(null)}
+      />
       {groups.impact && (
         <V020TestGroupDeletionDialog
           busy={groups.busy}

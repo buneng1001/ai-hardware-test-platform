@@ -64,11 +64,11 @@ test("测试用例表读取真实原始用例并支持模块筛选与加入测�
   fireEvent.click(screen.getByRole("button", { name: "测试用例表" }));
 
   expect(
-    await screen.findByRole("columnheader", { name: "测试步骤" }),
+    await screen.findByRole("columnheader", { name: "操作步骤" }),
   ).toBeVisible();
   expect(screen.getByText("确认设备处于待机状态")).toBeVisible();
   expect(screen.getByText("短按录制键，确认开始录制")).toBeVisible();
-  expect(screen.getByRole("button", { name: "加入测试组" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /加入测试组/ })).toBeVisible();
   expect(screen.getByRole("button", { name: "导入用例表" })).toBeVisible();
   expect(screen.queryByRole("button", { name: /Beta/i })).toBeNull();
 
@@ -77,9 +77,10 @@ test("测试用例表读取真实原始用例并支持模块筛选与加入测�
   expect(await screen.findByText("设备断电后数据保存状态")).toBeVisible();
   expect(screen.queryByText("短按录制键，确认开始录制")).toBeNull();
 
-  fireEvent.click(screen.getByRole("button", { name: "加入测试组" }));
-  expect(screen.getByRole("heading", { name: "测试组设置" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "＋ 新建测试组" })).toBeVisible();
+  // 现在“加入测试组”在原地弹窗选择测试组，不再跳页。
+  // 没有勾选用例时给出明确提示，而不是静默无反应。
+  fireEvent.click(screen.getByRole("button", { name: /加入测试组/ }));
+  expect(await screen.findByText("请先勾选要加入测试组的用例。")).toBeVisible();
 });
 
 test("测试数据支持复制编号且测试组数据包可输入或下拉选择", async () => {
@@ -100,8 +101,8 @@ test("测试数据支持复制编号且测试组数据包可输入或下拉选�
 
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
+  // 数据包改成表内单行下拉：一次一条用例，选项来自已校验数据包。
   const packageSelect = await screen.findByLabelText("AUTO-000001 数据包");
-  expect(packageSelect).toHaveAttribute("multiple");
   expect(
     await within(packageSelect).findByRole("option", { name: "DP-000007" }),
   ).toBeInTheDocument();
@@ -112,11 +113,15 @@ test("测试组名称仅在创建时填写且重新进入页签回到列表", as
 
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
-  expect(await screen.findByText("测试组名称创建后不可修改")).toBeVisible();
+  // 列表卡片和详情顶部都有执行入口，这里只确认详情已打开。
+  await screen.findByRole("button", { name: "返回设置列表" });
+  expect(
+    screen.getAllByRole("button", { name: "执行自动化测试" }).length,
+  ).toBeGreaterThan(0);
 
   fireEvent.click(screen.getByRole("button", { name: "测试数据" }));
   fireEvent.click(screen.getByRole("button", { name: "测试组设置" }));
-  expect(screen.queryByText("测试组名称创建后不可修改")).toBeNull();
+  expect(screen.queryByLabelText("测试组用例分页")).toBeNull();
   expect(
     await screen.findByRole("button", { name: "＋ 新建测试组" }),
   ).toBeVisible();
@@ -131,7 +136,11 @@ test("测试组名称仅在创建时填写且重新进入页签回到列表", as
 
   expect(await screen.findByText("EVT1 综合回归")).toBeVisible();
   expect(screen.queryByRole("textbox", { name: "测试组名称" })).toBeNull();
-  expect(screen.getByText("测试组名称创建后不可修改")).toBeVisible();
+  // 列表卡片和详情顶部都有执行入口，这里只确认详情已打开。
+  await screen.findByRole("button", { name: "返回设置列表" });
+  expect(
+    screen.getAllByRole("button", { name: "执行自动化测试" }).length,
+  ).toBeGreaterThan(0);
 });
 
 test("人工测试结果使用统一表格录入", async () => {
@@ -155,7 +164,7 @@ test("人工测试结果使用统一表格录入", async () => {
   ).toBeVisible();
 });
 
-test("执行结果使用浅色测试组选择区并展示真实最终报告和 HTML 预览", async () => {
+test("执行结果使用浅色测试组选择区并展示真实最终报告与下载入口", async () => {
   await renderWorkspace();
 
   expect(screen.getByTestId("prototype-sidebar-brand-glyph")).toHaveClass(
@@ -181,10 +190,11 @@ test("执行结果使用浅色测试组选择区并展示真实最终报告和 H
   expect(
     within(previewDialog).getByRole("heading", { name: "AI 区域状态" }),
   ).toBeVisible();
-  expect(screen.getByTitle("事实报告 HTML 预览")).toHaveAttribute(
-    "src",
-    "/api/fact-reports/5.html",
-  );
+  // 预览不再内嵌 HTML iframe。
+  expect(screen.queryByTitle("事实报告 HTML 预览")).toBeNull();
+  expect(
+    within(previewDialog).getByRole("link", { name: "下载 HTML 报告" }),
+  ).toHaveAttribute("href", "/api/fact-reports/5.html");
 
   fireEvent.click(screen.getByRole("button", { name: "返回报告列表" }));
   const historyDialog = await screen.findByRole("dialog", {

@@ -4,6 +4,8 @@ import { V020AutomationCaseCreateForm } from "./V020AutomationCaseCreateForm";
 import { V020AutomationCaseTable } from "./V020AutomationCaseTable";
 import type { AutomationCaseCreateCommand } from "./automationTestCasesApi";
 import { useV020AutomationTestCases } from "./useV020AutomationTestCases";
+import { V020AddToGroupDialog } from "./V020AddToGroupDialog";
+import { V020ConfirmDialog } from "./V020ConfirmDialog";
 import "./V020AutomationCases.css";
 
 /**
@@ -24,7 +26,16 @@ export function V020AutomationCasesScreen({
   const [createDirty, setCreateDirty] = useState(false);
   const [dirtyCaseIds, setDirtyCaseIds] = useState<number[]>([]);
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [page, setPage] = useState(1);
+  const [showGroupDialog, setShowGroupDialog] = useState(false);
+  const [groupNotice, setGroupNotice] = useState<string | null>(null);
+  // 删除自动化用例前弹窗确认，避免误点直接删掉资产。
+  const [pendingDeleteCase, setPendingDeleteCase] = useState<number | null>(
+    null,
+  );
   const submitHandlers = useRef(new Map<number, () => Promise<boolean>>());
+  const pageSize = 20;
 
   const registerSubmit = useCallback(
     (caseId: number, submit: (() => Promise<boolean>) | null) => {
@@ -59,6 +70,10 @@ export function V020AutomationCasesScreen({
         : current.filter((id) => id !== caseId);
     });
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [automation.items]);
 
   const hasUnsavedChanges = dirtyCaseIds.length > 0 || createDirty;
   useEffect(() => {
@@ -108,6 +123,47 @@ export function V020AutomationCasesScreen({
   const allValidated =
     automation.items.length > 0 &&
     automation.items.every((item) => item.validation_status === "passed");
+  const totalPages = Math.max(1, Math.ceil(automation.items.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = automation.items.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  const toggleSelect = (caseId: number) =>
+    setSelectedIds((current) =>
+      current.includes(caseId)
+        ? current.filter((id) => id !== caseId)
+        : [...current, caseId],
+    );
+  // 一次选中当前全部用例（跨页），再点一次取消，不需要逐页全选。
+  const allSelected =
+    automation.items.length > 0 &&
+    automation.items.every((item) => selectedIds.includes(item.id));
+  const toggleSelectAll = () =>
+    setSelectedIds(allSelected ? [] : automation.items.map((item) => item.id));
+  const selectedItems = automation.items.filter((item) =>
+    selectedIds.includes(item.id),
+  );
+  const selectedValidated =
+    selectedItems.length > 0 &&
+    selectedItems.every((item) => item.validation_status === "passed");
+
+  /** 加入测试组前如果勾选还没校验，先自动校验一次，避免按钮“能选不能用”。 */
+  const joinSelectedToGroup = async () => {
+    if (selectedItems.length === 0) {
+      setBatchMessage("请先勾选要加入测试组的自动化用例。");
+      return;
+    }
+    if (!selectedValidated) {
+      const passed = await automation.validateCases();
+      if (!passed) {
+        setBatchMessage("勾选的用例还没通过校验，请先修改后再加入测试组。");
+        return;
+      }
+    }
+    // 校验通过后原地弹窗选择测试组，不再跳转到测试组页面。
+    setShowGroupDialog(true);
+  };
 
   const createCase = async (command: AutomationCaseCreateCommand) => {
     const created = await automation.createCase(command);
@@ -127,16 +183,19 @@ export function V020AutomationCasesScreen({
     <>
       <div className="prototype-case-toolbar prototype-automation-toolbar">
         <p className="prototype-muted">
-          规则转换不依赖 AI；共 {automation.items.length} 条候选，其中转换失败
-          {failedCount} 条，全部需要人工审核。
+          共 {automation.items.length} 条候选，其中转换失败 {failedCount}{" "}
+          条，已选 {selectedIds.length}{" "}
+          条。生成入口在“测试用例表”，这里只做编辑、校验和加入测试组。
         </p>
         <div className="prototype-actions">
           <button
-            disabled={automation.busy}
-            onClick={() => void automation.convert()}
+            aria-pressed={allSelected}
+            className={allSelected ? "is-selected" : "prototype-secondary"}
+            disabled={automation.items.length === 0}
+            onClick={toggleSelectAll}
             type="button"
           >
-            生成自动化用例
+            {allSelected ? "取消选择" : "全选"}
           </button>
           <button
             className="prototype-secondary"
@@ -172,10 +231,11 @@ export function V020AutomationCasesScreen({
           </button>
           <button
             className="prototype-secondary"
-            disabled={!allValidated}
-            onClick={onOpenGroups}
+            onClick={() => void joinSelectedToGroup()}
             title={
-              allValidated ? undefined : "请先校验全部自动化用例再加入测试组"
+              selectedItems.length === 0
+                ? "先勾选要加入测试组的自动化用例"
+                : "带当前勾选的自动化用例进入测试组"
             }
             type="button"
           >
@@ -213,28 +273,91 @@ export function V020AutomationCasesScreen({
         <div className="prototype-card">
           <h3>还没有自动化用例候选</h3>
           <p className="prototype-muted">
-            先导入原始测试用例，再点击“生成自动化用例”。规则转换可离线运行，不需要模型或
-            Skill。
+            先到“测试用例表”导入原始用例，再点“AI
+            生成自动化用例”或“规则转换（不使用 AI）”。
           </p>
         </div>
       ) : (
-        <V020AutomationCaseTable
-          busy={automation.busy}
-          items={automation.items}
-          productVersionId={versionId}
-          onDelete={deleteCase}
-          onDirtyChange={handleDirtyChange}
-          onFeedback={automation.submitFeedback}
-          onOpenSource={onOpenSource}
-          onRegisterSubmit={registerSubmit}
-          onRegenerate={automation.regenerateCase}
-          onSave={automation.updateCase}
-        />
+        <>
+          <V020AutomationCaseTable
+            busy={automation.busy}
+            items={pageItems}
+            productVersionId={versionId}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onDelete={async (caseId: number) => {
+              setPendingDeleteCase(caseId);
+              return true;
+            }}
+            onDirtyChange={handleDirtyChange}
+            onFeedback={automation.submitFeedback}
+            onOpenSource={onOpenSource}
+            onRegisterSubmit={registerSubmit}
+            onRegenerate={automation.regenerateCase}
+            onSave={automation.updateCase}
+          />
+          {automation.items.length > pageSize && (
+            <div className="prototype-source-pager" aria-label="自动化用例分页">
+              <span>
+                第 {currentPage} / {totalPages} 页 · 共{" "}
+                {automation.items.length} 条，每页 {pageSize} 条
+              </span>
+              <button
+                className="prototype-secondary"
+                disabled={currentPage <= 1}
+                onClick={() => setPage(currentPage - 1)}
+                type="button"
+              >
+                上一页
+              </button>
+              <button
+                className="prototype-secondary"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage(currentPage + 1)}
+                type="button"
+              >
+                下一页
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <div className="prototype-inline-note">
         修改、新增、删除或重新生成后，用例立即变为未校验；未校验用例不能加入测试组或执行。删除资产不会删除历史快照。
       </div>
+
+      {pendingDeleteCase !== null && (
+        <V020ConfirmDialog
+          ariaLabel="删除自动化用例确认"
+          confirmLabel="确认删除自动化用例"
+          onCancel={() => setPendingDeleteCase(null)}
+          onConfirm={() => {
+            const target = pendingDeleteCase;
+            setPendingDeleteCase(null);
+            void deleteCase(target);
+          }}
+          title="删除自动化用例"
+        >
+          <p className="prototype-muted">
+            删除只移除自动化用例资产，历史执行快照不受影响。
+          </p>
+        </V020ConfirmDialog>
+      )}
+      {groupNotice && (
+        <div className="prototype-inline-note" role="status">
+          {groupNotice}
+        </div>
+      )}
+
+      <V020AddToGroupDialog
+        automationIds={selectedIds}
+        onClose={() => setShowGroupDialog(false)}
+        onDone={(message) => setGroupNotice(message)}
+        open={showGroupDialog}
+        sourceIds={[]}
+        versionId={versionId}
+      />
     </>
   );
 }

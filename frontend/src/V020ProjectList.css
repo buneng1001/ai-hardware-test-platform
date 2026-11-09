@@ -1,0 +1,108 @@
+/* 搜索、排序、查找保持一行，三者间距相同；搜索框约占一半宽度。 */
+.prototype-project-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin: 26px 0 4px;
+}
+
+.prototype-project-filters .prototype-search-field {
+  flex: 0 1 320px;
+  min-width: 220px;
+}
+
+/* 项目卡片之间留出稳定的呼吸空间，避免列表看起来挤成一团 */
+.prototype-project-card {
+  margin: 22px 0 0;
+}
+
+.prototype-project-card + .prototype-project-card {
+  margin-top: 16px;
+}
+
+.prototype-projects > .prototype-secondary {
+  margin-top: 26px;
+}
+
+.prototype-modal label {
+  display: grid;
+  gap: 6px;
+  color: var(--prototype-color-muted);
+  font-weight: 700;
+}
+
+.prototype-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.prototype-search-field input {
+  width: 100%;
+  padding-right: 38px;
+}
+
+.prototype-page button.prototype-search-clear {
+  position: absolute;
+  right: 8px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  place-items: center;
+  color: var(--prototype-color-muted);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.prototype-page button.prototype-search-clear:hover {
+  color: var(--prototype-color-text);
+  background: var(--prototype-color-surface-muted);
+}
+
+.prototype-active-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 10px 16px;
+  color: var(--prototype-color-brand-strong);
+  border: 1px solid var(--prototype-color-brand);
+  border-radius: 999px;
+  background: var(--prototype-color-brand-soft);
+  font-weight: 750;
+}
+
+.prototype-created-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.prototype-project-card--new {
+  border-color: var(--prototype-color-brand) !important;
+  box-shadow: 0 0 0 3px rgb(13 148 136 / 14%) !important;
+}
+
+/* 产品画像区域：各字段之间留出间距，避免标签挤在一起。 */
+.prototype-project-profile {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 10px;
+}
+
+.prototype-project-profile .prototype-filter-row {
+  gap: 14px;
+}

@@ -176,3 +176,24 @@ def test_data_package_assignments_are_scoped_to_one_group_and_keep_warnings(clie
     assert group_impact["manual_test_results"] == 0
     assert group_impact["manual_test_result_attachments"] == 0
     assert client.delete(f"/api/test-groups/{groups[0]['id']}?confirm=true").status_code == 204
+
+
+def test_adding_same_case_twice_does_not_duplicate_group_rows(client: TestClient):
+    """同一条用例重复加入同一个测试组时只保留一条，避免范围里出现重复行。"""
+    version_id, case_ids = _create_version_with_cases(client)
+    group = client.post(
+        f"/api/product-versions/{version_id}/test-groups",
+        json={"name": "重复加入验证组", "description": "", "include_selected_source_cases": False},
+    ).json()
+
+    first = client.post(f"/api/test-groups/{group['id']}/source-test-cases", json={"case_ids": case_ids[:2]})
+    assert first.status_code == 200
+    second = client.post(f"/api/test-groups/{group['id']}/source-test-cases", json={"case_ids": case_ids[:2]})
+    assert second.status_code == 200
+    assert len(second.json()["source_test_cases"]) == 2
+
+    detail = client.get(f"/api/test-groups/{group['id']}").json()
+    assert [item["case_number"] for item in detail["source_test_cases"]] == sorted(
+        [item["case_number"] for item in detail["source_test_cases"]]
+    )
+    assert len({item["id"] for item in detail["source_test_cases"]}) == 2

@@ -119,13 +119,19 @@ CatalogTransport = Callable[[dict[str, object]], tuple[int, str]]
 
 
 def configured_timeout(stage: str) -> float:
-    """目录/连接测试/业务请求各自可配置，默认 20/20/600 秒。"""
+    """目录/连接测试/业务请求各自可配置，默认 20/20/600 秒。
+
+    未登记的阶段（例如新增的自动化用例转换）按业务请求超时处理，
+    避免因为缺少映射在发请求前就抛 KeyError。
+    """
     defaults = {"catalog": 20.0, "connection_test": 20.0, "business": 600.0}
     env_names = {
         "catalog": "AI_CATALOG_TIMEOUT_SECONDS",
         "connection_test": "AI_CONNECTION_TIMEOUT_SECONDS",
         "business": "AI_BUSINESS_TIMEOUT_SECONDS",
     }
+    if stage not in env_names:
+        stage = "business"
     try:
         value = float(os.getenv(env_names[stage], str(defaults[stage])))
     except ValueError:

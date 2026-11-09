@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { Status } from "./V020PrototypeShared";
 import type { ReportHistoryItem } from "./factReportsApi";
 
@@ -18,6 +20,8 @@ const typeLabels: Record<string, string> = {
 };
 
 /** 冻结版报告与历史记录：可查找自动化、人工记录和最终报告。 */
+const HISTORY_PAGE_SIZE = 8;
+
 export function V020ReportHistoryDialog({
   items,
   groupName,
@@ -37,6 +41,11 @@ export function V020ReportHistoryDialog({
   onPreview: (reportId: number) => void;
   onClose: () => void;
 }) {
+  const [historyPage, setHistoryPage] = useState(1);
+  const finalReportCount = items.filter(
+    (item) => item.record_type === "fact_report",
+  ).length;
+
   return (
     <div className="prototype-report-overlay">
       <section
@@ -84,35 +93,71 @@ export function V020ReportHistoryDialog({
           <p className="prototype-muted">没有符合条件的记录。</p>
         ) : (
           <div className="prototype-report-history-list">
-            {items.map((item) => (
-              <article key={`${item.record_type}-${item.id}`}>
-                <div>
-                  <span className="prototype-report-id">
-                    {item.record_type === "fact_report"
-                      ? `报告 #${item.id}`
-                      : typeLabels[item.record_type]}
-                  </span>
-                  <Status tone={item.status === "current" ? "good" : "warn"}>
-                    {lifecycleLabels[item.status] ?? item.status}
-                  </Status>
-                  <p>{item.label}</p>
-                </div>
-                <div className="prototype-report-row-actions">
-                  <time>{item.occurred_at.slice(0, 16).replace("T", " ")}</time>
-                  {item.record_type === "fact_report" && (
-                    <button
-                      className="prototype-secondary"
-                      disabled={busy}
-                      type="button"
-                      aria-label={`预览报告 #${item.id}`}
-                      onClick={() => onPreview(item.id)}
-                    >
-                      预览 HTML
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
+            {items
+              .filter((item) => item.record_type === "fact_report")
+              .slice(
+                (historyPage - 1) * HISTORY_PAGE_SIZE,
+                historyPage * HISTORY_PAGE_SIZE,
+              )
+              .map((item) => (
+                <article key={`${item.record_type}-${item.id}`}>
+                  <div>
+                    <span className="prototype-report-id">
+                      {item.record_type === "fact_report"
+                        ? `报告 #${item.id}`
+                        : typeLabels[item.record_type]}
+                    </span>
+                    <Status tone={item.status === "current" ? "good" : "warn"}>
+                      {lifecycleLabels[item.status] ?? item.status}
+                    </Status>
+                    <p>{item.label}</p>
+                  </div>
+                  <div className="prototype-report-row-actions">
+                    <time>
+                      {item.occurred_at.slice(0, 16).replace("T", " ")}
+                    </time>
+                    {item.record_type === "fact_report" && (
+                      <button
+                        className="prototype-secondary"
+                        disabled={busy}
+                        type="button"
+                        aria-label={`预览报告 #${item.id}`}
+                        onClick={() => onPreview(item.id)}
+                      >
+                        预览 HTML
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            {finalReportCount > HISTORY_PAGE_SIZE && (
+              <div className="prototype-source-pager" aria-label="历史记录分页">
+                <span>
+                  第 {historyPage} /{" "}
+                  {Math.ceil(finalReportCount / HISTORY_PAGE_SIZE)} 页 · 共{" "}
+                  {finalReportCount} 条最终报告
+                </span>
+                <button
+                  className="prototype-secondary"
+                  disabled={historyPage <= 1}
+                  onClick={() => setHistoryPage(historyPage - 1)}
+                  type="button"
+                >
+                  上一页
+                </button>
+                <button
+                  className="prototype-secondary"
+                  disabled={
+                    historyPage >=
+                    Math.ceil(finalReportCount / HISTORY_PAGE_SIZE)
+                  }
+                  onClick={() => setHistoryPage(historyPage + 1)}
+                  type="button"
+                >
+                  下一页
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>

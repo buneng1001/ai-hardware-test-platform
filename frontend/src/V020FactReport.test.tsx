@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { executionRecord } from "./test/automationExecutionHarness";
@@ -64,36 +70,34 @@ test("生成最终报告后按固定顺序预览并下载 HTML 与纯文字", as
   });
   await openReportView();
 
-  fireEvent.click(await screen.findByRole("button", { name: "生成最终报告" }));
-  fireEvent.change(screen.getByLabelText("自动化执行记录"), {
+  // 选择在两张卡片里，默认就是最新一条。
+  fireEvent.change(await screen.findByLabelText("用于报告的自动化执行记录"), {
     target: { value: "3" },
   });
-  fireEvent.click(screen.getByLabelText("选择人工批次 #1"));
-  fireEvent.click(screen.getByRole("button", { name: "生成事实报告" }));
+  fireEvent.click(await screen.findByRole("button", { name: "生成最终报告" }));
+  fireEvent.click(await screen.findByRole("button", { name: "确认生成" }));
 
   expect(
     await screen.findByRole("heading", { name: "测试基本信息" }),
   ).toBeVisible();
   const dialog = screen.getByRole("dialog", { name: "报告 #9 HTML 预览" });
   expect(
-    within(dialog).getByRole("heading", { name: "阶段推进事实依据" }),
+    within(dialog).getByRole("heading", { name: "总体结论与通过率" }),
   ).toBeVisible();
   const headings = within(dialog)
     .getAllByRole("heading", { level: 2 })
     .map((item) => item.textContent);
   expect(headings.slice(0, 6)).toEqual([
     "测试基本信息",
-    "阶段推进事实依据",
-    "AI 区域状态",
-    "范围总览",
-    "模块详情",
-    "跨模块问题",
+    "总体结论与通过率",
+    "模块汇总",
+    "未通过用例",
+    "阻塞与未执行",
+    "执行方式通过率",
   ]);
   expect(headings).toContain("已使用附件");
-  expect(screen.getByTitle("事实报告 HTML 预览")).toHaveAttribute(
-    "src",
-    "/api/fact-reports/9.html",
-  );
+  // 预览不再内嵌 iframe，只保留下载入口。
+  expect(screen.queryByTitle("事实报告 HTML 预览")).toBeNull();
   expect(screen.getByRole("link", { name: "下载 HTML 报告" })).toHaveAttribute(
     "href",
     "/api/fact-reports/9.html",
@@ -137,9 +141,12 @@ test("只有人工记录时也允许生成报告", async () => {
   });
   await openReportView();
 
-  fireEvent.click(await screen.findByRole("button", { name: "生成最终报告" }));
-  fireEvent.click(screen.getByLabelText("选择人工批次 #1"));
-  fireEvent.click(screen.getByRole("button", { name: "生成事实报告" }));
+  // 人工记录卡里默认选中最新一批；等按钮可用再点。
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "生成最终报告" })).toBeEnabled(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "生成最终报告" }));
+  fireEvent.click(await screen.findByRole("button", { name: "确认生成" }));
 
   expect(
     await screen.findByRole("dialog", { name: "报告 #10 HTML 预览" }),

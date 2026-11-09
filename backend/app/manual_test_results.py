@@ -33,7 +33,8 @@ def _manual_cases(connection: sqlite3.Connection, group_id: int) -> list[sqlite3
         FROM test_group_source_cases item
         JOIN source_test_cases source ON source.id = item.source_test_case_id
         WHERE item.test_group_id = ?
-          AND lower(trim(source.test_type)) IN ('manual', 'mixed', '人工', '混合')
+          -- 组内的原始用例默认就是人工执行；只排除显式标记为自动化的历史数据。
+          AND lower(trim(source.test_type)) NOT IN ('automation', 'auto', '自动化', '自动')
         ORDER BY item.position, source.id
         """,
         (group_id,),

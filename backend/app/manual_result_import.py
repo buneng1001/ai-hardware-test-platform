@@ -31,7 +31,8 @@ def _parse_csv(content: bytes) -> list[dict[str, str]]:
 
 def _parse_excel(content: bytes) -> list[dict[str, str]]:
     try:
-        workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        # 不用 read_only：部分 WPS/Excel 文件的工作表范围写成 A1，read_only 会只读到一行。
+        workbook = load_workbook(io.BytesIO(content), data_only=True)
     except (BadZipFile, InvalidFileException, OSError, ValueError) as error:
         raise HTTPException(status_code=422, detail="Excel 文件无法读取") from error
     try:
@@ -39,13 +40,15 @@ def _parse_excel(content: bytes) -> list[dict[str, str]]:
         header = [str(value) if value is not None else "" for value in next(values, ())]
         if header != IMPORT_COLUMNS:
             raise HTTPException(status_code=422, detail=f"导入列必须是 {','.join(IMPORT_COLUMNS)}")
-        return [
-            {
+        rows: list[dict[str, str]] = []
+        for row in values:
+            values_by_column = {
                 column: value.isoformat() if isinstance(value, datetime) else str(value) if value is not None else ""
                 for column, value in zip(IMPORT_COLUMNS, row, strict=False)
             }
-            for row in values
-        ]
+            if any(text.strip() for text in values_by_column.values()):
+                rows.append(values_by_column)
+        return rows
     finally:
         workbook.close()
 

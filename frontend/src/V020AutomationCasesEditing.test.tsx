@@ -84,6 +84,9 @@ test("删除自动化用例后移除资产并保留历史快照说明", async ()
   await openAutomationView();
 
   fireEvent.click(screen.getByRole("button", { name: "删除" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "确认删除自动化用例" }),
+  );
 
   expect(
     await screen.findByText("自动化用例已删除；历史快照不受此操作影响。"),
@@ -125,7 +128,11 @@ test("校验覆盖必填内容并阻止未通过校验的用例加入测试组",
   expect(screen.getByText(/标题不能为空/)).toBeVisible();
   expect(screen.getByText("已校验")).toBeVisible();
   expect(screen.getByText("校验失败")).toBeVisible();
-  expect(screen.getByRole("button", { name: "加入测试组" })).toBeDisabled();
+  // 没勾选用例时给出明确提示，而不是静默无反应。
+  fireEvent.click(screen.getByRole("button", { name: "加入测试组" }));
+  expect(
+    await screen.findByText("请先勾选要加入测试组的自动化用例。"),
+  ).toBeVisible();
 });
 
 test("全部校验通过后才允许加入测试组", async () => {
@@ -136,11 +143,12 @@ test("全部校验通过后才允许加入测试组", async () => {
   });
   await openAutomationView();
   const joinGroup = screen.getByRole("button", { name: "加入测试组" });
-  expect(joinGroup).toBeDisabled();
 
   fireEvent.click(screen.getByRole("button", { name: "校验自动化用例" }));
 
   expect(await screen.findByText("自动化用例校验通过。")).toBeVisible();
+  // 校验通过后还需要勾选要加入测试组的用例。
+  fireEvent.click(screen.getByRole("checkbox", { name: /选择自动化用例/ }));
   expect(joinGroup).toBeEnabled();
 });
 

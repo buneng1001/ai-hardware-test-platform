@@ -42,6 +42,8 @@ export function useV020SourceTestCases(productVersionId: number | null) {
   const [filters, setFilters] = useState<SourceCaseFilters>(
     emptySourceCaseFilters,
   );
+  // 只看还没有自动化版本的用例（用于“排除已自动化”）。
+  const [onlyMissing, setOnlyMissingState] = useState(false);
   const [draft, setDraft] = useState<SourceTestCaseImportDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -53,7 +55,11 @@ export function useV020SourceTestCases(productVersionId: number | null) {
 
   /** 一次性加载全部用例、当前筛选结果和导入记录，并恢复已保存的勾选清单。 */
   const loadVersion = useCallback(
-    async (versionId: number, nextFilters: SourceCaseFilters) => {
+    async (
+      versionId: number,
+      nextFilters: SourceCaseFilters,
+      missingOnly = false,
+    ) => {
       const token = requestToken.current + 1;
       requestToken.current = token;
       setStatus("loading");
@@ -62,8 +68,11 @@ export function useV020SourceTestCases(productVersionId: number | null) {
       try {
         const [all, filtered, loadedRecords] = await Promise.all([
           listSourceTestCases(versionId, {}),
-          hasActiveFilters(nextFilters)
-            ? listSourceTestCases(versionId, compactFilters(nextFilters))
+          hasActiveFilters(nextFilters) || missingOnly
+            ? listSourceTestCases(versionId, {
+                ...compactFilters(nextFilters),
+                ...(missingOnly ? { automation: "missing" } : {}),
+              })
             : Promise.resolve(null),
           listSourceTestCaseImports(versionId),
         ]);
@@ -99,12 +108,12 @@ export function useV020SourceTestCases(productVersionId: number | null) {
       setActionError(null);
       return;
     }
-    void loadVersion(productVersionId, emptySourceCaseFilters);
-  }, [productVersionId, loadVersion]);
+    void loadVersion(productVersionId, emptySourceCaseFilters, onlyMissing);
+  }, [productVersionId, loadVersion, onlyMissing]);
 
   const retry = () => {
     if (productVersionId === null) return;
-    void loadVersion(productVersionId, filters);
+    void loadVersion(productVersionId, filters, onlyMissing);
   };
 
   const updateFilter = async (
@@ -116,10 +125,10 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     if (productVersionId === null) return;
     setActionError(null);
     try {
-      const result = await listSourceTestCases(
-        productVersionId,
-        compactFilters(next),
-      );
+      const result = await listSourceTestCases(productVersionId, {
+        ...compactFilters(next),
+        ...(onlyMissing ? { automation: "missing" } : {}),
+      });
       setItems(result.items);
     } catch (caught) {
       setActionError(errorMessage(caught, "筛选失败"));
@@ -154,12 +163,24 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     void persistSelection(next);
   };
 
+  // 全选/反选的状态用于按钮文字切换，不改动选择逻辑。
+  const [inverted, setInverted] = useState(false);
+  const allFilteredSelected =
+    items.length > 0 && items.every((item) => selectedIds.includes(item.id));
+
+  const clearSelection = () => {
+    // 只清除当前筛选结果里的勾选，其它用例保持原样。
+    const visible = new Set(items.map((item) => item.id));
+    void persistSelection(selectedIds.filter((id) => !visible.has(id)));
+  };
+
   const selectAllFiltered = () => {
     const next = new Set([...selectedIds, ...items.map((item) => item.id)]);
     void persistSelection([...next]);
   };
 
   const invertFiltered = () => {
+    setInverted((current) => !current);
     const next = new Set(selectedIds);
     items.forEach((item) =>
       next.has(item.id) ? next.delete(item.id) : next.add(item.id),
@@ -179,6 +200,8 @@ export function useV020SourceTestCases(productVersionId: number | null) {
           ...defaultSourceTestCaseImportOptions,
           ...preview.import_options,
         },
+        // 默认覆盖该版本已有用例表，避免同一批用例重复导入。
+        replace_existing: true,
       });
     } catch (caught) {
       setActionError(errorMessage(caught, "导入预览失败"));
@@ -192,7 +215,11 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     setBusy(true);
     setActionError(null);
     try {
-      await createSourceTestCaseImport(productVersionId, draft);
+      await createSourceTestCaseImport(productVersionId, {
+        ...draft,
+        // 勾选状态默认为“覆盖”，与导入面板的默认勾选保持一致。
+        replace_existing: draft.replace_existing ?? true,
+      });
       setDraft(null);
       setFilters(emptySourceCaseFilters);
       await loadVersion(productVersionId, emptySourceCaseFilters);
@@ -232,12 +259,26 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     [allItems],
   );
 
+  const setOnlyMissing = (value: boolean) => {
+    setOnlyMissingState(value);
+  };
+
   return {
     status,
     items,
+    onlyMissing,
+    setOnlyMissing,
+    missingAutomationCount: allItems.filter(
+      (item) => item.case_type !== "automation",
+    ).length,
+    automationCount: allItems.filter((item) => item.case_type === "automation")
+      .length,
     records,
     selectedIds,
     totalCount: allItems.length,
+    allFilteredSelected,
+    clearSelection,
+    inverted,
     filters,
     filterOptions,
     draft,

@@ -68,6 +68,20 @@
   transform: translateY(-1px);
 }
 
+/* 兜底：任何按钮的文字颜色都不能被背景色盖住。
+   选中态（aria-pressed / is-selected）统一用浅底深字，避免深底深字看不见。 */
+.prototype-page button[aria-pressed="true"],
+.prototype-page button.is-selected {
+  color: var(--prototype-color-brand-strong) !important;
+  border-color: var(--prototype-color-brand) !important;
+  background: var(--prototype-color-brand-soft) !important;
+}
+
+.prototype-page button.prototype-secondary,
+.prototype-page button.prototype-metric-button {
+  color: var(--prototype-color-text) !important;
+}
+
 .prototype-banner {
   position: fixed;
   z-index: 20;

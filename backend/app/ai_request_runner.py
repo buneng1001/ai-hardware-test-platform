@@ -172,6 +172,8 @@ class RequestRunner:
                     endpoint_host=endpoint_host(self._endpoint),
                     network_mode=self.network_mode,
                     response_chars=len(text) if text is not None else None,
+                    # 保留具体异常类型，避免把代码问题误认成模型输出格式问题。
+                    diagnostic=f"{type(error).__name__}: {error}",
                 )
                 self._record_request(
                     stage=stage,

@@ -47,15 +47,20 @@ def _not_enabled() -> ReportAnalysis:
 
 
 def _configuration() -> tuple[str, str, str, bool] | None:
-    mode = os.getenv("REPORT_ANALYSIS_MODE", "disabled")
+    """报告分析跟随当前 AI 配置：默认 auto，前面的 AI 步骤能用，这里也能用。"""
+    mode = os.getenv("REPORT_ANALYSIS_MODE", "auto")
+    if mode == "disabled":
+        return None
     if mode == "mock":
         return "mock", "mock-report-analysis-v1", "", True
-    if mode != "configured":
-        return None
     settings = current_settings()
     if settings.mode == "mock":
+        # 与其它 AI 步骤保持一致：模拟模式也要产出模拟分析，而不是“未配置”。
+        return "mock", "mock-report-analysis-v1", "", True
+    api_key = configured_api_key(settings.provider)
+    if not settings.provider or not api_key:
         return None
-    return settings.provider, settings.model, configured_api_key(settings.provider), False
+    return settings.provider, settings.model, api_key, False
 
 
 def analysis_is_enabled() -> bool:

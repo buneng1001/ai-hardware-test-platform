@@ -1,4 +1,6 @@
 import io
+import re
+import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,6 +8,7 @@ from openpyxl import Workbook
 
 from app.database import open_database
 from app.main import app
+from app.source_test_case_parsing import parse_source_case_file
 
 
 @pytest.fixture
@@ -84,6 +87,9 @@ def test_engineer_previews_confirms_and_filters_source_test_case_import(client):
             "attachment": "",
             "software_version": "1.2.0",
             "selected": False,
+            "case_type": "manual",
+            "automation_test_case_id": None,
+            "automation_validation_status": None,
         }
     ]
 
@@ -209,12 +215,82 @@ def test_xlsx_preview_and_import_record_deletion_explain_affected_source_cases(c
         "import_record_id": record["id"],
         "source_test_cases": 1,
         "automation_test_cases": 1,
-        "message": "删除后原始用例保留，但其来源会标记为“导入记录已删除”；已有自动化用例不会被删除。",
+        "message": (
+            "删除后会同时清除该导入记录下的原始用例，以及由这些用例生成的自动化候选和测试组关联；"
+            "数据包和其他导入记录不受影响。"
+        ),
     }
     assert client.delete(f"/api/source-test-case-imports/{record['id']}").status_code == 400
     assert client.delete(f"/api/source-test-case-imports/{record['id']}?confirm=true").status_code == 204
-    retained = client.get(f"/api/product-versions/{version_id}/source-test-cases").json()["items"]
-    assert retained[0]["source_import_status"] == "import_deleted"
-    assert retained[0]["import_record_id"] is None
+    # 删除导入记录会连带删除原始用例及其自动化候选。
+    assert client.get(f"/api/product-versions/{version_id}/source-test-cases").json()["items"] == []
     with open_database() as connection:
-        assert connection.execute("SELECT COUNT(*) FROM automation_test_cases").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM automation_test_cases").fetchone()[0] == 0
+
+
+def test_multi_row_case_is_merged_and_reimport_can_replace(client):
+    """多行一条用例（编号只写在首行）要能导入；再次导入可覆盖旧用例表。"""
+    project = client.post("/api/projects", json={"name": "IRIS", "product_name": "Recorder", "description": ""}).json()
+    version_id = client.post(f"/api/projects/{project['id']}/product-versions", json={"version": "EVT1"}).json()["id"]
+    command = {
+        "source_filename": "beta.csv",
+        "field_mapping": {
+            "case_number": "编号",
+            "title": "标题",
+            "steps": "步骤",
+            "expected_result": "预期",
+        },
+        "rows": [
+            {"编号": "TC-001", "标题": "登录", "步骤": "打开页面", "预期": "显示登录窗口"},
+            {"编号": "", "标题": "", "步骤": "输入账号", "预期": "账号输入成功"},
+            {"编号": "TC-002", "标题": "退出", "步骤": "点击退出", "预期": "回到登录页"},
+        ],
+        "import_options": {},
+    }
+
+    imported = client.post(f"/api/product-versions/{version_id}/source-test-case-imports", json=command)
+
+    assert imported.status_code == 201
+    cases = client.get(f"/api/product-versions/{version_id}/source-test-cases").json()["items"]
+    assert [item["case_number"] for item in cases] == ["TC-001", "TC-002"]
+    assert cases[0]["steps"] == "打开页面\n输入账号"
+    assert cases[0]["expected_result"] == "显示登录窗口\n账号输入成功"
+
+    replaced = client.post(
+        f"/api/product-versions/{version_id}/source-test-case-imports",
+        json={**command, "replace_existing": True},
+    )
+
+    assert replaced.status_code == 201
+    cases = client.get(f"/api/product-versions/{version_id}/source-test-cases").json()["items"]
+    assert [item["case_number"] for item in cases] == ["TC-001", "TC-002"]
+    records = client.get(f"/api/product-versions/{version_id}/source-test-case-imports").json()
+    assert len(records) == 1
+
+
+def _xlsx_with_broken_dimension() -> bytes:
+    """模拟 WPS 这类把工作表范围写成 A1 的文件。"""
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["用例编号", "测试用例标题"])
+    sheet.append(["TC-001", "录制检查"])
+    sheet.append(["TC-002", "回放检查"])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+
+    source = zipfile.ZipFile(io.BytesIO(buffer.getvalue()))
+    patched = io.BytesIO()
+    with zipfile.ZipFile(patched, "w", zipfile.ZIP_DEFLATED) as target:
+        for item in source.infolist():
+            data = source.read(item.filename)
+            if item.filename.endswith("sheet1.xml"):
+                data = re.sub(rb'<dimension ref="[^"]*"/>', b'<dimension ref="A1"/>', data)
+            target.writestr(item, data)
+    return patched.getvalue()
+
+
+def test_xlsx_with_broken_dimension_still_reads_all_rows():
+    """范围信息写坏时也要读到全部数据行，不能报“不包含数据行”。"""
+    columns, rows = parse_source_case_file("broken.xlsx", _xlsx_with_broken_dimension())
+    assert columns == ["用例编号", "测试用例标题"]
+    assert [row["用例编号"] for row in rows] == ["TC-001", "TC-002"]

@@ -106,8 +106,8 @@ export function useV020TestGroups(productVersionId: number | null) {
     name: string,
     description: string,
     includeSelected: boolean,
-  ): Promise<boolean> => {
-    if (productVersionId === null) return false;
+  ): Promise<TestGroupDetail | null> => {
+    if (productVersionId === null) return null;
     setBusy(true);
     setActionError(null);
     setMessage(null);
@@ -120,10 +120,10 @@ export function useV020TestGroups(productVersionId: number | null) {
       setDetail(created);
       await load();
       setMessage("测试组已创建。");
-      return true;
+      return created;
     } catch (caught) {
       setActionError(errorMessage(caught, "测试组创建失败"));
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }

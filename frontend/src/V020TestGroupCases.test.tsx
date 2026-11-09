@@ -7,10 +7,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
-import { automationCase, sourceCase } from "./test/casesFixtures";
 import { dataPackage } from "./test/dataPackagesHarness";
 import {
-  assignedPackage,
   groupAutomationCase,
   groupSourceCase,
   testGroupDetail,
@@ -30,32 +28,6 @@ afterEach(() => {
   window.sessionStorage.clear();
 });
 
-const sourceCases = [
-  sourceCase({ id: 4, case_number: "SRC-001", title: "录制" }),
-  sourceCase({ id: 5, case_number: "SRC-002", title: "断电恢复" }),
-];
-
-const automationCases = [
-  automationCase({
-    id: 1,
-    case_number: "AUTO-000001",
-    title: "录制检查",
-    validation_status: "passed",
-  }),
-  automationCase({
-    id: 2,
-    case_number: "AUTO-000002",
-    title: "回放检查",
-    validation_status: "passed",
-  }),
-  automationCase({
-    id: 3,
-    case_number: "AUTO-000003",
-    title: "未校验用例",
-    validation_status: "unvalidated",
-  }),
-];
-
 const packages = [
   dataPackage({ id: 7, package_number: "DP-000007" }),
   dataPackage({ id: 8, package_number: "DP-000008" }),
@@ -64,199 +36,127 @@ const packages = [
 function detailState(overrides: Partial<GroupStubState> = {}) {
   return {
     groups: [testGroupDetail({})],
-    sourceCases,
-    automationCases,
+    sourceCases: [],
+    automationCases: [],
     packages,
     ...overrides,
   } satisfies GroupStubState;
 }
 
-async function openDetail(state: GroupStubState) {
+async function openDetailWith(state: GroupStubState) {
   stubGroupsApi(state);
   await openGroupsView();
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
-  await screen.findByText("测试组名称创建后不可修改");
+  await screen.findByRole("button", { name: "返回设置列表" });
 }
 
-async function selectOption(select: HTMLElement, name: RegExp | string) {
-  const option = await within(select).findByRole("option", { name });
-  (option as HTMLOptionElement).selected = true;
-  fireEvent.change(select);
-}
-
-test("测试组详情可加入、排序和移除原始用例", async () => {
-  const state = detailState({
-    groups: [
-      testGroupDetail({
-        source_test_cases: [groupSourceCase(4, "SRC-001", "录制")],
-      }),
-    ],
-  });
-  const fetchMock = stubGroupsApi(state);
+test("测试组详情用一张表列出人工与自动化用例并支持移出", async () => {
+  const fetchMock = stubGroupsApi(
+    detailState({
+      groups: [
+        testGroupDetail({
+          source_test_cases: [groupSourceCase(4, "TC-001", "录制检查")],
+          automation_test_cases: [
+            groupAutomationCase(1, "AUTO-000001", { title: "自动回放" }),
+          ],
+        }),
+      ],
+    }),
+  );
   await openGroupsView();
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
-  await screen.findByText("测试组名称创建后不可修改");
+  await screen.findByRole("button", { name: "返回设置列表" });
 
-  const panel = screen.getByLabelText("测试组原始用例范围");
-  const candidateSelect = within(panel).getByLabelText("加入原始用例");
-  await selectOption(candidateSelect, /SRC-002/);
-  fireEvent.click(
-    within(panel).getByRole("button", { name: "加入所选原始用例" }),
-  );
+  const sourceRow = screen.getByText("TC-001").closest("tr") as HTMLElement;
+  expect(sourceRow).toHaveTextContent("人工");
+  const automationRow = screen
+    .getByText("AUTO-000001")
+    .closest("tr") as HTMLElement;
+  expect(automationRow).toHaveTextContent("自动化");
+
+  fireEvent.click(within(automationRow).getByRole("button", { name: "移除" }));
+  // 移除也要先弹窗确认
+  fireEvent.click(await screen.findByRole("button", { name: "确认移除" }));
+
   await waitFor(() =>
     expect(
       callsOf(fetchMock).some(
         ([input, init]) =>
-          String(input).endsWith("/test-groups/21/source-test-cases") &&
-          init?.method === "POST" &&
-          JSON.parse(String(init.body)).case_ids[0] === 5,
-      ),
-    ).toBe(true),
-  );
-  expect(await screen.findByText("SRC-002")).toBeVisible();
-
-  fireEvent.click(within(panel).getAllByRole("button", { name: "下移" })[0]);
-  await waitFor(() =>
-    expect(
-      callsOf(fetchMock).some(
-        ([input, init]) =>
-          String(input).endsWith("/source-test-cases/order") &&
-          init?.method === "PUT",
-      ),
-    ).toBe(true),
-  );
-
-  fireEvent.click(within(panel).getAllByRole("button", { name: "移除" })[0]);
-  await waitFor(() =>
-    expect(
-      callsOf(fetchMock).some(
-        ([input, init]) =>
-          /\/source-test-cases\/\d+$/.test(String(input)) &&
+          String(input).endsWith("/test-groups/21/automation-test-cases/1") &&
           init?.method === "DELETE",
       ),
     ).toBe(true),
   );
+  expect(await screen.findByText("已从测试组移除。")).toBeVisible();
 });
 
-test("自动化用例只列已校验候选，并支持批量关联和逐条取消数据包", async () => {
-  const state = detailState({
-    groups: [
-      testGroupDetail({
-        automation_test_cases: [
-          groupAutomationCase(1, "AUTO-000001", {
-            title: "录制检查",
-            data_packages: [
-              assignedPackage(7, "DP-000007", {
-                has_newer_source_result: true,
-                recommended_source_run_id: 15,
-                warnings: [
-                  "来源用例软件版本为 EVT0，与当前产品版本 EVT1 不一致，请确认。",
-                  "数据包来源任务已有更新结果；当前仍保留已选择的数据包，未自动替换。",
-                ],
-              }),
-              assignedPackage(9, "DP-000009", {
-                validation_status: "failed",
-              }),
-            ],
-          }),
-        ],
-      }),
-    ],
-  });
-  const fetchMock = stubGroupsApi(state);
+test("数据包可以在表内逐条选择，也可以批量分配", async () => {
+  const fetchMock = stubGroupsApi(
+    detailState({
+      groups: [
+        testGroupDetail({
+          automation_test_cases: [
+            groupAutomationCase(1, "AUTO-000001", { title: "自动回放" }),
+          ],
+        }),
+      ],
+    }),
+  );
   await openGroupsView();
   fireEvent.click(await screen.findByRole("button", { name: "编辑设置" }));
-  await screen.findByText("测试组名称创建后不可修改");
+  await screen.findByRole("button", { name: "返回设置列表" });
+
+  const packageSelect = screen.getByLabelText("AUTO-000001 数据包");
+  await within(packageSelect).findByRole("option", { name: "DP-000008" });
+  fireEvent.change(packageSelect, { target: { value: "8" } });
+  expect(await screen.findByText("数据包已更新。")).toBeVisible();
 
   expect(
-    screen.getByText(
-      "来源用例软件版本为 EVT0，与当前产品版本 EVT1 不一致，请确认。",
+    callsOf(fetchMock).some(
+      ([input, init]) =>
+        String(input).endsWith(
+          "/test-groups/21/automation-test-cases/1/data-packages",
+        ) &&
+        init?.method === "PUT" &&
+        JSON.parse(String(init.body)).data_package_ids[0] === 8,
     ),
-  ).toBeVisible();
-  expect(
-    screen.getByText(
-      "数据包来源任务已有更新结果；当前仍保留已选择的数据包，未自动替换。",
-    ),
-  ).toBeVisible();
-  expect(screen.getByText("数据包 DP-000009 未校验，不能执行。")).toBeVisible();
-  expect(
-    callsOf(fetchMock).filter(([, init]) => (init?.method ?? "GET") === "PUT"),
-  ).toHaveLength(0);
+  ).toBe(true);
 
-  const panel = screen.getByLabelText("测试组自动化用例与数据包");
-  const candidateSelect = within(panel).getByLabelText("加入已校验自动化用例");
-  expect(
-    within(candidateSelect).queryByRole("option", { name: /AUTO-000003/ }),
-  ).toBeNull();
-  await selectOption(candidateSelect, /AUTO-000002/);
-  fireEvent.click(within(panel).getByRole("button", { name: "加入所选用例" }));
-  await within(panel).findByLabelText("选择 AUTO-000002 用于批量关联");
-
-  fireEvent.change(within(panel).getByLabelText("批量关联数据包"), {
-    target: { value: "8" },
+  fireEvent.change(screen.getByLabelText("批量数据包"), {
+    target: { value: "7" },
   });
-  for (const name of [
-    "选择 AUTO-000001 用于批量关联",
-    "选择 AUTO-000002 用于批量关联",
-  ]) {
-    fireEvent.click(within(panel).getByLabelText(name));
-  }
-  fireEvent.click(
-    within(panel).getByRole("button", { name: "关联到所选用例" }),
-  );
-  await waitFor(() =>
-    expect(
-      callsOf(fetchMock).some(
-        ([input, init]) =>
-          String(input).endsWith("/data-package-assignments") &&
-          init?.method === "POST",
-      ),
-    ).toBe(true),
-  );
-
-  const packageSelect = within(panel).getByLabelText("AUTO-000001 数据包");
-  for (const option of within(packageSelect).getAllByRole("option")) {
-    (option as HTMLOptionElement).selected = false;
-  }
-  fireEvent.change(packageSelect);
-  await waitFor(() =>
-    expect(
-      callsOf(fetchMock).some(
-        ([input, init]) =>
-          String(input).endsWith("/automation-test-cases/1/data-packages") &&
-          init?.method === "PUT" &&
-          JSON.parse(String(init.body)).data_package_ids.length === 0,
-      ),
-    ).toBe(true),
-  );
-  const packagePuts = callsOf(fetchMock).filter(
-    ([input, init]) =>
-      String(input).endsWith("/data-packages") && init?.method === "PUT",
-  );
-  expect(packagePuts).toHaveLength(1);
-
-  fireEvent.click(within(panel).getAllByRole("button", { name: "下移" })[0]);
-  await waitFor(() =>
-    expect(
-      callsOf(fetchMock).some(
-        ([input, init]) =>
-          String(input).endsWith("/automation-test-cases/order") &&
-          init?.method === "PUT",
-      ),
-    ).toBe(true),
-  );
-
-  fireEvent.click(within(panel).getAllByRole("button", { name: "移除" })[0]);
-  await waitFor(() =>
-    expect(
-      callsOf(fetchMock).some(
-        ([input, init]) =>
-          /\/automation-test-cases\/\d+$/.test(String(input)) &&
-          init?.method === "DELETE",
-      ),
-    ).toBe(true),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "分配给全部自动化用例" }));
   expect(
-    await screen.findByText("已从测试组移除；平台级自动化用例保留。"),
+    await screen.findByText("已把数据包分配给全部自动化用例。"),
   ).toBeVisible();
+  expect(
+    callsOf(fetchMock).some(
+      ([input, init]) =>
+        String(input).endsWith("/data-package-assignments") &&
+        init?.method === "POST",
+    ),
+  ).toBe(true);
+});
+
+test("测试组用例每页只显示 20 条", async () => {
+  const manyCases = Array.from({ length: 25 }, (_, index) =>
+    groupSourceCase(
+      index + 1,
+      `TC-${String(index + 1).padStart(3, "0")}`,
+      `用例 ${index + 1}`,
+    ),
+  );
+  await openDetailWith(
+    detailState({
+      groups: [testGroupDetail({ source_test_cases: manyCases })],
+    }),
+  );
+
+  expect(screen.getByText(/第 1 \/ 2 页/)).toBeVisible();
+  expect(screen.getAllByRole("row")).toHaveLength(21);
+
+  fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+
+  expect(await screen.findByText(/第 2 \/ 2 页/)).toBeVisible();
+  expect(screen.getAllByRole("row")).toHaveLength(6);
 });

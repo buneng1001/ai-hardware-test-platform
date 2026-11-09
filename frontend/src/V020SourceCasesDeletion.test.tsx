@@ -42,7 +42,7 @@ test("加载失败时展示错误原因并可以重试", async () => {
   ).toBeVisible();
 });
 
-test("删除导入记录前展示影响并保留原始用例的来源状态", async () => {
+test("删除导入记录改成弹窗并说明会清除相关用例", async () => {
   const fetchMock = stubApi({
     cases: [sourceCase({ id: 1 })],
     records: [importRecord()],
@@ -51,7 +51,7 @@ test("删除导入记录前展示影响并保留原始用例的来源状态", as
       source_test_cases: 1,
       automation_test_cases: 2,
       message:
-        "删除后原始用例保留，但其来源会标记为“导入记录已删除”；已有自动化用例不会被删除。",
+        "删除后会同时清除该导入记录下的原始用例，以及由这些用例生成的自动化候选和测试组关联；数据包和其他导入记录不受影响。",
     },
   });
   await openSourceView();
@@ -60,11 +60,14 @@ test("删除导入记录前展示影响并保留原始用例的来源状态", as
   const dialog = await screen.findByRole("dialog", {
     name: "删除导入记录影响",
   });
-  expect(dialog).toHaveTextContent("删除后原始用例保留");
-  expect(dialog).toHaveTextContent("原始用例：1 条");
+  expect(dialog).toHaveAttribute("aria-modal", "true");
+  expect(dialog).toHaveTextContent("删除后会同时清除该导入记录下的原始用例");
+  expect(dialog).toHaveTextContent("将清除原始用例 1 条");
   expect(dialog).toHaveTextContent("2 条");
 
-  fireEvent.click(screen.getByRole("button", { name: "确认删除导入记录" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "确认删除导入记录及用例" }),
+  );
   await waitFor(() =>
     expect(
       screen.queryByRole("dialog", { name: "删除导入记录影响" }),
@@ -77,19 +80,70 @@ test("删除导入记录前展示影响并保留原始用例的来源状态", as
         init?.method === "DELETE",
     ),
   ).toBe(true);
-  expect(await screen.findByText("导入记录已删除")).toBeVisible();
 });
 
-test("测试需求页明确显示需求点拆解与用例生成未启用", async () => {
+test("原始用例每页只显示 20 条并可翻页", async () => {
+  stubApi({
+    cases: Array.from({ length: 25 }, (_, index) =>
+      sourceCase({
+        id: index + 1,
+        case_number: `TC-${String(index + 1).padStart(3, "0")}`,
+      }),
+    ),
+    records: [],
+  });
+  await openSourceView();
+
+  expect(await screen.findByText(/第 1 \/ 2 页/)).toBeVisible();
+  expect(screen.getAllByRole("row")).toHaveLength(21);
+
+  fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+
+  expect(await screen.findByText(/第 2 \/ 2 页/)).toBeVisible();
+  expect(screen.getAllByRole("row")).toHaveLength(6);
+});
+
+test("测试需求页提供导入需求点入口和 AI 解析选项", async () => {
   stubApi({ cases: [], records: [] });
   await openCasesTab();
 
   fireEvent.click(screen.getByRole("button", { name: "测试需求" }));
-  expect(screen.getByText("未启用")).toBeVisible();
-  expect(screen.getByText(/平台不会伪造需求点或测试用例/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "导入需求点" })).toBeVisible();
+  expect(
+    screen.getByRole("checkbox", { name: "使用 AI 大模型解析上传文件" }),
+  ).toBeChecked();
+  expect(screen.getByLabelText("对上传文件的说明")).toBeVisible();
+  expect(screen.getByRole("button", { name: "开始解析" })).toBeDisabled();
 
-  fireEvent.click(screen.getByRole("button", { name: "前往导入测试用例资料" }));
+  fireEvent.click(screen.getByRole("button", { name: "导入用例" }));
   expect(
     await screen.findByRole("button", { name: "导入用例表" }),
   ).toBeVisible();
+});
+
+test("测试用例表把 AI 生成作为主入口并保留规则兜底", async () => {
+  stubApi({ cases: [], records: [] });
+  await openSourceView();
+
+  expect(
+    await screen.findByRole("button", { name: "AI 生成自动化用例" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "规则转换（不使用 AI）" }),
+  ).toBeVisible();
+});
+
+test("原始用例表给每条用例标出自动化或人工", async () => {
+  stubApi({
+    cases: [
+      sourceCase({ id: 1, case_number: "REC-001", case_type: "automation" }),
+      sourceCase({ id: 2, case_number: "REC-002", case_type: "manual" }),
+    ],
+    records: [],
+  });
+  await openSourceView();
+
+  const automationRow = await screen.findByText("REC-001");
+  expect(automationRow.closest("tr")).toHaveTextContent("自动化");
+  expect(screen.getByText("REC-002").closest("tr")).toHaveTextContent("人工");
 });

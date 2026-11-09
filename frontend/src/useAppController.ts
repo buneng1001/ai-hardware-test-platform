@@ -140,9 +140,12 @@ export function useAppController() {
       const task = await createCollectionTask(command);
       setTasks((current) => [task, ...(current ?? [])]);
       return true;
-    } catch {
-      console.error("采集任务保存失败");
-      setFormError("采集任务保存失败，请检查输入后重试");
+    } catch (error) {
+      console.error("采集任务保存失败", error);
+      // 直接显示后端原因，避免只给一句“请检查输入”。
+      const reason =
+        error instanceof Error && error.message ? error.message : "未知原因";
+      setFormError(`采集任务保存失败：${reason}`);
       return false;
     } finally {
       setSaving(false);

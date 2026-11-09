@@ -8,6 +8,27 @@ import {
 import { afterEach, expect, test, vi } from "vitest";
 
 import { V020AutomationExecutionPanel } from "./V020AutomationExecutionPanel";
+import { useV020AutomationExecution } from "./useV020AutomationExecution";
+
+/** 测试外壳：执行入口在面板外，与详情页顶部按钮保持一致。 */
+function PanelHarness({ groupId }: { groupId: number }) {
+  const execution = useV020AutomationExecution(groupId);
+  return (
+    <>
+      <button onClick={() => void execution.run()} type="button">
+        执行自动化测试
+      </button>
+      <button
+        disabled={!execution.busy}
+        onClick={() => execution.cancelRun()}
+        type="button"
+      >
+        取消本次测试
+      </button>
+      <V020AutomationExecutionPanel execution={execution} />
+    </>
+  );
+}
 import { testGroupDetail } from "./test/testGroupFixtures";
 import {
   callsOf,
@@ -82,7 +103,7 @@ test("准备检查失败展示完整可操作信息且不创建执行记录", as
     executions: [],
     preparation: preparationFailure,
   });
-  render(<V020AutomationExecutionPanel groupId={21} />);
+  render(<PanelHarness groupId={21} />);
 
   fireEvent.click(
     await screen.findByRole("button", { name: "执行自动化测试" }),
@@ -106,7 +127,12 @@ test("准备检查失败展示完整可操作信息且不创建执行记录", as
     ),
   ).toHaveLength(0);
 
-  fireEvent.click(screen.getByRole("button", { name: "重新检查" }));
+  expect(
+    await screen.findByText("预检未通过，请按提示修复后再执行。"),
+  ).toBeVisible();
+
+  // 再点一次仍只做预检，不创建执行记录
+  fireEvent.click(screen.getByRole("button", { name: "执行自动化测试" }));
   await waitFor(() =>
     expect(
       callsOf(fetchMock).filter(
@@ -116,12 +142,6 @@ test("准备检查失败展示完整可操作信息且不创建执行记录", as
       ),
     ).toHaveLength(2),
   );
-
-  fireEvent.click(screen.getByRole("button", { name: "取消准备" }));
-  expect(
-    screen.getByText("已取消准备流程，未创建正式执行记录。"),
-  ).toBeVisible();
-  expect(screen.queryByText("PREP_CASE_DATA_MISSING")).toBeNull();
   expect(
     callsOf(fetchMock).filter(
       ([input, init]) =>
@@ -136,24 +156,18 @@ test("准备通过后可执行，再次执行产生新的不可覆盖记录", as
     groups: [testGroupDetail({ id: 21 })],
     executions: [],
   });
-  render(<V020AutomationExecutionPanel groupId={21} />);
+  render(<PanelHarness groupId={21} />);
 
   fireEvent.click(
     await screen.findByRole("button", { name: "执行自动化测试" }),
   );
-  expect(
-    await screen.findByText("准备检查已通过，可以开始执行。"),
-  ).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "开始执行" }));
+  fireEvent.click(screen.getByText(/历史执行记录/));
   expect(await screen.findByText("自动化执行 #1")).toBeVisible();
   expect(
-    screen.getByText(
-      "自动化执行 #1 已完成：通过 1 · 失败 0 · 阻塞 0 · 未执行 0。",
-    ),
+    await screen.findByText("执行完成：通过 1 · 失败 0 · 阻塞 0 · 未执行 0。"),
   ).toBeVisible();
 
   fireEvent.click(screen.getByRole("button", { name: "执行自动化测试" }));
-  fireEvent.click(await screen.findByRole("button", { name: "开始执行" }));
   expect(await screen.findByText("自动化执行 #2")).toBeVisible();
   expect(screen.getByText("自动化执行 #1")).toBeVisible();
   expect(
@@ -208,8 +222,9 @@ test("执行结果展示通过、失败、阻塞和未执行并说明已完成�
     groups: [testGroupDetail({ id: 21 })],
     executions: [failed],
   });
-  render(<V020AutomationExecutionPanel groupId={21} />);
+  render(<PanelHarness groupId={21} />);
 
+  fireEvent.click(await screen.findByText(/历史执行记录/));
   expect(
     await screen.findByText(/确定性检查实际结果：video_drop/),
   ).toBeVisible();
@@ -226,7 +241,7 @@ test("执行记录加载失败时可以重试", async () => {
     executions: [],
     failRecordsTimes: 1,
   });
-  render(<V020AutomationExecutionPanel groupId={21} />);
+  render(<PanelHarness groupId={21} />);
 
   const alert = await screen.findByRole("alert");
   expect(alert).toHaveTextContent(

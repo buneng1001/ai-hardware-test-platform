@@ -1,0 +1,53 @@
+/* 测试组详情：顶部操作条 + 表内数据包选择 */
+.test-group-topbar {
+  margin: 14px 0 18px;
+}
+
+.test-group-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  color: var(--prototype-color-muted);
+  font-weight: 700;
+}
+
+.test-group-bulk select {
+  min-width: 220px;
+}
+
+/* 表格铺满容器：标题列给足宽度，其余列按内容收窄。 */
+.prototype-table.test-group-case-table {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: auto;
+}
+
+.test-group-case-table th,
+.test-group-case-table td {
+  white-space: nowrap;
+}
+
+.test-group-case-table td:nth-child(4),
+.test-group-case-table th:nth-child(4) {
+  min-width: 232px;
+  white-space: normal;
+}
+
+.test-group-case-table select {
+  width: 142px;
+  min-width: 0;
+}
+
+/* 执行按钮宽度固定，状态反馈放在按钮旁边，避免点了看不到变化。 */
+.test-group-topbar .prototype-primary {
+  min-width: 140px;
+}
+
+.test-group-run-status {
+  margin: 6px 0 0;
+  color: var(--prototype-color-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}

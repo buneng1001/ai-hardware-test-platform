@@ -19,6 +19,8 @@ v0.1.0 已完成的是“合成/导入数据测试执行与诊断”基础闭环
 
 后续路线见 [分阶段开发计划](DEVELOPMENT_PLAN.md)、[版本路线图](docs/version-roadmap.md) 和 [平台设计结论](docs/platform-design-conclusions.md)。
 
+v0.2.0 人工验收的改动、根因与改进规则见 [v0.2.0 验收复盘](docs/v0.2.0-acceptance-retrospective.md)，逐项结果见 [验收清单](docs/v0.2.0-manual-acceptance-checklist.md)。
+
 测试工程师使用流程见[测试工程师使用手册](docs/test-engineer-guide.md)，涵盖任务创建、实际测试 ZIP 导入、运行、人工结果、
 诊断和证据导出。
 
@@ -77,13 +79,13 @@ Copy-Item .env.example .env
 终端 1：启动后端。
 
 ```powershell
-backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload --env-file .env
+backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload --env-file .env --port 8020
 ```
 
 终端 2：启动前端。
 
 ```powershell
-pnpm --dir frontend dev
+pnpm --dir frontend dev --host 127.0.0.1
 ```
 
 浏览器打开：
@@ -95,7 +97,7 @@ http://127.0.0.1:5173
 后端健康检查地址：
 
 ```text
-http://127.0.0.1:8000/api/health
+http://127.0.0.1:8020/api/health
 ```
 
 也可以不使用 `.env`，直接在当前 PowerShell 会话设置 Mock 模式：
@@ -107,6 +109,42 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 ```
 
 不要在已经运行 Uvicorn 的终端继续输入前端命令；请新开终端或 PyCharm 的新 Terminal 标签页。
+
+### 默认端口与多项目同时开发
+
+本项目默认使用 **8020** 作为后端端口（避开大量项目默认占用的 8000），前端 5173。
+
+一条命令启动（自动挑空闲端口，并写好前端代理）：
+
+```powershell
+pwsh -File scripts/dev.ps1
+```
+
+同时开多个项目时，每个项目都会自动找自己的空闲端口（8020、8021、8022…），互不干扰。
+如果端口都被占用，脚本会直接报错让你指定，不会偷偷换端口：
+
+```powershell
+pwsh -File scripts/dev.ps1 -Port 8030
+```
+
+手动启动时，端口由两处决定，必须一致：
+
+```powershell
+# 后端：--port 8020
+backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload --env-file .env --port 8020
+```
+
+```text
+# 前端代理目标：frontend/.env.development
+VITE_API_PROXY_TARGET=http://127.0.0.1:8020
+```
+
+**端口被占用会发生什么**
+
+- 后端：Uvicorn 直接退出并报 `address already in use`，不会自动换端口；
+- 前端：仍能打开页面，但所有 `/api` 请求会失败（连到别人家的服务或直接连接被拒），页面显示加载失败；
+- 已经在另一个端口跑着的旧实例不受影响，只是你打开的这个新实例连不上它。
+
 
 <!--
 启动命令拆成两个终端，后端终端不要继续输入前端命令。

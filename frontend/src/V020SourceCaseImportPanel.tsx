@@ -20,18 +20,26 @@ const importOptionsOrDefault = (
 export function V020SourceCaseImportPanel({
   draft,
   busy,
+  currentVersionLabel,
   onDraftChange,
   onConfirm,
   onCancel,
 }: {
   draft: SourceTestCaseImportDraft;
   busy: boolean;
+  currentVersionLabel: string;
   onDraftChange: (draft: SourceTestCaseImportDraft) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   const options = importOptionsOrDefault(draft);
   const columns = Object.keys(draft.rows[0] ?? {});
+  // 软件版本不再让用户随意挑列，改为在下面二选一。
+  const mappingFields = sourceCaseFields.filter(
+    ([field]) => field !== "software_version",
+  );
+  const versionSource = draft.software_version_source ?? "imported";
+  const replaceExisting = draft.replace_existing ?? true;
 
   return (
     <section className="prototype-field-mapping" aria-label="确认字段映射">
@@ -43,7 +51,7 @@ export function V020SourceCaseImportPanel({
         </p>
       </div>
       <div className="prototype-field-mapping-grid">
-        {sourceCaseFields.map(([field, label]) => (
+        {mappingFields.map(([field, label]) => (
           <label key={field}>
             {label}
             <select
@@ -69,6 +77,51 @@ export function V020SourceCaseImportPanel({
           </label>
         ))}
       </div>
+      <fieldset className="prototype-import-options">
+        <legend>软件版本</legend>
+        <label>
+          <input
+            aria-label="保留导入的软件版本"
+            checked={versionSource === "imported"}
+            name="software-version-source"
+            onChange={() =>
+              onDraftChange({ ...draft, software_version_source: "imported" })
+            }
+            type="radio"
+          />
+          保留导入的软件版本（使用文件里的“软件版本”列）
+        </label>
+        <label>
+          <input
+            aria-label="使用当前产品版本"
+            checked={versionSource === "current"}
+            name="software-version-source"
+            onChange={() =>
+              onDraftChange({ ...draft, software_version_source: "current" })
+            }
+            type="radio"
+          />
+          使用当前产品版本
+          {currentVersionLabel ? `（${currentVersionLabel}）` : ""}
+        </label>
+      </fieldset>
+      <fieldset className="prototype-import-options">
+        <legend>导入方式</legend>
+        <label>
+          <input
+            aria-label="覆盖已有用例"
+            checked={replaceExisting}
+            onChange={(event) =>
+              onDraftChange({
+                ...draft,
+                replace_existing: event.target.checked,
+              })
+            }
+            type="checkbox"
+          />
+          覆盖该版本之前导入的用例（推荐）
+        </label>
+      </fieldset>
       <fieldset className="prototype-import-options">
         <legend>导入范围</legend>
         {importOptionFields.map(([field, label]) => (

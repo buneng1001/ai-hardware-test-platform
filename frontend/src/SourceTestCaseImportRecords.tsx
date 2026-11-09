@@ -1,3 +1,4 @@
+import { V020ConfirmDialog } from "./V020ConfirmDialog";
 import type {
   ImportDeletionImpact,
   SourceTestCaseImportRecord,
@@ -37,23 +38,19 @@ export function SourceTestCaseImportRecords({
         </section>
       )}
       {deletionImpact && (
-        <section
-          className="source-case-deletion"
-          role="dialog"
-          aria-label="删除导入记录影响"
+        <V020ConfirmDialog
+          ariaLabel="删除导入记录影响"
+          confirmLabel="确认删除导入记录"
+          onCancel={onCancelDeletion}
+          onConfirm={onConfirmDeletion}
+          title="删除导入记录"
         >
-          <p>{deletionImpact.message}</p>
+          <p className="prototype-muted">{deletionImpact.message}</p>
           <p>
             原始用例：{deletionImpact.source_test_cases}；自动化用例：
             {deletionImpact.automation_test_cases}
           </p>
-          <button type="button" onClick={onCancelDeletion}>
-            取消
-          </button>
-          <button type="button" onClick={onConfirmDeletion}>
-            确认删除导入记录
-          </button>
-        </section>
+        </V020ConfirmDialog>
       )}
     </>
   );

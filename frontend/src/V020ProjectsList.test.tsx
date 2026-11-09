@@ -116,6 +116,71 @@ test("创建项目后列表中立即出现新项目", async () => {
   fireEvent.click(screen.getByRole("button", { name: "创建项目" }));
 
   expect(await screen.findByRole("button", { name: /新项目 A/ })).toBeVisible();
+  // 新建成功后要有明确反馈，而不是只在列表顶部悄悄多出一张卡片。
+  expect(screen.getByText(/已创建项目「新项目 A」/)).toBeVisible();
+  expect(screen.getByRole("button", { name: /新项目 A/ }).className).toContain(
+    "prototype-project-card--new",
+  );
+});
+
+test("搜索后显示当前筛选并可一键清除", async () => {
+  vi.stubGlobal(
+    "fetch",
+    mockProjectApi({ "GET /api/projects": [v020Project] }),
+  );
+  await openProjectList();
+
+  fireEvent.change(screen.getByLabelText("搜索项目"), {
+    target: { value: "头环" },
+  });
+  expect(screen.getByRole("button", { name: "清空搜索框" })).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "查找" }));
+  expect(await screen.findByLabelText("当前筛选")).toHaveTextContent("头环");
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "清除筛选，显示全部项目" }),
+  );
+
+  await waitFor(() => expect(screen.queryByLabelText("当前筛选")).toBeNull());
+  expect(screen.getByLabelText("搜索项目")).toHaveValue("");
+});
+
+test("重新进入项目列表会清空上次的搜索条件", async () => {
+  vi.stubGlobal(
+    "fetch",
+    mockProjectApi({ "GET /api/projects": [v020Project] }),
+  );
+  await openProjectList();
+
+  fireEvent.change(screen.getByLabelText("搜索项目"), {
+    target: { value: "头环" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "查找" }));
+  await screen.findByLabelText("当前筛选");
+
+  fireEvent.click(screen.getByRole("button", { name: "回到首页" }));
+  fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
+
+  expect(await screen.findByLabelText("搜索项目")).toHaveValue("");
+  await waitFor(() => expect(screen.queryByLabelText("当前筛选")).toBeNull());
+});
+
+test("刷新页面后仍然停在项目列表页", async () => {
+  vi.stubGlobal(
+    "fetch",
+    mockProjectApi({ "GET /api/projects": [v020Project] }),
+  );
+  const first = render(<FrontendRoot />);
+  fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
+  await screen.findByRole("heading", { name: "项目列表" });
+  first.unmount();
+
+  render(<FrontendRoot />);
+
+  expect(
+    await screen.findByRole("heading", { name: "项目列表" }),
+  ).toBeVisible();
 });
 
 test("搜索和排序条件会传给项目接口", async () => {

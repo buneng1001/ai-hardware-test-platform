@@ -9,8 +9,10 @@ import {
   getTestGroupDeletionImpact,
   setTestGroupHidden,
   updateTestGroup,
+  type TestGroupDeletionImpact,
   type TestGroupDetail,
 } from "./testGroupsApi";
+import { V020ConfirmDialog } from "./V020ConfirmDialog";
 
 export function TestGroupDetailPanel({
   detail,
@@ -27,6 +29,27 @@ export function TestGroupDetailPanel({
   });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [deleteImpact, setDeleteImpact] =
+    useState<TestGroupDeletionImpact | null>(null);
+
+  /** 删除前先拉影响范围，用弹窗展示，不再用浏览器原生确认框。 */
+  const prepareDelete = async () => {
+    try {
+      setDeleteImpact(await getTestGroupDeletionImpact(detail.id));
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "删除影响加载失败");
+    }
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await deleteTestGroup(detail.id);
+      setDeleteImpact(null);
+      onDeleted();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "测试组删除失败");
+    }
+  };
   const [manualResultsOpen, setManualResultsOpen] = useState(false);
   const [factReportOpen, setFactReportOpen] = useState(false);
 
@@ -82,25 +105,30 @@ export function TestGroupDetailPanel({
             type="button"
             className="danger-button"
             disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                const impact = await getTestGroupDeletionImpact(detail.id);
-                if (
-                  !window.confirm(
-                    `将移除 ${impact.source_test_cases} 条原始用例、${impact.automation_test_cases} 条自动化用例、${impact.data_package_assignments} 条数据包关联、${impact.manual_test_results} 条人工结果及 ${impact.manual_test_result_attachments} 个附件。`,
-                  )
-                )
-                  return;
-                await deleteTestGroup(detail.id);
-                onDeleted();
-              }, "测试组已删除。")
-            }
+            onClick={() => void prepareDelete()}
           >
             删除
           </button>
         </div>
       </div>
       {message && <p role="status">{message}</p>}
+      {deleteImpact && (
+        <V020ConfirmDialog
+          ariaLabel="删除测试组影响范围"
+          confirmLabel="确认删除测试组"
+          onCancel={() => setDeleteImpact(null)}
+          onConfirm={() => void confirmDelete()}
+          title={`删除测试组 ${detail.name}`}
+        >
+          <p className="prototype-muted">
+            将移除 {deleteImpact.source_test_cases} 条人工用例、
+            {deleteImpact.automation_test_cases} 条自动化用例、
+            {deleteImpact.data_package_assignments} 条数据包关联、
+            {deleteImpact.manual_test_results} 条人工结果及
+            {deleteImpact.manual_test_result_attachments} 个附件。
+          </p>
+        </V020ConfirmDialog>
+      )}
       <form
         className="test-group-edit"
         onSubmit={(event) => {

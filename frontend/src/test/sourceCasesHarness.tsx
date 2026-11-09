@@ -176,7 +176,7 @@ export async function openAutomationTab() {
 /** 进入“自动化用例表”并等待真实数据加载完成。 */
 export async function openAutomationView() {
   await openAutomationTab();
-  await screen.findByRole("button", { name: "生成自动化用例" });
+  await screen.findByRole("button", { name: "全选" });
 }
 
 export function callsOf(

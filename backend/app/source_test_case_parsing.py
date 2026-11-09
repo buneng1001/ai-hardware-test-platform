@@ -65,16 +65,25 @@ def _parse_csv(content: bytes) -> tuple[list[str], list[dict[str, str]]]:
 
 
 def _parse_xlsx(content: bytes) -> tuple[list[str], list[dict[str, str]]]:
+    # 不用 read_only：部分 WPS/Excel 文件把工作表范围写成 A1，read_only 会只读到 1 行 1 列。
     try:
-        workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        workbook = load_workbook(io.BytesIO(content), data_only=True)
     except (BadZipFile, InvalidFileException, OSError, ValueError) as error:
         raise HTTPException(status_code=422, detail="Excel 文件无法读取") from error
     try:
-        values = workbook.active.iter_rows(values_only=True)
-        columns = _validate_columns([str(value).strip() if value is not None else "" for value in next(values, ())])
-        return columns, [
-            {column: str(value or "").strip() for column, value in zip(columns, row, strict=False)} for row in values
-        ]
+        worksheet = workbook.active
+        header = next(worksheet.iter_rows(values_only=True), ())
+        columns = _validate_columns([str(value).strip() if value is not None else "" for value in header])
+        rows: list[dict[str, str]] = []
+        for row in worksheet.iter_rows(min_row=2, values_only=True):
+            values = {
+                column: str(value).strip() if value is not None else ""
+                for column, value in zip(columns, row, strict=False)
+            }
+            # 跳过完全空白的行，避免中间空行把有效数据截断。
+            if any(values.values()):
+                rows.append(values)
+        return columns, rows
     finally:
         workbook.close()
 

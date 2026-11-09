@@ -45,6 +45,10 @@ class SourceTestCaseImportCommand(BaseModel):
     field_mapping: dict[str, str] = Field(default_factory=dict)
     rows: list[dict[str, str]] = Field(min_length=1, max_length=1000)
     import_options: ImportOptions = Field(default_factory=ImportOptions)
+    # 软件版本来源：imported 保留文件里的软件版本列，current 统一用当前产品版本。
+    software_version_source: Literal["imported", "current"] = "imported"
+    # 覆盖该产品版本之前导入的用例表，避免同一批用例重复导入。
+    replace_existing: bool = False
 
     @field_validator("source_filename")
     @classmethod
@@ -66,6 +70,36 @@ class SourceTestCaseImportCommand(BaseModel):
     @classmethod
     def normalize_rows(cls, rows: list[dict[str, str]]) -> list[dict[str, str]]:
         return [{str(key): str(value or "") for key, value in row.items()} for row in rows]
+
+    @model_validator(mode="after")
+    def merge_continuation_rows(self):
+        """把多行一条用例的表合并：编号为空的行视为上一条用例的续行。
+
+        测试用例表常用合并单元格写多条步骤/预期，续行没有编号和标题；
+        这里把续行的步骤、预期结果追加到上一条用例，其他空列做补全。
+        """
+        number_column = self.field_mapping.get("case_number", "")
+        if not number_column:
+            return self
+        steps_column = self.field_mapping.get("steps", "")
+        expected_column = self.field_mapping.get("expected_result", "")
+        merged: list[dict[str, str]] = []
+        for row in self.rows:
+            if not row.get(number_column, "").strip() and merged:
+                target = merged[-1]
+                for column, value in row.items():
+                    text = (value or "").strip()
+                    if not text:
+                        continue
+                    if column in {steps_column, expected_column}:
+                        existing = target.get(column, "").strip()
+                        target[column] = f"{existing}\n{text}" if existing else text
+                    elif not target.get(column, "").strip():
+                        target[column] = text
+                continue
+            merged.append(dict(row))
+        self.rows = merged
+        return self
 
     @model_validator(mode="after")
     def require_case_identity_and_unique_numbers(self):
@@ -116,6 +150,12 @@ class SourceTestCase(BaseModel):
     attachment: str
     software_version: str
     selected: bool
+    # 执行方式：存在已校验的自动化用例才算“自动化”，否则是“人工”。
+    case_type: Literal["automation", "manual"] = "manual"
+    # 该原始用例对应的自动化用例 id（没有则为空）。
+    automation_test_case_id: int | None = None
+    # 该自动化用例的校验状态（passed / unvalidated / failed）。
+    automation_validation_status: str | None = None
 
 
 class SourceTestCaseList(BaseModel):

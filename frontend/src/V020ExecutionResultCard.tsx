@@ -1,14 +1,47 @@
+import { useEffect } from "react";
+
 import { V020ExecutionRecordCard } from "./V020ExecutionRecordCard";
 import { useV020AutomationExecution } from "./useV020AutomationExecution";
 
-/** 冻结版“执行与结果”自动化卡片：只读最新记录和刷新入口。 */
-export function V020ExecutionResultCard({ groupId }: { groupId: number }) {
+/** “执行与结果”自动化卡片：可选报告使用的执行记录，默认最新一条。 */
+export function V020ExecutionResultCard({
+  groupId,
+  selectedExecutionId,
+  onSelectExecution,
+}: {
+  groupId: number;
+  selectedExecutionId: number | null;
+  onSelectExecution: (executionId: number | null) => void;
+}) {
   const execution = useV020AutomationExecution(groupId);
   const latest = execution.records[0] ?? null;
+  const selected =
+    execution.records.find((item) => item.id === selectedExecutionId) ?? latest;
+
+  useEffect(() => {
+    // 默认选中最新一条，用户切换后保持不变。
+    if (selectedExecutionId === null && latest) onSelectExecution(latest.id);
+  }, [latest, selectedExecutionId, onSelectExecution]);
 
   return (
     <div className="prototype-result-card">
-      <strong>自动化执行结果</strong>
+      <div className="prototype-result-card-head">
+        <strong>自动化执行结果</strong>
+        {execution.status === "ready" && execution.records.length > 0 && (
+          <select
+            aria-label="用于报告的自动化执行记录"
+            onChange={(event) => onSelectExecution(Number(event.target.value))}
+            value={selected?.id ?? ""}
+          >
+            {execution.records.map((item) => (
+              <option key={item.id} value={item.id}>
+                自动化执行 #{item.execution_number}（
+                {item.status === "completed" ? "已完成" : item.status}）
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
       {execution.status === "loading" && (
         <p className="prototype-muted" role="status">
           正在加载自动化执行记录…
@@ -27,8 +60,8 @@ export function V020ExecutionResultCard({ groupId }: { groupId: number }) {
         </div>
       )}
       {execution.status === "ready" &&
-        (latest ? (
-          <V020ExecutionRecordCard record={latest} showCases={false} />
+        (selected ? (
+          <V020ExecutionRecordCard record={selected} showCases={false} />
         ) : (
           <p className="prototype-muted">
             当前测试组还没有自动化执行记录；请在测试组详情点击“执行自动化测试”。

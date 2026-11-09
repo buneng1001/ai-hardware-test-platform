@@ -132,3 +132,48 @@ export function getAutomationCaseHistory(versionId: number, caseId: number) {
     `/api/product-versions/${versionId}/automation-test-cases/${caseId}/history`,
   );
 }
+
+export type AutomationCaseAiDecision = {
+  source_case_id: number;
+  case_number: string;
+  title: string;
+  decision: "automation" | "manual";
+  reason: string;
+  /** 判定依据：信号、数据来源、未过的门槛。 */
+  expected_signal?: string;
+  data_source?: string;
+  blocker?: string;
+  expected_result?: string;
+  confidence: string;
+};
+
+export type AutomationCaseAiConversionBatch = {
+  automation_count: number;
+  manual_count: number;
+  created_count: number;
+  updated_count: number;
+  removed_count: number;
+  decisions: AutomationCaseAiDecision[];
+  items: AutomationTestCase[];
+};
+
+/** 让 AI 读取勾选的原始用例并判定自动化/人工；临时密钥随请求发送，不落库。 */
+export function convertSourceTestCasesWithAi(
+  versionId: number,
+  apiKey = "",
+  sourceCaseIds: number[] = [],
+  mode: "missing" | "all" | "selected" = "missing",
+) {
+  return request<AutomationCaseAiConversionBatch>(
+    `/api/product-versions/${versionId}/automation-test-case-conversions/ai`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        mode,
+        source_case_ids: sourceCaseIds,
+      }),
+    },
+  );
+}
