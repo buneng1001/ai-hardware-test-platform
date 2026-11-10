@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
+import { V020ResultBreakdown } from "./V020ResultBreakdown";
 import {
   getManualTestResultPage,
   manualTestStatusLabels,
@@ -119,6 +120,12 @@ export function V020ManualResultSummaryCard({
           条 · 通过 {statusCounts.passed} · 不通过 {statusCounts.failed} · 阻塞{" "}
           {statusCounts.blocked} · 未执行 {statusCounts.not_executed}
         </p>
+      )}
+      {selectedBatch && (
+        <V020ResultBreakdown
+          counts={statusCounts}
+          label={`人工测试批次 #${selectedBatch.batch_number}`}
+        />
       )}{" "}
       <button
         className="prototype-secondary"

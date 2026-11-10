@@ -228,9 +228,9 @@ test("执行结果展示通过、失败、阻塞和未执行并说明已完成�
   expect(
     await screen.findByText(/确定性检查实际结果：video_drop/),
   ).toBeVisible();
-  expect(screen.getByText("失败")).toBeVisible();
-  expect(screen.getByText("阻塞")).toBeVisible();
-  expect(screen.getByText("未执行")).toBeVisible();
+  expect(screen.getAllByText("失败").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("阻塞").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("未执行").length).toBeGreaterThan(0);
   expect(screen.getByText(/“已完成”表示所有计划项都已完成尝试/)).toBeVisible();
   expect(screen.getAllByText(/不连接真实设备/).length).toBeGreaterThan(0);
 });

@@ -10,6 +10,7 @@ import {
 import { V020TrendComparison } from "./V020TrendComparison";
 import { V020TrendFilters, type TrendFilters } from "./V020TrendFilters";
 import { V020TrendPoints } from "./V020TrendPoints";
+import { V020ReportTrendChart } from "./V020ReportTrendChart";
 import "./V020Trends.css";
 
 const emptyFilters: TrendFilters = {
@@ -165,6 +166,10 @@ export function V020TrendPanel({
             <p className="prototype-inline-note" role="status">
               只有一个数据点，暂不展示变化趋势。
             </p>
+          )}
+
+          {displayed?.status === "ready" && (
+            <V020ReportTrendChart points={displayed.points} />
           )}
 
           <V020TrendPoints points={displayed?.points ?? []} />

@@ -1,5 +1,6 @@
 import { Status } from "./V020PrototypeShared";
 import type { AutomationExecution } from "./automationExecutionsApi";
+import { V020ResultBreakdown } from "./V020ResultBreakdown";
 
 const statusLabels: Record<string, string> = {
   completed: "已完成",
@@ -48,6 +49,10 @@ export function V020ExecutionRecordCard({
         通过 {record.summary.passed} · 失败 {record.summary.failed} · 阻塞{" "}
         {record.summary.blocked} · 未执行 {record.summary.not_executed}
       </p>
+      <V020ResultBreakdown
+        counts={record.summary}
+        label={`自动化执行 #${record.execution_number}`}
+      />
       {showCases && record.case_results.length > 0 && (
         <ul className="prototype-execution-cases">
           {record.case_results.map((result) => (

@@ -6,6 +6,7 @@ import { V020ConfirmDialog } from "./V020ConfirmDialog";
 import { V020ReportHistoryDialog } from "./V020ReportHistoryDialog";
 import { V020ReportPreviewDialog } from "./V020ReportPreviewDialog";
 import { useV020FactReports } from "./useV020FactReports";
+import { V020ResultBreakdown } from "./V020ResultBreakdown";
 import "./V020Reports.css";
 
 type ReportView = "closed" | "generate" | "history" | "preview";
@@ -94,6 +95,13 @@ export function V020ReportPanel({
                   .replace("T", " ")}{" "}
                 · 数据来源：{report.snapshot.basic_information.contains}
               </p>
+              {report.snapshot.pass_rate?.overall && (
+                <V020ResultBreakdown
+                  counts={report.snapshot.pass_rate.overall}
+                  label="当前在线事实报告"
+                  variant="ring"
+                />
+              )}
               {report.snapshot.warnings.map((warning) => (
                 <p key={warning} role="status">
                   {warning}

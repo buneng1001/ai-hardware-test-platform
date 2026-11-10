@@ -33,11 +33,23 @@ export function V020TestGroupCard({
       </Status>
       <h3>{item.name}</h3>
       <p>{item.description || "暂无说明"}</p>
-      <p className="prototype-muted">
-        人工 {item.source_test_case_count} 条 · 自动化{" "}
-        {item.automation_test_case_count} 条 · 已分配数据包{" "}
-        {item.data_package_assignment_count} 条
-      </p>
+      <div
+        className="prototype-group-scope-stats"
+        aria-label={`${item.name} 的测试范围`}
+      >
+        <div>
+          <span>人工用例</span>
+          <strong>{item.source_test_case_count}</strong>
+        </div>
+        <div>
+          <span>自动化用例</span>
+          <strong>{item.automation_test_case_count}</strong>
+        </div>
+        <div>
+          <span>数据包分配</span>
+          <strong>{item.data_package_assignment_count}</strong>
+        </div>
+      </div>
       <label className="prototype-runner-select">
         执行器
         <select

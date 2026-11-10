@@ -28,6 +28,18 @@ export function V020DataPackageCard({
   return (
     <div className="prototype-card prototype-data-card">
       <div className="prototype-data-title">
+        <span className="prototype-data-package-glyph" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinejoin="round"
+          >
+            <path d="M12 3 3.5 7.5 12 12l8.5-4.5L12 3Z" />
+            <path d="M3.5 7.5V16L12 21l8.5-5V7.5M12 12v9" />
+          </svg>
+        </span>
         <Status tone={item.eligible_for_test_group ? "good" : "warn"}>
           {item.eligible_for_test_group ? "已校验" : "未通过校验"}
         </Status>
