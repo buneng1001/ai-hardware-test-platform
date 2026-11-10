@@ -42,7 +42,7 @@ test("前端入口按 Demo 原流程进入首页、项目列表和工作台", as
   render(<FrontendRoot />);
 
   expect(
-    screen.getByRole("heading", { name: "智能硬件自动化测试平台" }),
+    screen.getByRole("heading", { name: "智能硬件自动化方案管理平台" }),
   ).toBeVisible();
   expect(screen.queryByRole("navigation", { name: "主导航" })).toBeNull();
 

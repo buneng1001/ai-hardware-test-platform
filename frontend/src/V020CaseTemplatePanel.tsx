@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { DEFAULT_CASE_TEMPLATE_FIELDS, caseFieldLabel } from "./caseTemplate";
 
@@ -7,10 +7,12 @@ type TemplateSource = "default" | "uploaded";
 
 /**
  * 冻结版“测试用例表”的模板区。
- * 提供默认模板与上传模板的切换；上传解析尚未接入，按钮保持禁用并写明原因。
+ * 提供默认模板与上传模板切换；可选择本地文件，解析尚未接入时不伪装为已上传。
  */
 export function V020CaseTemplatePanel() {
   const [source, setSource] = useState<TemplateSource>("default");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState("");
 
   return (
     <section className="prototype-case-template" aria-label="测试用例表模板">
@@ -65,13 +67,24 @@ export function V020CaseTemplatePanel() {
       ) : (
         <div className="prototype-template-upload">
           <p className="prototype-muted">
-            尚未上传模板。上传后平台会读取表头并保存为你的模板，导入用例时直接套用。
+            {selectedFile ? `已选择：${selectedFile}` : "尚未选择文件。"}{" "}
+            模板解析和保存暂未接入，选择文件不会自动上传。
           </p>
           <div className="prototype-actions">
+            <input
+              ref={fileRef}
+              aria-label="选择测试用例模板文件"
+              className="prototype-file-input"
+              accept=".csv,.xlsx,.xls"
+              type="file"
+              onChange={(event) => {
+                setSelectedFile(event.target.files?.[0]?.name ?? "");
+                event.target.value = "";
+              }}
+            />
             <button
               className="prototype-secondary"
-              disabled
-              title="上传模板解析尚未接入"
+              onClick={() => fileRef.current?.click()}
               type="button"
             >
               选择模板文件

@@ -26,19 +26,16 @@ afterEach(() => {
   });
 });
 
-test("首页使用固定两行产品标题和完整测试工作流副标题", () => {
+test("首页使用已确认的平台名称、单一主标题和完整测试工作流副标题", () => {
   render(<FrontendRoot />);
 
   const heading = screen.getByRole("heading", {
-    name: "智能硬件自动化测试平台",
+    name: "智能硬件自动化方案管理平台",
   });
-  expect(heading.children).toHaveLength(2);
-  expect(heading.children[0]).toHaveTextContent("智能硬件");
-  expect(heading.children[1]).toHaveTextContent("自动化测试平台");
+  expect(heading.children).toHaveLength(1);
+  expect(screen.getByText("INTELLIGENT HARDWARE TEST WORKSPACE")).toBeVisible();
   expect(
-    screen.getByText(
-      "覆盖测试用例、数据管理、自动化执行、结果验证与智能诊断的完整测试工作流。",
-    ),
+    screen.getByText(/覆盖项目管理、版本追踪、测试用例、测试数据、测试组/),
   ).toBeVisible();
 });
 
@@ -53,12 +50,12 @@ test("首页不展示趋势统计，选择暂不配置也能进入项目列表",
   ).toBeVisible();
 });
 
-test("首页动效复用四方块品牌图形", () => {
+test("首页使用 Logo C 的双环 SVG 动效标识", () => {
   render(<FrontendRoot />);
 
   const brandMotion = screen.getByTestId("prototype-home-brand-motion");
-  expect(brandMotion.children).toHaveLength(4);
   expect(brandMotion).toHaveClass("prototype-brand-glyph");
+  expect(brandMotion.querySelectorAll("svg path")).toHaveLength(2);
 });
 
 test("AI 配置支持临时密钥和本地接入方式切换", async () => {

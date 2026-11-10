@@ -129,7 +129,7 @@ test("测试用例表把 AI 生成作为主入口并保留规则兜底", async (
     await screen.findByRole("button", { name: "AI 生成自动化用例" }),
   ).toBeVisible();
   expect(
-    screen.getByRole("button", { name: "规则转换（不使用 AI）" }),
+    screen.getByRole("button", { name: "全部转换（无AI）" }),
   ).toBeVisible();
 });
 

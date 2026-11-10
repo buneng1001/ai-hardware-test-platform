@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-import { Status } from "./V020PrototypeShared";
 import { V020DeletionImpactPanel } from "./V020DeletionImpactPanel";
 import {
   defaultProductProfile,
@@ -218,7 +217,6 @@ export function V020ProjectsScreen({
             tabIndex={0}
           >
             <div>
-              <Status tone="good">进行中</Status>
               <h2>{project.name}</h2>
               <p>
                 {project.product_name || "未填写产品名称"} · 最近更新：

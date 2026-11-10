@@ -237,6 +237,22 @@ export function V020SourceCasesScreen({
               </select>
             </label>
           ))}
+          <label>
+            类型
+            <select
+              aria-label="类型筛选"
+              value={source.typeFilter}
+              onChange={(event) =>
+                source.setTypeFilter(
+                  event.target.value as "all" | "manual" | "automation",
+                )
+              }
+            >
+              <option value="all">全部</option>
+              <option value="manual">人工</option>
+              <option value="automation">自动化</option>
+            </select>
+          </label>
         </div>
         <div className="prototype-actions">
           <button onClick={pickFile} type="button">
@@ -281,7 +297,7 @@ export function V020SourceCasesScreen({
             onClick={() => void generateAutomationCases()}
             type="button"
           >
-            {generating ? "规则转换中…" : "规则转换（不使用 AI）"}
+            {generating ? "规则转换中…" : "全部转换（无AI）"}
           </button>
           <button
             className="prototype-secondary"
@@ -300,6 +316,13 @@ export function V020SourceCasesScreen({
             type="button"
           >
             {source.inverted ? "取消反选" : "反选"}
+          </button>
+          <button
+            className="prototype-secondary"
+            onClick={source.resetFilters}
+            type="button"
+          >
+            清除筛选
           </button>
           <button
             className="prototype-secondary"

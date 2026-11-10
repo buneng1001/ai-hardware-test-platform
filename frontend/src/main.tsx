@@ -12,6 +12,7 @@ import "./V020PrototypeComponents.css";
 import "./V020PrototypeCases.css";
 import "./V020PrototypeReports.css";
 import "./V020PrototypeResponsive.css";
+import "./V020VisualRefresh.css";
 
 const root = document.getElementById("root");
 

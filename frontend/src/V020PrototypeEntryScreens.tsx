@@ -9,23 +9,33 @@ export function PrototypeHome({
 }) {
   return (
     <div className="prototype-home">
-      <PrototypeBrandGlyph
-        className="prototype-home-brand-motion"
-        testId="prototype-home-brand-motion"
-      />
+      <header className="prototype-home-topbar">
+        <div className="prototype-home-top-brand">
+          <PrototypeBrandGlyph className="prototype-home-header-mark" />
+          <span>{PROTOTYPE_BRAND.name}</span>
+        </div>
+      </header>
       <div className="prototype-home-copy">
-        <div className="prototype-kicker">INTELLIGENT TEST WORKSPACE</div>
         <h1>
           {PROTOTYPE_BRAND.titleLines.map((line) => (
             <span key={line}>{line}</span>
           ))}
         </h1>
+        <div className="prototype-kicker">
+          INTELLIGENT HARDWARE TEST WORKSPACE
+        </div>
         <p>{PROTOTYPE_BRAND.subtitle}</p>
+        <div className="prototype-home-logo-stage">
+          <PrototypeBrandGlyph
+            className="prototype-home-brand-motion"
+            testId="prototype-home-brand-motion"
+          />
+        </div>
         <div className="prototype-home-capabilities">
-          <span>数据驱动模拟</span>
+          <span>项目管理</span>
           <span>自动化测试</span>
-          <span>模块化报告</span>
-          <span>AI 辅助分析</span>
+          <span>测试数据</span>
+          <span>报告分析</span>
         </div>
         <button className="prototype-primary" onClick={onOpenProjects}>
           开启平台 <span aria-hidden="true">→</span>

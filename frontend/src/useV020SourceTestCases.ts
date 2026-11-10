@@ -44,6 +44,9 @@ export function useV020SourceTestCases(productVersionId: number | null) {
   );
   // 只看还没有自动化版本的用例（用于“排除已自动化”）。
   const [onlyMissing, setOnlyMissingState] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<"all" | "manual" | "automation">(
+    "all",
+  );
   const [draft, setDraft] = useState<SourceTestCaseImportDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -165,24 +168,39 @@ export function useV020SourceTestCases(productVersionId: number | null) {
 
   // 全选/反选的状态用于按钮文字切换，不改动选择逻辑。
   const [inverted, setInverted] = useState(false);
+  const filteredItems = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          typeFilter === "all" ||
+          (typeFilter === "automation"
+            ? item.case_type === "automation"
+            : item.case_type !== "automation"),
+      ),
+    [items, typeFilter],
+  );
   const allFilteredSelected =
-    items.length > 0 && items.every((item) => selectedIds.includes(item.id));
+    filteredItems.length > 0 &&
+    filteredItems.every((item) => selectedIds.includes(item.id));
 
   const clearSelection = () => {
     // 只清除当前筛选结果里的勾选，其它用例保持原样。
-    const visible = new Set(items.map((item) => item.id));
+    const visible = new Set(filteredItems.map((item) => item.id));
     void persistSelection(selectedIds.filter((id) => !visible.has(id)));
   };
 
   const selectAllFiltered = () => {
-    const next = new Set([...selectedIds, ...items.map((item) => item.id)]);
+    const next = new Set([
+      ...selectedIds,
+      ...filteredItems.map((item) => item.id),
+    ]);
     void persistSelection([...next]);
   };
 
   const invertFiltered = () => {
     setInverted((current) => !current);
     const next = new Set(selectedIds);
-    items.forEach((item) =>
+    filteredItems.forEach((item) =>
       next.has(item.id) ? next.delete(item.id) : next.add(item.id),
     );
     void persistSelection([...next]);
@@ -263,9 +281,20 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     setOnlyMissingState(value);
   };
 
+  const resetFilters = () => {
+    setFilters(emptySourceCaseFilters);
+    setTypeFilter("all");
+    setOnlyMissingState(false);
+    if (productVersionId !== null)
+      void loadVersion(productVersionId, emptySourceCaseFilters, false);
+  };
+
   return {
     status,
-    items,
+    items: filteredItems,
+    typeFilter,
+    setTypeFilter,
+    resetFilters,
     onlyMissing,
     setOnlyMissing,
     missingAutomationCount: allItems.filter(
