@@ -187,7 +187,7 @@ export function V020TestGroupsScreen({
         />
       ) : (
         <>
-          <div className="prototype-filter-row">
+          <div className="prototype-filter-row prototype-test-group-filters">
             <input
               aria-label="搜索测试组"
               onChange={(event) => groups.setSearch(event.target.value)}

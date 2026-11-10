@@ -61,7 +61,11 @@ export function V020ExecutionResultCard({
       )}
       {execution.status === "ready" &&
         (selected ? (
-          <V020ExecutionRecordCard record={selected} showCases={false} />
+          <V020ExecutionRecordCard
+            record={selected}
+            showCases={false}
+            embedded
+          />
         ) : (
           <p className="prototype-muted">
             当前测试组还没有自动化执行记录；请在测试组详情点击“执行自动化测试”。

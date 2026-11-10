@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
@@ -16,6 +17,8 @@ import {
   v020Project,
 } from "./v020ProjectFixtures";
 import type { ProjectDetail, ProjectSummary } from "./projectsApi";
+import { defaultProductProfile } from "./projectsApi";
+import { v020ProjectImpact } from "./v020ProjectFixtures";
 
 afterEach(() => {
   cleanup();
@@ -40,6 +43,60 @@ test("项目列表从接口读取项目并展示产品版本数量", async () =>
   ).toBeVisible();
   expect(screen.getByText("1 个产品版本")).toBeVisible();
   expect(screen.getByText(/多传感器记录设备/)).toBeVisible();
+});
+
+test("项目卡片按参考图独立折叠，真实产品特征以标签展示，更多菜单保留删除确认", async () => {
+  const firstProject: ProjectSummary = {
+    ...v020Project,
+    product_profile: {
+      ...defaultProductProfile,
+      physical_keys: 2,
+      cameras: 1,
+      platform: "app",
+    },
+  };
+  const secondProject: ProjectSummary = {
+    ...v020Project,
+    id: 2,
+    name: "VR 眼镜 Pro",
+    product_name: "眼镜设备",
+    description: "第二项目",
+    product_version_count: 0,
+  };
+  vi.stubGlobal(
+    "fetch",
+    mockProjectApi({
+      "GET /api/projects": [firstProject, secondProject],
+      "GET /api/projects/1/deletion-impact": v020ProjectImpact,
+    }),
+  );
+  await openProjectList();
+
+  const firstCard = await screen.findByRole("button", {
+    name: "打开项目 IRIS 头环",
+  });
+  const secondCard = screen.getByRole("button", {
+    name: "打开项目 VR 眼镜 Pro",
+  });
+  expect(within(firstCard).getByText("按键 ×2")).toBeVisible();
+  expect(within(firstCard).getByText("摄像头 ×1")).toBeVisible();
+  expect(within(firstCard).getByText("App 平台")).toBeVisible();
+  expect(within(secondCard).queryByText("项目简介")).toBeNull();
+
+  fireEvent.click(within(firstCard).getByRole("button", { name: "收起详情" }));
+  expect(within(firstCard).queryByText("按键 ×2")).toBeNull();
+  fireEvent.click(within(secondCard).getByRole("button", { name: "查看详情" }));
+  expect(within(secondCard).getByText("第二项目")).toBeVisible();
+  expect(within(firstCard).queryByText("第二项目")).toBeNull();
+
+  fireEvent.click(within(firstCard).getByLabelText("更多操作：IRIS 头环"));
+  fireEvent.click(within(firstCard).getByRole("button", { name: "删除项目" }));
+  expect(
+    await screen.findByRole("dialog", { name: "删除影响确认" }),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "取消" }));
+  expect(screen.queryByRole("dialog", { name: "删除影响确认" })).toBeNull();
+  expect(firstCard).toBeVisible();
 });
 
 test("没有项目时展示空状态和新建入口", async () => {

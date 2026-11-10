@@ -30,28 +30,89 @@
 }
 
 .prototype-trend-point {
-  display: grid;
-  gap: 8px;
+  display: block;
   padding: 14px 16px;
   border: 1px solid var(--prototype-color-line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--prototype-color-surface);
+}
+
+.prototype-trend-point-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.prototype-trend-point-summary::-webkit-details-marker {
+  display: none;
+}
+
+.prototype-trend-point-summary:focus-visible {
+  outline: 2px solid var(--prototype-color-brand-strong);
+  outline-offset: 4px;
+  border-radius: 6px;
 }
 
 .prototype-trend-point-head {
   display: flex;
+  flex: 1 1 440px;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px 12px;
+  min-width: 0;
 }
 
-.prototype-trend-point-head h4 {
-  margin: 0;
+.prototype-trend-point-head strong {
+  font-size: 15px;
+  overflow-wrap: anywhere;
 }
 
 .prototype-trend-point-head time {
   color: var(--prototype-color-muted);
-  font-size: 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.prototype-trend-expand-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--prototype-color-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.prototype-trend-expand-open {
+  display: none;
+}
+
+.prototype-trend-point[open] .prototype-trend-expand-closed {
+  display: none;
+}
+
+.prototype-trend-point[open] .prototype-trend-expand-open {
+  display: inline;
+}
+
+.prototype-trend-expand-chevron {
+  font-size: 18px;
+  transition: transform 180ms ease;
+}
+
+.prototype-trend-point[open] .prototype-trend-expand-chevron {
+  transform: rotate(180deg);
+}
+
+.prototype-trend-point-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--prototype-color-line);
 }
 
 .prototype-trend-counts {

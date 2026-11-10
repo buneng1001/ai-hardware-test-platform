@@ -75,6 +75,9 @@ test("执行与结果页展示真实执行记录并按测试组切换", async ()
   expect(screen.getByText("已完成")).toBeVisible();
   expect(screen.getByText("通过 1 · 失败 0 · 阻塞 0 · 未执行 0")).toBeVisible();
   expect(screen.getByLabelText("当前测试组")).toHaveValue("21");
+  const record = screen.getByLabelText("自动化执行 1");
+  expect(record).toHaveClass("prototype-execution-record--embedded");
+  expect(record).not.toHaveClass("prototype-result-card");
 
   const recordCalls = () =>
     callsOf(fetchMock).filter(([input]) =>

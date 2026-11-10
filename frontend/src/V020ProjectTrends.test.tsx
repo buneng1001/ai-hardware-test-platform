@@ -134,7 +134,7 @@ async function openWorkspace() {
   await screen.findByRole("heading", { name: "EVT1 测试工作区" });
 }
 
-test("版本与趋势展示最终报告数据点、过期标记和模块结果", async () => {
+test("报告数据点各自默认折叠，展开后保留原始统计和模块顺序", async () => {
   vi.stubGlobal("fetch", mockProjectApi(projectRoutes()));
   render(<FrontendRoot />);
   await openWorkspace();
@@ -142,14 +142,31 @@ test("版本与趋势展示最终报告数据点、过期标记和模块结果",
   expect(await screen.findByText("报告 #5 · EVT1 · 基础回归")).toBeVisible();
   expect(screen.getByText("报告 #4 · EVT2 · 故障专项")).toBeVisible();
   expect(screen.getByText("报告已过期")).toBeVisible();
+
+  const first = screen.getByLabelText("查看报告 #5 的详细趋势");
+  const second = screen.getByLabelText("查看报告 #4 的详细趋势");
+  expect(first.closest("details")).not.toHaveAttribute("open");
+  expect(second.closest("details")).not.toHaveAttribute("open");
+  expect(first.closest("details")).toHaveTextContent(
+    "采集：建议暂缓并补充验证",
+  );
+
+  fireEvent.click(first);
+  expect(first.closest("details")).toHaveAttribute("open");
+  expect(second.closest("details")).not.toHaveAttribute("open");
+  expect(screen.getByText("采集", { selector: "strong" })).toBeVisible();
   expect(
     screen.getAllByText(/自动化：通过 1 · 失败 1 · 阻塞 0 · 未执行 0/).length,
   ).toBeGreaterThan(0);
-  expect(
-    screen.getAllByText(/人工：通过 0 · 失败 0 · 阻塞 0 · 未执行 1/).length,
-  ).toBeGreaterThan(0);
-  expect(screen.getByText("采集", { selector: "strong" })).toBeVisible();
-  expect(screen.getAllByText(/建议暂缓并补充验证/).length).toBeGreaterThan(0);
+  fireEvent.click(first);
+  expect(first.closest("details")).not.toHaveAttribute("open");
+  expect(first.closest("details")).toHaveTextContent(
+    "采集：建议暂缓并补充验证",
+  );
+
+  fireEvent.click(second);
+  expect(second.closest("details")).toHaveAttribute("open");
+  expect(first.closest("details")).not.toHaveAttribute("open");
 });
 
 test("趋势支持按版本、模块、测试组和用例筛选，并可清除筛选", async () => {

@@ -19,6 +19,25 @@ function formatUpdated(value: string): string {
   return value ? value.slice(0, 10) : "未知";
 }
 
+/** 只显示项目已经记录的产品配置，不推断测试类型或项目阶段。 */
+function getProductFeatureTags(
+  profile: ProductProfile | null | undefined,
+): string[] {
+  if (!profile) return [];
+  const tags: string[] = [];
+  if (profile.physical_keys > 0) tags.push(`按键 ×${profile.physical_keys}`);
+  if (profile.indicator_lights > 0)
+    tags.push(`指示灯 ×${profile.indicator_lights}`);
+  if (profile.cameras > 0) tags.push(`摄像头 ×${profile.cameras}`);
+  if (profile.microphone) tags.push("麦克风");
+  if (profile.buzzer) tags.push("蜂鸣器");
+  if (profile.platform === "web") tags.push("Web 平台");
+  if (profile.platform === "app") tags.push("App 平台");
+  if (profile.interfaces?.trim())
+    tags.push(`接口：${profile.interfaces.trim()}`);
+  return tags;
+}
+
 /** 冻结版项目列表：真实读取项目接口，并保留加载、空、失败和重试状态。 */
 export function V020ProjectsScreen({
   workspace,
@@ -30,6 +49,9 @@ export function V020ProjectsScreen({
   onBack: () => void;
 }) {
   const [creating, setCreating] = useState(false);
+  const [detailOpenByProject, setDetailOpenByProject] = useState<
+    Record<number, boolean>
+  >({});
   const [name, setName] = useState("");
   const [productName, setProductName] = useState("");
   const [description, setDescription] = useState("");
@@ -71,20 +93,12 @@ export function V020ProjectsScreen({
     <div className="prototype-projects">
       <div className="prototype-projects-head">
         <div>
-          <div className="prototype-kicker">PROJECTS</div>
           <h1>项目列表</h1>
           <p className="prototype-muted">
             选择一个项目进入版本、趋势和测试工作区。
           </p>
         </div>
         <div className="prototype-actions">
-          <button
-            className="prototype-primary"
-            onClick={() => setCreating(true)}
-            type="button"
-          >
-            ＋ 新建项目
-          </button>
           <button className="prototype-secondary" onClick={onBack}>
             回到首页
           </button>
@@ -137,6 +151,13 @@ export function V020ProjectsScreen({
           type="button"
         >
           查找
+        </button>
+        <button
+          className="prototype-primary"
+          onClick={() => setCreating(true)}
+          type="button"
+        >
+          ＋ 新建项目
         </button>
       </div>
 
@@ -197,48 +218,134 @@ export function V020ProjectsScreen({
           </p>
         </div>
       ) : (
-        workspace.projects.map((project) => (
-          <div
-            aria-label={`打开项目 ${project.name}`}
-            className={
-              workspace.createdProject?.id === project.id
-                ? "prototype-project-card prototype-project-card--new"
-                : "prototype-project-card"
-            }
-            key={project.id}
-            onClick={() => onOpen(project.id)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onOpen(project.id);
+        workspace.projects.map((project, index) => {
+          const detailsOpen = detailOpenByProject[project.id] ?? index === 0;
+          return (
+            <div
+              aria-label={`打开项目 ${project.name}`}
+              className={
+                workspace.createdProject?.id === project.id
+                  ? "prototype-project-card prototype-project-card--new"
+                  : "prototype-project-card"
               }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <div>
-              <h2>{project.name}</h2>
-              <p>
-                {project.product_name || "未填写产品名称"} · 最近更新：
-                {formatUpdated(project.updated_at)}
-              </p>
+              key={project.id}
+              onClick={() => onOpen(project.id)}
+              onKeyDown={(event) => {
+                if (
+                  event.target === event.currentTarget &&
+                  (event.key === "Enter" || event.key === " ")
+                ) {
+                  event.preventDefault();
+                  onOpen(project.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <div className="prototype-project-idplate" aria-hidden="true">
+                <span>项目编号</span>
+                <strong>PRJ-{String(project.id).padStart(4, "0")}</strong>
+              </div>
+              <div className="prototype-project-card-body">
+                <div className="prototype-project-card-heading">
+                  <div className="prototype-project-name-row">
+                    <h2>{project.name}</h2>
+
+                  </div>
+                  <div className="prototype-project-card-actions">
+                    <button
+                      className="prototype-primary"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpen(project.id);
+                      }}
+                      type="button"
+                    >
+                      打开工作区
+                    </button>
+                    <button
+                      aria-controls={`project-details-${project.id}`}
+                      aria-expanded={detailsOpen}
+                      className="prototype-secondary"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDetailOpenByProject((current) => ({
+                          ...current,
+                          [project.id]: !detailsOpen,
+                        }));
+                      }}
+                      type="button"
+                    >
+                      {detailsOpen ? "收起详情" : "查看详情"}
+                    </button>
+                    <details
+                      className="prototype-project-more"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <summary aria-label={`更多操作：${project.name}`}>
+                        更多 <span aria-hidden="true">⌄</span>
+                      </summary>
+                      <div className="prototype-project-more-menu">
+                        <button
+                          className="prototype-project-delete"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void workspace.previewProjectDeletion(project.id);
+                          }}
+                          type="button"
+                        >
+                          删除项目
+                        </button>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+                <div className="prototype-project-card-meta">
+                  <div>
+                    <span>被测产品</span>
+                    <strong>{project.product_name || "未填写产品名称"}</strong>
+                  </div>
+                  <div>
+                    <span>产品版本</span>
+                    <strong>{project.product_version_count} 个产品版本</strong>
+                  </div>
+                  <div>
+                    <span>最近更新</span>
+                    <strong>{formatUpdated(project.updated_at)}</strong>
+                  </div>
+                </div>
+              </div>
+              {detailsOpen && (
+                <div
+                  className="prototype-project-card-details"
+                  id={`project-details-${project.id}`}
+                >
+                  <div className="prototype-project-card-description">
+                    <span>项目简介</span>
+                    <p>{project.description || "暂无项目说明"}</p>
+                  </div>
+                  <div className="prototype-project-card-tags">
+                    <span className="prototype-project-card-tags-label">
+                      项目信息
+                    </span>
+                    <div className="prototype-project-tag-list">
+                      <span className="prototype-project-tag">
+                        产品版本 · {project.product_version_count}
+                      </span>
+                      {getProductFeatureTags(project.product_profile).map(
+                        (tag) => (
+                          <span className="prototype-project-tag" key={tag}>
+                            {tag}
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <strong>{project.product_version_count} 个产品版本</strong>
-              <span>{project.description || "暂无项目说明"}</span>
-              <button
-                className="prototype-secondary"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void workspace.previewProjectDeletion(project.id);
-                }}
-                type="button"
-              >
-                删除
-              </button>
-            </div>
-          </div>
-        ))
+          );
+        })
       )}
 
       {workspace.actionError && (

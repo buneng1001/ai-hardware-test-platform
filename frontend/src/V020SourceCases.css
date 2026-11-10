@@ -152,40 +152,26 @@
 }
 
 .prototype-case-template {
-  display: grid;
-  gap: 14px;
-  margin-top: 22px;
-  padding: 18px;
+  margin-top: 16px;
   border: 1px solid var(--prototype-color-line);
   border-radius: var(--prototype-radius-card);
   background: var(--prototype-color-surface);
 }
 
-.prototype-case-template-head {
+.prototype-template-compact-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: start;
-  justify-content: space-between;
-  gap: 12px 24px;
+  align-items: center;
+  gap: 10px 14px;
 }
 
-.prototype-case-template-head h3 {
-  margin: 0 0 6px;
-}
-
-.prototype-template-badge {
-  padding: 4px 12px;
-  color: var(--prototype-color-brand-strong);
-  border: 1px solid var(--prototype-color-brand-soft);
-  border-radius: 999px;
-  background: var(--prototype-color-brand-soft);
-  font-size: 0.82rem;
-  font-weight: 750;
+.prototype-template-caption {
+  color: var(--prototype-color-text);
   white-space: nowrap;
 }
 
 .prototype-template-switch {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -196,39 +182,33 @@
   background: var(--prototype-color-brand-soft);
 }
 
-.prototype-template-columns {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.prototype-template-switch button {
+  min-height: 36px;
+  white-space: nowrap;
 }
 
-.prototype-template-columns span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid var(--prototype-color-line);
-  border-radius: 999px;
-  background: var(--prototype-color-surface-muted);
-  font-size: 0.84rem;
+.prototype-template-divider {
+  height: 26px;
+  border-left: 1px solid var(--prototype-color-line);
 }
 
-.prototype-template-columns em {
-  color: var(--prototype-color-brand-strong);
-  font-size: 0.72rem;
-  font-style: normal;
-  font-weight: 800;
+.prototype-template-feedback {
+  flex: 1 1 190px;
+  min-width: 0;
+  color: var(--prototype-color-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
-.prototype-template-upload {
-  display: grid;
-  gap: 12px;
+.prototype-template-choose-file {
+  flex: 0 0 auto;
 }
 
-.prototype-template-upload p {
-  margin: 0;
+@media (max-width: 680px) {
+  .prototype-template-divider {
+    display: none;
+  }
 }
-
 .prototype-ai-manual-list {
   display: grid;
   gap: 4px;

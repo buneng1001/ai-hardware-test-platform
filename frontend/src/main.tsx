@@ -14,6 +14,7 @@ import "./V020PrototypeReports.css";
 import "./V020PrototypeResponsive.css";
 import "./V020VisualRefresh.css";
 import "./V020VisualRefinement.css";
+import "./V020FinalVisualPolish.css";
 
 const root = document.getElementById("root");
 

@@ -121,6 +121,81 @@ test("生成最终报告后按固定顺序预览并下载 HTML 与纯文字", as
   });
 });
 
+test("报告两组长明细独立折叠，展开后保留原始顺序与全部事实", async () => {
+  const base = factReport();
+  const report = factReport({
+    snapshot: {
+      ...base.snapshot,
+      issues: {
+        ...base.snapshot.issues,
+        blocked: [
+          {
+            ...base.snapshot.issues.not_executed[0],
+            case_number: "SRC-003",
+            title: "断电恢复",
+            status: "blocked",
+            actual_result: "设备未恢复供电",
+          },
+        ],
+      },
+    },
+  });
+  stubReportApi({
+    ...baseState(),
+    history: [reportHistoryItem(5)],
+    reports: { 5: report },
+  });
+  await openReportView();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "预览最新报告（HTML）" }),
+  );
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "报告 #5 HTML 预览",
+  });
+  const failedItems = dialog.querySelector("#rpt-failed-items");
+  const blockedItems = dialog.querySelector("#rpt-blocked-items");
+  expect(failedItems).toHaveAttribute("hidden");
+  expect(blockedItems).toHaveAttribute("hidden");
+  expect(failedItems?.querySelectorAll("li")).toHaveLength(1);
+  expect(blockedItems?.querySelectorAll("li")).toHaveLength(2);
+  expect(blockedItems?.querySelectorAll("li")[0]).toHaveTextContent("SRC-003");
+  expect(blockedItems?.querySelectorAll("li")[1]).toHaveTextContent("SRC-002");
+  const firstFact = failedItems?.querySelector("li");
+  const failedToggle = within(dialog).getByRole("button", {
+    name: "展开未通过用例明细",
+  });
+  const blockedToggle = within(dialog).getByRole("button", {
+    name: "展开阻塞与未执行明细",
+  });
+  expect(failedToggle).toHaveAttribute("aria-expanded", "false");
+  expect(blockedToggle).toHaveAttribute("aria-expanded", "false");
+
+  fireEvent.click(failedToggle);
+  expect(failedItems).not.toHaveAttribute("hidden");
+  expect(blockedItems).toHaveAttribute("hidden");
+  expect(
+    within(dialog).getByRole("button", {
+      name: "收起未通过用例明细",
+    }),
+  ).toHaveAttribute("aria-expanded", "true");
+
+  fireEvent.click(blockedToggle);
+  expect(blockedItems).not.toHaveAttribute("hidden");
+  expect(failedItems?.querySelector("li")).toBe(firstFact);
+  expect(blockedItems?.textContent).toContain("设备未恢复供电");
+  expect(blockedItems?.textContent).toContain("未填写补充说明");
+
+  fireEvent.click(
+    within(dialog).getByRole("button", {
+      name: "收起未通过用例明细",
+    }),
+  );
+  expect(failedItems).toHaveAttribute("hidden");
+  expect(blockedItems).not.toHaveAttribute("hidden");
+  expect(failedItems?.querySelectorAll("li")).toHaveLength(1);
+});
+
 test("只有人工记录时也允许生成报告", async () => {
   const fetchMock = stubReportApi({
     ...baseState(),

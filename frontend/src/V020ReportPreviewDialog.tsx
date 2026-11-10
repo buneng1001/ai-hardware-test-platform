@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { Status } from "./V020PrototypeShared";
 import { V020ReportAnalysisSection } from "./V020ReportAnalysisSection";
 import { V020ReportAttachmentSection } from "./V020ReportAttachmentSection";
@@ -49,6 +51,12 @@ export function V020ReportPreviewDialog({
   onConfirmCleanup: () => void;
 }) {
   const snapshot = report.snapshot;
+  const [failedExpanded, setFailedExpanded] = useState(false);
+  const [blockedExpanded, setBlockedExpanded] = useState(false);
+  const blockedAndUnexecuted = [
+    ...snapshot.issues.blocked,
+    ...snapshot.issues.not_executed,
+  ];
   return (
     <div className="prototype-report-overlay prototype-report-overlay--preview">
       <section
@@ -275,40 +283,99 @@ export function V020ReportPreviewDialog({
             </div>
           </section>
 
-          <section>
-            <h2 id="rpt-failed">未通过用例</h2>
+          <section
+            aria-labelledby="rpt-failed"
+            className="prototype-report-collapsible"
+          >
+            <div className="prototype-report-collapsible-head">
+              <h2 id="rpt-failed">未通过用例</h2>
+              <span className="prototype-report-item-count">
+                {snapshot.issues.failed.length} 条
+              </span>
+              {snapshot.issues.failed.length > 0 && (
+                <button
+                  aria-controls="rpt-failed-items"
+                  aria-expanded={failedExpanded}
+                  aria-label={
+                    failedExpanded ? "收起未通过用例明细" : "展开未通过用例明细"
+                  }
+                  className="prototype-secondary prototype-report-collapse-toggle"
+                  onClick={() => setFailedExpanded((value) => !value)}
+                  type="button"
+                >
+                  {failedExpanded ? "收起明细" : "展开明细"}
+                </button>
+              )}
+            </div>
             {snapshot.issues.failed.length === 0 ? (
               <p>没有未通过用例。</p>
             ) : (
-              <ul>
-                {snapshot.issues.failed.map((item) => (
-                  <li key={`${item.case_number}-${item.source}`}>
-                    <strong>{item.case_number}</strong> {item.title}（
-                    {item.module}）：{item.actual_result}
-                  </li>
-                ))}
-              </ul>
+              <div
+                className="prototype-report-collapsible-content"
+                hidden={!failedExpanded}
+                id="rpt-failed-items"
+              >
+                <ul className="prototype-report-fact-grid">
+                  {snapshot.issues.failed.map((item) => (
+                    <li key={`${item.case_number}-${item.source}`}>
+                      <strong>{item.case_number}</strong> {item.title}（
+                      {item.module}）：{item.actual_result}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </section>
 
-          <section>
-            <h2 id="rpt-blocked">阻塞与未执行</h2>
-            <p>
+          <section
+            aria-labelledby="rpt-blocked"
+            className="prototype-report-collapsible"
+          >
+            <div className="prototype-report-collapsible-head">
+              <h2 id="rpt-blocked">阻塞与未执行</h2>
+              <span className="prototype-report-item-count">
+                {blockedAndUnexecuted.length} 条
+              </span>
+              {blockedAndUnexecuted.length > 0 && (
+                <button
+                  aria-controls="rpt-blocked-items"
+                  aria-expanded={blockedExpanded}
+                  aria-label={
+                    blockedExpanded
+                      ? "收起阻塞与未执行明细"
+                      : "展开阻塞与未执行明细"
+                  }
+                  className="prototype-secondary prototype-report-collapse-toggle"
+                  onClick={() => setBlockedExpanded((value) => !value)}
+                  type="button"
+                >
+                  {blockedExpanded ? "收起明细" : "展开明细"}
+                </button>
+              )}
+            </div>
+            <p className="prototype-report-collapsible-summary">
               阻塞 {snapshot.issues.blocked.length} 条 · 未执行{" "}
               {snapshot.issues.not_executed.length} 条
             </p>
-            <ul>
-              {[
-                ...snapshot.issues.blocked,
-                ...snapshot.issues.not_executed,
-              ].map((item) => (
-                <li key={`${item.status}-${item.case_number}-${item.source}`}>
-                  <strong>{item.case_number}</strong> {item.title}（
-                  {statusLabels[item.status] ?? item.status}）：
-                  {item.actual_result}
-                </li>
-              ))}
-            </ul>
+            {blockedAndUnexecuted.length > 0 && (
+              <div
+                className="prototype-report-collapsible-content"
+                hidden={!blockedExpanded}
+                id="rpt-blocked-items"
+              >
+                <ul className="prototype-report-fact-grid">
+                  {blockedAndUnexecuted.map((item) => (
+                    <li
+                      key={`${item.status}-${item.case_number}-${item.source}`}
+                    >
+                      <strong>{item.case_number}</strong> {item.title}（
+                      {statusLabels[item.status] ?? item.status}）：
+                      {item.actual_result}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
 
           <section>

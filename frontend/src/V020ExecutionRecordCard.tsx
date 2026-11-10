@@ -25,13 +25,19 @@ export function formatExecutionTime(value: string | null): string {
 export function V020ExecutionRecordCard({
   record,
   showCases = true,
+  embedded = false,
 }: {
   record: AutomationExecution;
   showCases?: boolean;
+  embedded?: boolean;
 }) {
   return (
     <article
-      className="prototype-result-card prototype-execution-record"
+      className={
+        embedded
+          ? "prototype-execution-record prototype-execution-record--embedded"
+          : "prototype-result-card prototype-execution-record"
+      }
       aria-label={`自动化执行 ${record.execution_number}`}
     >
       <header className="prototype-execution-record-head">

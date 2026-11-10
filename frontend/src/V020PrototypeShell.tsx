@@ -122,7 +122,7 @@ export function PrototypeWorkspaceShell({
           />
           <span className="prototype-sidebar-brand-copy">
             <strong>{PROTOTYPE_BRAND.shortName}</strong>
-            <small>AUTOMATION TEST PLATFORM</small>
+            <small>HARDWARE TEST WORKSPACE</small>
           </span>
         </div>
         <button

@@ -5,20 +5,17 @@ import { V020CaseTemplatePanel } from "./V020CaseTemplatePanel";
 
 afterEach(cleanup);
 
-test("默认模板展示产品确认过的 12 列", () => {
+test("默认模板只显示简洁的来源选择，不展开全部字段", () => {
   render(<V020CaseTemplatePanel />);
 
-  expect(screen.getByText("当前使用：默认模板")).toBeVisible();
-
-  const columns = screen.getByLabelText("默认模板列");
-  expect(columns.children).toHaveLength(12);
-  expect(columns).toHaveTextContent("用例编号");
-  expect(columns).toHaveTextContent("预置条件");
-  expect(columns).toHaveTextContent("附件");
-  expect(columns).toHaveTextContent("软件版本");
-  // 确认已删减的四个字段不再出现在默认模板里。
-  expect(columns).not.toHaveTextContent("测试结果");
-  expect(columns).not.toHaveTextContent("计划执行时间");
+  expect(screen.getByText("用例模板：")).toBeVisible();
+  expect(screen.getByRole("button", { name: "默认模板" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.getByText("使用系统默认模板，无需上传")).toBeVisible();
+  expect(screen.queryByLabelText("默认模板列")).toBeNull();
+  expect(screen.getByRole("button", { name: "选择文件" })).toBeDisabled();
 });
 
 test("上传模板支持本地选文件但明确说明解析未接入", () => {
@@ -26,9 +23,12 @@ test("上传模板支持本地选文件但明确说明解析未接入", () => {
 
   fireEvent.click(screen.getByRole("button", { name: "上传模板" }));
 
-  expect(screen.getByText("当前使用：上传模板")).toBeVisible();
-  expect(screen.getByText(/尚未选择文件/)).toBeVisible();
-  expect(screen.getByRole("button", { name: "选择模板文件" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "上传模板" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.getByText(/请选择 CSV \/ Excel 文件/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "选择文件" })).toBeEnabled();
   const file = new File(["header"], "my-template.xlsx", {
     type: "application/octet-stream",
   });
@@ -36,5 +36,5 @@ test("上传模板支持本地选文件但明确说明解析未接入", () => {
     target: { files: [file] },
   });
   expect(screen.getByText(/已选择：my-template.xlsx/)).toBeVisible();
-  expect(screen.getByText(/模板解析和保存暂未接入/)).toBeVisible();
+  expect(screen.getByText(/解析暂未接入/)).toBeVisible();
 });
