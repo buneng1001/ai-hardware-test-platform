@@ -8,7 +8,7 @@ export function PrototypeTeBookMotion() {
       className="te-book-motion"
       data-testid="prototype-home-brand-motion"
       role="img"
-      aria-label="书本展开，T 和 E 从书心弹出、轻微回弹并悬浮"
+      aria-label="书本展开，左右书页轻轻翻动，T 和 E 从书心弹出并独立微动"
     >
       <svg
         viewBox="0 0 900 625"
