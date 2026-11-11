@@ -52,19 +52,24 @@ test("首页不展示趋势统计，选择暂不配置也能进入项目列表",
   ).toBeVisible();
 });
 
-test("首页使用统一的 C 方案框架、立方体与环绕轨迹 SVG", () => {
+test("首页 TE 字母与书页独立成层，顶栏保留原 C 标志", () => {
   render(<FrontendRoot />);
 
   const brandMotion = screen.getByTestId("prototype-home-brand-motion");
-  expect(brandMotion).toHaveClass("prototype-brand-glyph");
-  expect(brandMotion.querySelector('svg[data-logo-variant="C"]')).toBeTruthy();
-  expect(brandMotion.querySelector(".prototype-brand-c-frame")).toBeTruthy();
+  const brandSvg = brandMotion.querySelector(
+    'svg[data-logo-variant="TE-book-motion"]',
+  );
+  expect(brandSvg).toBeTruthy();
+  expect(brandSvg?.querySelector(".te-book-motion__closed")).toBeTruthy();
+  expect(brandSvg?.querySelector(".te-book-motion__pages-left")).toBeTruthy();
+  expect(brandSvg?.querySelector(".te-book-motion__pages-right")).toBeTruthy();
+  expect(brandSvg?.querySelector(".te-book-motion__letter-t")).toBeTruthy();
+  expect(brandSvg?.querySelector(".te-book-motion__letter-e")).toBeTruthy();
+  expect(brandMotion.querySelector("img")).toBeNull();
   expect(
-    brandMotion.querySelector(".prototype-brand-c-frame-shadow"),
-  ).toBeNull();
-  expect(brandMotion.querySelector(".prototype-brand-c-cube-top")).toBeTruthy();
-  expect(
-    brandMotion.querySelector(".prototype-brand-c-orbit-front"),
+    document.querySelector(
+      '.prototype-home-header-mark svg[data-logo-variant="C"]',
+    ),
   ).toBeTruthy();
 });
 

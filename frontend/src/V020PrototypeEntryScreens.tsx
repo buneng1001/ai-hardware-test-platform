@@ -1,6 +1,7 @@
 import { PROTOTYPE_BRAND } from "./V020PrototypeBrand";
 import { PrototypeBrandGlyph } from "./V020PrototypeBrandGlyph";
 import { PrototypeAiConfiguration } from "./V020PrototypeAiConfiguration";
+import { PrototypeTeBookMotion } from "./V020TeBookMotion";
 
 export function PrototypeHome({
   onOpenProjects,
@@ -26,10 +27,7 @@ export function PrototypeHome({
         </div>
         <p>{PROTOTYPE_BRAND.subtitle}</p>
         <div className="prototype-home-logo-stage">
-          <PrototypeBrandGlyph
-            className="prototype-home-brand-motion"
-            testId="prototype-home-brand-motion"
-          />
+          <PrototypeTeBookMotion />
         </div>
         <div className="prototype-home-capabilities">
           <span>项目管理</span>
