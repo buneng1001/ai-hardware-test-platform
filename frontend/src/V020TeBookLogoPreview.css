@@ -1,0 +1,28 @@
+/*
+ * TE book mark: homepage-only visual review.
+ * The original black-on-white candidate remains unchanged in public/branding.
+ * The inverted blend is a presentation treatment for the dark homepage only.
+ */
+.prototype-page .prototype-home-logo-stage::before,
+.prototype-page .prototype-home-logo-stage::after {
+  content: none;
+}
+
+.prototype-page .prototype-home-logo-stage .prototype-te-book-logo-preview {
+  display: block;
+  width: min(29vh, 20vw, 340px);
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  aspect-ratio: 1;
+  filter: invert(1);
+  mix-blend-mode: screen;
+  animation: none;
+}
+
+@media (max-width: 760px) {
+  .prototype-page .prototype-home-logo-stage .prototype-te-book-logo-preview {
+    width: min(58vw, 220px);
+    height: auto;
+  }
+}

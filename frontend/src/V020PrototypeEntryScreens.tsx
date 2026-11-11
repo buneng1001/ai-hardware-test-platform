@@ -26,9 +26,11 @@ export function PrototypeHome({
         </div>
         <p>{PROTOTYPE_BRAND.subtitle}</p>
         <div className="prototype-home-logo-stage">
-          <PrototypeBrandGlyph
-            className="prototype-home-brand-motion"
-            testId="prototype-home-brand-motion"
+          <img
+            className="prototype-home-brand-motion prototype-te-book-logo-preview"
+            data-testid="prototype-home-brand-motion"
+            src="/branding/te-book-logo-preview.png"
+            alt="TE 字母与翻开的精装书组成的 Logo 预览"
           />
         </div>
         <div className="prototype-home-capabilities">

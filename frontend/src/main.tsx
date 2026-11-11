@@ -15,6 +15,7 @@ import "./V020PrototypeResponsive.css";
 import "./V020VisualRefresh.css";
 import "./V020VisualRefinement.css";
 import "./V020FinalVisualPolish.css";
+import "./V020TeBookLogoPreview.css";
 
 const root = document.getElementById("root");
 
