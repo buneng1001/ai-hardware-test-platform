@@ -68,22 +68,20 @@ test("首页 TE 字母、书页、书心光点独立成层，顶栏使用 TE 标
   expect(brandSvg?.querySelectorAll(".te-book-motion__sparkle")).toHaveLength(
     2,
   );
-  expect(
-    document.querySelectorAll(".prototype-home-ribbon__strand"),
-  ).toHaveLength(2);
-  const lightThreads = document.querySelectorAll(
-    ".prototype-home-ribbon__strand path",
+  const backgroundArcs = document.querySelectorAll(
+    ".prototype-home-arc__line",
   );
-  expect(lightThreads.length).toBeGreaterThan(35);
+  expect(backgroundArcs).toHaveLength(2);
   expect(
-    [...lightThreads].every(
-      (path) => Number(path.getAttribute("stroke-width")) <= 1,
+    [...backgroundArcs].every(
+      (path) => Number(path.getAttribute("stroke-width")) <= 2,
     ),
   ).toBe(true);
   expect(
-    document.querySelectorAll(".prototype-home-ribbon__glint"),
-  ).toHaveLength(1);
-  expect(document.querySelector(".prototype-home-ribbon__specks")).toBeTruthy();
+    document.querySelectorAll(".prototype-home-arc__glow"),
+  ).toHaveLength(2);
+  expect(document.querySelector(".prototype-home-arc__wash")).toBeTruthy();
+  expect(document.querySelector(".prototype-home-ribbon__specks")).toBeNull();
   expect(brandMotion.querySelector("img")).toBeNull();
   expect(
     document.querySelector(
