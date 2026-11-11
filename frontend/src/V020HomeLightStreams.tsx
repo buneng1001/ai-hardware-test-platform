@@ -8,44 +8,49 @@ type LightStream = {
 
 const STREAMS: readonly LightStream[] = [
   {
-    centerY: [388, 353, 317, 348, 405, 392, 357, 329, 316, 352],
-    count: 23,
-    spacing: 1.9,
-    strength: 1,
+    // 一束沿首页下方舒展的主光流，局部收束后向右自然散开。
+    centerY: [574, 648, 690, 640, 612, 564, 480, 515],
+    count: 25,
+    spacing: 1.7,
+    strength: 0.7,
   },
   {
-    centerY: [474, 435, 500, 464, 442, 422, 433, 455, 483, 461],
-    count: 18,
-    spacing: 1.65,
-    strength: 0.82,
-  },
-  {
-    centerY: [552, 523, 570, 537, 516, 496, 518, 535, 548, 560],
-    count: 14,
+    // 第二束刻意更轻，形成景深而不与主光流抢视觉焦点。
+    centerY: [695, 741, 755, 718, 686, 672, 638, 688],
+    count: 17,
     spacing: 1.35,
-    strength: 0.73,
-  },
-  {
-    centerY: [612, 586, 644, 602, 572, 548, 579, 574, 599, 615],
-    count: 10,
-    spacing: 1.25,
-    strength: 0.62,
+    strength: 0.34,
   },
 ];
+
+const STREAM_X = [-130, 145, 420, 695, 970, 1245, 1520, 1795];
 
 function lightThreadPath(
   bundle: LightStream,
   threadIndex: number,
 ): string {
   const offset = (threadIndex - (bundle.count - 1) / 2) * bundle.spacing;
-  const taper = [0.78, 1.03, 0.74, 1, 0.55, 0.9, 0.72, 1.12, 1.05, 0.73];
+  const taper = [1.16, 0.95, 0.68, 1.16, 0.73, 0.12, 1.24, 1.35];
   const y = (point: number) => {
     // 各光丝轻微交织，边缘自然松开；同束仍保留相同的流向。
     const weave = Math.sin(threadIndex * 1.47 + point * 1.18) * 2.9;
-    return (bundle.centerY[point] + offset * taper[point] + weave).toFixed(1);
+    return bundle.centerY[point] + offset * taper[point] + weave;
   };
 
-  return `M-130 ${y(0)} C205 ${y(1)} 340 ${y(2)} 606 ${y(3)} C790 ${y(4)} 986 ${y(5)} 1208 ${y(6)} C1395 ${y(7)} 1525 ${y(8)} 1730 ${y(9)}`;
+  const points = STREAM_X.map((x, point) => ({ x, y: y(point) }));
+  const segments = points.slice(0, -1).map((start, index) => {
+    const end = points[index + 1];
+    const before = points[Math.max(0, index - 1)];
+    const after = points[Math.min(points.length - 1, index + 2)];
+    // Catmull-Rom 插值转三次贝塞尔：光丝连续弯曲，不出现折线式接缝。
+    const c1x = start.x + (end.x - before.x) / 6;
+    const c1y = start.y + (end.y - before.y) / 6;
+    const c2x = end.x - (after.x - start.x) / 6;
+    const c2y = end.y - (after.y - start.y) / 6;
+    return `C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${end.x} ${end.y.toFixed(1)}`;
+  });
+
+  return `M${points[0].x} ${points[0].y.toFixed(1)} ${segments.join(" ")}`;
 }
 
 const LIGHT_THREADS = STREAMS.map((bundle) =>
@@ -108,7 +113,7 @@ export function PrototypeHomeLightStreams() {
           ))}
         </g>
 
-        {LIGHT_THREADS.slice(0, 3).map((threads, streamIndex) => (
+        {LIGHT_THREADS.slice(0, 1).map((threads, streamIndex) => (
           <g
             className={`prototype-home-ribbon__glint prototype-home-ribbon__glint--${streamIndex + 1}`}
             key={streamIndex}
@@ -129,18 +134,13 @@ export function PrototypeHomeLightStreams() {
         ))}
 
         <g className="prototype-home-ribbon__specks" fill="#a7e9ff">
-          <circle cx="260" cy="346" r="1.4" />
-          <circle cx="296" cy="359" r="0.75" opacity="0.5" />
-          <circle cx="475" cy="442" r="1.1" opacity="0.75" />
-          <circle cx="813" cy="414" r="0.9" />
-          <circle cx="1039" cy="443" r="1.8" opacity="0.85" />
-          <circle cx="1328" cy="330" r="1.2" />
-          <circle cx="350" cy="556" r="0.8" />
-          <circle cx="734" cy="549" r="1.5" />
-          <circle cx="1254" cy="535" r="0.8" opacity="0.6" />
-          <circle cx="1480" cy="585" r="1.2" />
-          <circle cx="1039" cy="443" r="4.3" fill="#67c8ff" opacity="0.14" />
-          <circle cx="734" cy="549" r="3.8" fill="#67d9ff" opacity="0.13" />
+          <circle cx="324" cy="652" r="0.85" opacity="0.65" />
+          <circle cx="560" cy="657" r="1.1" opacity="0.78" />
+          <circle cx="835" cy="601" r="0.8" />
+          <circle cx="1046" cy="561" r="1.45" opacity="0.8" />
+          <circle cx="1241" cy="561" r="0.7" opacity="0.55" />
+          <circle cx="1410" cy="493" r="1" opacity="0.72" />
+          <circle cx="1046" cy="561" r="3.8" fill="#67c8ff" opacity="0.11" />
         </g>
       </svg>
     </div>

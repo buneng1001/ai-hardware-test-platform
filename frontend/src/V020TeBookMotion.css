@@ -10,7 +10,7 @@
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  opacity: 0.94;
+  opacity: 0.84;
 }
 
 .prototype-page .prototype-home-ribbon svg {
@@ -29,16 +29,6 @@
   animation: prototype-ribbon-glint 15s ease-in-out infinite;
 }
 
-.prototype-home-ribbon__glint--2 {
-  animation-delay: -6s;
-  animation-duration: 17s;
-}
-
-.prototype-home-ribbon__glint--3 {
-  animation-delay: -9s;
-  animation-duration: 19s;
-}
-
 .prototype-home-ribbon__specks {
   animation: prototype-ribbon-specks 9s ease-in-out infinite;
 }
@@ -50,11 +40,11 @@
     stroke-dashoffset: 0;
   }
   35% {
-    opacity: 0.72;
+    opacity: 0.28;
     stroke-dashoffset: -140;
   }
   49% {
-    opacity: 0.8;
+    opacity: 0.48;
     stroke-dashoffset: -800;
   }
   55%,
@@ -71,7 +61,7 @@
     opacity: 0.58;
   }
   42% {
-    opacity: 0.95;
+    opacity: 0.76;
   }
   64% {
     opacity: 0.7;
