@@ -170,6 +170,11 @@ test("执行结果使用浅色测试组选择区并展示真实最终报告与�
   expect(screen.getByTestId("prototype-sidebar-brand-glyph")).toHaveClass(
     "prototype-brand-glyph",
   );
+  expect(
+    screen
+      .getByTestId("prototype-sidebar-brand-glyph")
+      .querySelector('svg[data-logo-variant="TE-book-compact"]'),
+  ).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "执行与结果" }));
 
   expect(await screen.findByText("当前在线报告")).toBeVisible();

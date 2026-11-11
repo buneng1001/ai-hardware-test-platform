@@ -1,4 +1,76 @@
-/* 仅替换首页中心图形，不改变顶栏、侧边栏、业务卡片的品牌符号。 */
+/* 首页以 TE 翻书为主视觉，顶栏和侧栏同步采用静态 TE 小标。 */
+.prototype-page
+  .prototype-brand-glyph:has(svg[data-logo-variant="TE-book-compact"]) {
+  filter: drop-shadow(0 0 5px rgb(0 172 255 / 26%));
+}
+
+.prototype-page .prototype-home-ribbon {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.78;
+}
+
+.prototype-page .prototype-home-ribbon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.prototype-home-ribbon__flow {
+  transform-origin: 50% 50%;
+  animation: prototype-ribbon-flow 14s ease-in-out infinite;
+}
+
+.prototype-home-ribbon__glint {
+  opacity: 0;
+  animation: prototype-ribbon-glint 14s ease-in-out infinite;
+}
+
+@keyframes prototype-ribbon-flow {
+  0%,
+  27%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.82;
+  }
+  45% {
+    transform: translate(12px, -7px);
+    opacity: 1;
+  }
+  56%,
+  88% {
+    transform: translate(9px, -4px);
+    opacity: 0.86;
+  }
+}
+
+@keyframes prototype-ribbon-glint {
+  0%,
+  27% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+  31% {
+    opacity: 0.13;
+  }
+  43% {
+    opacity: 0.32;
+    stroke-dashoffset: -530;
+  }
+  53%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -830;
+  }
+}
+
+.prototype-page .prototype-home-topbar {
+  z-index: 2;
+}
+
 .prototype-page .prototype-home-logo-stage::before,
 .prototype-page .prototype-home-logo-stage::after {
   content: none;
@@ -17,6 +89,7 @@
   height: 100%;
   opacity: 1;
   pointer-events: none;
+  animation: te-motion-idle-float 7200ms ease-in-out 2300ms infinite;
 }
 
 .te-book-motion svg {
@@ -70,7 +143,15 @@
 }
 
 .te-book-motion__ground-light {
+  transform-box: fill-box;
+  transform-origin: center;
   animation: te-motion-ground-light 1250ms ease-out both;
+}
+
+.te-book-motion__spine-light,
+.te-book-motion__spine-flash {
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .te-book-motion__spine-light {
@@ -79,6 +160,69 @@
 
 .te-book-motion__spine-flash {
   animation: te-motion-spine-flash 1750ms ease-out both;
+}
+
+.te-book-motion__sparkle {
+  transform-box: view-box;
+  transform-origin: 450px 557px;
+  opacity: 0;
+  filter: drop-shadow(0 0 4px rgb(38 239 255 / 90%));
+}
+
+.te-book-motion__sparkle--left {
+  animation: te-motion-sparkle-left 1800ms 820ms ease-out both;
+}
+
+.te-book-motion__sparkle--right {
+  animation: te-motion-sparkle-right 1850ms 920ms ease-out both;
+}
+
+@keyframes te-motion-idle-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes te-motion-sparkle-left {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.25);
+  }
+  20% {
+    opacity: 0.86;
+    transform: translate(-8px, -22px) scale(0.72);
+  }
+  58% {
+    opacity: 0.68;
+    transform: translate(-27px, -75px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-32px, -110px) scale(0.6);
+  }
+}
+
+@keyframes te-motion-sparkle-right {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.25);
+  }
+  20% {
+    opacity: 0.78;
+    transform: translate(8px, -22px) scale(0.75);
+  }
+  58% {
+    opacity: 0.62;
+    transform: translate(28px, -77px) scale(0.95);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(37px, -114px) scale(0.54);
+  }
 }
 
 @keyframes te-motion-open-left {
@@ -254,9 +398,23 @@
   .prototype-page .prototype-home-logo-stage .te-book-motion {
     width: min(100%, 510px);
   }
+  .prototype-page .prototype-home-ribbon {
+    opacity: 0.52;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .prototype-home-ribbon__flow,
+  .prototype-home-ribbon__glint {
+    animation: none;
+  }
+  .prototype-home-ribbon__glint {
+    opacity: 0;
+  }
+  .prototype-page .prototype-home-logo-stage .te-book-motion {
+    animation: none;
+  }
+
   .te-book-motion__letter-t,
   .te-book-motion__letter-e,
   .te-book-motion__pages-left,
@@ -266,7 +424,8 @@
   .te-book-motion__spine,
   .te-book-motion__ground-light,
   .te-book-motion__spine-light,
-  .te-book-motion__spine-flash {
+  .te-book-motion__spine-flash,
+  .te-book-motion__sparkle {
     animation: none;
     transform: none;
   }
@@ -286,5 +445,8 @@
   }
   .te-book-motion__spine-flash {
     opacity: 0.28;
+  }
+  .te-book-motion__sparkle {
+    opacity: 0;
   }
 }

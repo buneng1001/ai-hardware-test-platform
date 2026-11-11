@@ -8,7 +8,7 @@ export function PrototypeTeBookMotion() {
       className="te-book-motion"
       data-testid="prototype-home-brand-motion"
       role="img"
-      aria-label="书本展开，T 和 E 从重叠状态弹出并轻微回弹成标志"
+      aria-label="书本展开，T 和 E 从书心弹出、轻微回弹并悬浮"
     >
       <svg
         viewBox="0 0 900 625"
@@ -180,18 +180,50 @@ export function PrototypeTeBookMotion() {
           />
         </g>
 
-        {/* T 与 E 分层：E 在最终构图里比 T 向下错开约三分之一字高。 */}
-        <g className="te-book-motion__letter-t">
-          <path
-            d="M302 93 H523 L496 143 H435 V348 H359 V143 H273Z"
-            fill="url(#te-motion-letter-t)"
-          />
+        {/* 光点从书脊的同一个发光中心向上浮出，不从画面两侧飞入。 */}
+        <g className="te-book-motion__book-sparkles">
+          <g className="te-book-motion__sparkle te-book-motion__sparkle--left">
+            <path
+              d="M450 542 Q453 554 464 557 Q453 560 450 573 Q447 560 436 557 Q447 554 450 542Z"
+              fill="#b3fff9"
+            />
+            <circle
+              cx="450"
+              cy="557"
+              r="11"
+              fill="url(#te-motion-spine-glow)"
+            />
+          </g>
+          <g className="te-book-motion__sparkle te-book-motion__sparkle--right">
+            <path
+              d="M450 545 Q452 553 461 556 Q452 558 450 567 Q448 558 439 556 Q448 553 450 545Z"
+              fill="#96fff8"
+            />
+            <circle cx="450" cy="556" r="8" fill="url(#te-motion-spine-glow)" />
+          </g>
         </g>
-        <g className="te-book-motion__letter-e">
-          <path
-            d="M481 171 H696 L671 221 H544 V254 H666 L644 300 H544 V353 H701 L675 405 H481Z"
-            fill="url(#te-motion-letter-e)"
-          />
+
+        {/* 统一轻微左上移；T 放大约 10%，E 缩小约 8%，保留错位与适度字距。 */}
+        <g
+          className="te-book-motion__letters-layout"
+          transform="translate(-18 -16)"
+        >
+          <g className="te-book-motion__letter-t">
+            <g transform="translate(-40 -22) scale(1.1)">
+              <path
+                d="M302 93 H523 L496 143 H435 V348 H359 V143 H273Z"
+                fill="url(#te-motion-letter-t)"
+              />
+            </g>
+          </g>
+          <g className="te-book-motion__letter-e">
+            <g transform="translate(47 23) scale(0.92)">
+              <path
+                d="M481 171 H696 L671 221 H544 V254 H666 L644 300 H544 V353 H701 L675 405 H481Z"
+                fill="url(#te-motion-letter-e)"
+              />
+            </g>
+          </g>
         </g>
       </svg>
     </div>

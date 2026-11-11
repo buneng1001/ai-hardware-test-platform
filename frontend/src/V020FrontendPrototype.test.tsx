@@ -52,7 +52,7 @@ test("首页不展示趋势统计，选择暂不配置也能进入项目列表",
   ).toBeVisible();
 });
 
-test("首页 TE 字母与书页独立成层，顶栏保留原 C 标志", () => {
+test("首页 TE 字母、书页、书心光点独立成层，顶栏使用 TE 标志", () => {
   render(<FrontendRoot />);
 
   const brandMotion = screen.getByTestId("prototype-home-brand-motion");
@@ -65,10 +65,14 @@ test("首页 TE 字母与书页独立成层，顶栏保留原 C 标志", () => {
   expect(brandSvg?.querySelector(".te-book-motion__pages-right")).toBeTruthy();
   expect(brandSvg?.querySelector(".te-book-motion__letter-t")).toBeTruthy();
   expect(brandSvg?.querySelector(".te-book-motion__letter-e")).toBeTruthy();
+  expect(brandSvg?.querySelectorAll(".te-book-motion__sparkle")).toHaveLength(
+    2,
+  );
+  expect(document.querySelector(".prototype-home-ribbon__flow")).toBeTruthy();
   expect(brandMotion.querySelector("img")).toBeNull();
   expect(
     document.querySelector(
-      '.prototype-home-header-mark svg[data-logo-variant="C"]',
+      '.prototype-home-header-mark svg[data-logo-variant="TE-book-compact"]',
     ),
   ).toBeTruthy();
 });

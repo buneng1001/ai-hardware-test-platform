@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="letters" x1="0" y1="1" x2="1" y2="0">
+      <stop stop-color="#0752f6" />
+      <stop offset=".58" stop-color="#08a6ff" />
+      <stop offset="1" stop-color="#37fff0" />
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="23" fill="#071c38" />
+  <path d="M21 17 H67 L61 27 H47 V70 H35 V27 H15Z" fill="url(#letters)" />
+  <path d="M66 37 H105 L99 46 H77 V53 H98 L93 62 H77 V70 H106 L100 80 H66Z" fill="url(#letters)" />
+  <path d="M60 96 C42 81 29 78 11 82 C29 81 48 87 60 96Z M60 96 C78 81 91 78 109 82 C91 81 72 87 60 96Z" fill="#4dfff0" />
+  <path d="M60 102 C43 88 24 85 7 93 C27 90 47 94 60 102Z M60 102 C77 88 96 85 113 93 C93 90 73 94 60 102Z" fill="#079aff" />
+  <path d="M60 105 C45 96 25 95 5 102 C32 100 46 105 60 111 C74 105 88 100 115 102 C95 95 75 96 60 105Z" fill="#126eff" />
+</svg>
