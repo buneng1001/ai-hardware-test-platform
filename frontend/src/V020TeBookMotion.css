@@ -29,11 +29,14 @@
   animation: prototype-ribbon-glint 15s ease-in-out infinite;
 }
 
-.prototype-home-ribbon__glint--second {
-  animation-delay: -5.2s;
+.prototype-home-ribbon__glint--2 {
+  animation-delay: -6s;
   animation-duration: 17s;
-  animation-direction: normal;
-  opacity: 0;
+}
+
+.prototype-home-ribbon__glint--3 {
+  animation-delay: -9s;
+  animation-duration: 19s;
 }
 
 .prototype-home-ribbon__specks {

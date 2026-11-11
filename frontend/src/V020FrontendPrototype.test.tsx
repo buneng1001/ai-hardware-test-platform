@@ -71,9 +71,18 @@ test("首页 TE 字母、书页、书心光点独立成层，顶栏使用 TE 标
   expect(
     document.querySelectorAll(".prototype-home-ribbon__strand"),
   ).toHaveLength(4);
+  const lightThreads = document.querySelectorAll(
+    ".prototype-home-ribbon__strand path",
+  );
+  expect(lightThreads.length).toBeGreaterThan(55);
+  expect(
+    [...lightThreads].every(
+      (path) => Number(path.getAttribute("stroke-width")) <= 1,
+    ),
+  ).toBe(true);
   expect(
     document.querySelectorAll(".prototype-home-ribbon__glint"),
-  ).toHaveLength(2);
+  ).toHaveLength(3);
   expect(document.querySelector(".prototype-home-ribbon__specks")).toBeTruthy();
   expect(brandMotion.querySelector("img")).toBeNull();
   expect(
