@@ -435,22 +435,23 @@
   margin: 12px 0 0;
   justify-content: flex-start;
   padding-left: clamp(70px, 11vw, 260px);
-  isolation: isolate;
+  isolation: auto;
 }
 .prototype-home-logo-stage:before,
 .prototype-home-logo-stage:after {
   position: absolute;
   content: "";
-  border: 1px solid rgb(47 164 255 / 47%);
-  width: clamp(280px, 30vw, 520px);
-  height: 72px;
+  border: 1px solid rgb(47 164 255 / 26%);
+  width: clamp(560px, 60vw, 1040px);
+  height: 144px;
+  z-index: -1;
   border-radius: 50%;
   transform: rotate(-6deg);
-  box-shadow: 0 0 20px rgb(34 135 255 / 22%);
+  box-shadow: 0 0 26px rgb(34 135 255 / 12%);
 }
 .prototype-home-logo-stage:after {
-  width: clamp(192px, 23vw, 355px);
-  height: 50px;
+  width: clamp(384px, 46vw, 710px);
+  height: 100px;
   opacity: 0.6;
   transform: rotate(8deg);
 }
@@ -458,7 +459,7 @@
   width: clamp(180px, 15vw, 320px);
   height: clamp(180px, 15vw, 320px);
   z-index: 1;
-  filter: drop-shadow(0 18px 25px rgb(0 128 255 / 37%));
+  filter: drop-shadow(0 16px 24px rgb(0 128 255 / 28%));
   animation: c-logo-float 6s ease-in-out infinite;
 }
 @keyframes c-logo-float {

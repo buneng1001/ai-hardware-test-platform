@@ -58,14 +58,22 @@ test("首页使用统一的 C 方案框架、立方体与环绕轨迹 SVG", () =
   const brandMotion = screen.getByTestId("prototype-home-brand-motion");
   expect(brandMotion).toHaveClass("prototype-brand-glyph");
   expect(brandMotion.querySelector('svg[data-logo-variant="C"]')).toBeTruthy();
-  expect(brandMotion.querySelector(".prototype-brand-c-frame")).toBeTruthy();
-  expect(
-    brandMotion.querySelector(".prototype-brand-c-frame-shadow"),
-  ).toBeNull();
-  expect(brandMotion.querySelector(".prototype-brand-c-cube-top")).toBeTruthy();
-  expect(
-    brandMotion.querySelector(".prototype-brand-c-orbit-front"),
-  ).toBeTruthy();
+  const parts = brandMotion.querySelectorAll("svg path[data-logo-part]");
+  expect(parts).toHaveLength(7);
+  expect(Array.from(parts, (part) => part.getAttribute("data-logo-part"))).toEqual([
+    "frame-bottom",
+    "orbit-right",
+    "orbit-left",
+    "frame-top",
+    "cube-top",
+    "cube-left",
+    "cube-right",
+  ]);
+  for (const part of parts) {
+    expect(part.getAttribute("fill")).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(part.getAttribute("d")).toMatch(/z$/i);
+    expect(part.hasAttribute("stroke")).toBe(false);
+  }
 });
 
 test("AI 配置支持临时密钥和本地接入方式切换", async () => {
