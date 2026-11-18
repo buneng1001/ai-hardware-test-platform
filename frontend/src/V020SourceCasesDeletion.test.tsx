@@ -103,17 +103,24 @@ test("原始用例每页只显示 20 条并可翻页", async () => {
   expect(screen.getAllByRole("row")).toHaveLength(6);
 });
 
-test("测试需求页提供导入需求点入口和 AI 解析选项", async () => {
+test("测试需求页提供无副作用占位入口并保留正式导入", async () => {
   stubApi({ cases: [], records: [] });
   await openCasesTab();
 
   fireEvent.click(screen.getByRole("button", { name: "测试需求" }));
   expect(screen.getByRole("button", { name: "导入需求点" })).toBeVisible();
   expect(
-    screen.getByRole("checkbox", { name: "使用 AI 大模型解析上传文件" }),
-  ).toBeChecked();
+    screen.queryByRole("checkbox", { name: "使用 AI 大模型解析上传文件" }),
+  ).not.toBeInTheDocument();
   expect(screen.getByLabelText("本版本 AI 补充说明输入")).toBeVisible();
-  expect(screen.getByRole("button", { name: "开始解析" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "AI 分析" }));
+  expect(screen.getByText("该功能开发中")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "智能测试用例推荐" }),
+  ).toBeEnabled();
+  expect(
+    screen.queryByRole("button", { name: "审核推荐用例" }),
+  ).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "导入用例" }));
   expect(
