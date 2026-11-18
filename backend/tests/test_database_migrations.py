@@ -118,6 +118,30 @@ def test_version_seven_database_upgrades_without_repeating_alignment_column(tmp_
     assert {"report_id", "status", "input_snapshot", "output", "error"} <= analysis_columns
 
 
+def test_version_34_migration_keeps_legacy_version_values(tmp_path, monkeypatch):
+    monkeypatch.setenv('APP_DATA_DIR', str(tmp_path))
+    connection = sqlite3.connect(tmp_path / 'platform.sqlite3')
+    connection.executescript('''
+      CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT);
+      CREATE TABLE product_versions (
+        id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, version TEXT NOT NULL,
+        name TEXT NOT NULL, description TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO product_versions VALUES (8, 2, 'EVT', '旧版本', '历史描述', 'old', 'old');
+      PRAGMA user_version = 34;
+    ''')
+    connection.close()
+    with open_database() as database:
+        row = database.execute('SELECT * FROM product_versions WHERE id = 8').fetchone()
+        assert row['version'] == 'EVT'
+        assert row['name'] == '旧版本'
+        assert row['description'] == '历史描述'
+        assert row['ai_context'] == ''
+        assert database.execute('PRAGMA user_version').fetchone()[0] == LATEST_SCHEMA_VERSION
+    with open_database() as database:
+        assert database.execute('SELECT ai_context FROM product_versions WHERE id = 8').fetchone()[0] == ''
+
+
 def test_version_seventeen_automation_cases_upgrade_without_losing_existing_candidates(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
     connection = sqlite3.connect(tmp_path / "platform.sqlite3")

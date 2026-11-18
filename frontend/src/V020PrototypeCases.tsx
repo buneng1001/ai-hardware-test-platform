@@ -55,7 +55,12 @@ export function CasesSection({
         ))}
       </div>
       {caseView === "requirements" && (
-        <V020RequirementsScreen onOpenSource={() => setCaseView("source")} />
+        <V020RequirementsScreen
+          key={versionId ?? "no-version"}
+          version={projectWorkspace.openedVersion}
+          onSaveAiContext={projectWorkspace.saveVersionAiContext}
+          onOpenSource={() => setCaseView("source")}
+        />
       )}
       {caseView === "source" && (
         <V020SourceCasesScreen

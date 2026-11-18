@@ -25,6 +25,7 @@ export const v020Version: ProductVersion = {
   version: "EVT1",
   name: "",
   description: "",
+  ai_context: "",
   created_at: "2026-10-01T08:10:00Z",
   updated_at: "2026-10-01T08:10:00Z",
 };

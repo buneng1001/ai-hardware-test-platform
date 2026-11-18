@@ -206,10 +206,14 @@ def create_product_version(project_id: int, command: ProductVersionCreate) -> Pr
             _get_project(connection, project_id)
             cursor = connection.execute(
                 """
-                INSERT INTO product_versions (project_id, version, name, description, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO product_versions
+                    (project_id, version, name, description, ai_context, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (project_id, command.version, command.name, command.description, timestamp, timestamp),
+                (
+                    project_id, command.version, command.name, command.description,
+                    command.ai_context, timestamp, timestamp,
+                ),
             )
             connection.execute("UPDATE projects SET updated_at = ? WHERE id = ?", (timestamp, project_id))
             return _get_version(connection, cursor.lastrowid)
@@ -235,9 +239,11 @@ def update_product_version(version_id: int, command: ProductVersionUpdate) -> Pr
             values = {**current.model_dump(), **changes, "updated_at": timestamp}
             connection.execute(
                 """
-                UPDATE product_versions SET version = ?, name = ?, description = ?, updated_at = ? WHERE id = ?
+                UPDATE product_versions
+                SET version = ?, name = ?, description = ?, ai_context = ?, updated_at = ?
+                WHERE id = ?
                 """,
-                (values["version"], values["name"], values["description"], timestamp, version_id),
+                (values["version"], values["name"], values["description"], values["ai_context"], timestamp, version_id),
             )
             connection.execute("UPDATE projects SET updated_at = ? WHERE id = ?", (timestamp, current.project_id))
             return _get_version(connection, version_id)

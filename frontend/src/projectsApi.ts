@@ -4,6 +4,7 @@ export type ProductVersion = {
   version: string;
   name: string;
   description: string;
+  ai_context: string;
   created_at: string;
   updated_at: string;
 };
@@ -272,7 +273,7 @@ export function createProductVersion(
 
 export function updateProductVersion(
   versionId: number,
-  command: { name: string; description: string },
+  command: { name?: string; description?: string; ai_context?: string },
 ) {
   return request<ProductVersion>(`/api/product-versions/${versionId}`, {
     method: "PATCH",
