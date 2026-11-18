@@ -60,7 +60,9 @@ test("首页使用统一的 C 方案框架、立方体与环绕轨迹 SVG", () =
   expect(brandMotion.querySelector('svg[data-logo-variant="C"]')).toBeTruthy();
   const parts = brandMotion.querySelectorAll("svg path[data-logo-part]");
   expect(parts).toHaveLength(7);
-  expect(Array.from(parts, (part) => part.getAttribute("data-logo-part"))).toEqual([
+  expect(
+    Array.from(parts, (part) => part.getAttribute("data-logo-part")),
+  ).toEqual([
     "frame-bottom",
     "orbit-right",
     "orbit-left",

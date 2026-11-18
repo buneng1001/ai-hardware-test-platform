@@ -38,9 +38,21 @@ export function PrototypeBrandGlyph({
           fill="#f0f7ff"
           d="M115 8c3 0 5 1 8 2l50 29c4 2 4 5 1 7l-15 8-44-23-47 27v48c0 4-2 7-5 8l-12 7c-4 2-7 0-7-4V53c0-4 2-7 6-9l59-34c2-1 4-2 6-2Z"
         />
-        <path data-logo-part="cube-top" fill="#f5faff" d="m115 55 30 17-30 16-30-16Z" />
-        <path data-logo-part="cube-left" fill="#edf7ff" d="m85 77 28 16v28l-28-16Z" />
-        <path data-logo-part="cube-right" fill="#4d91c5" d="m117 93 28-16v28l-28 16Z" />
+        <path
+          data-logo-part="cube-top"
+          fill="#f5faff"
+          d="m115 55 30 17-30 16-30-16Z"
+        />
+        <path
+          data-logo-part="cube-left"
+          fill="#edf7ff"
+          d="m85 77 28 16v28l-28-16Z"
+        />
+        <path
+          data-logo-part="cube-right"
+          fill="#4d91c5"
+          d="m117 93 28-16v28l-28 16Z"
+        />
       </svg>
     </span>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { V020DeletionImpactPanel } from "./V020DeletionImpactPanel";
+import { ProductProfileFields } from "./ProductProfileFields";
 import {
   defaultProductProfile,
   type ProductProfile,
@@ -57,6 +58,41 @@ export function V020ProjectsScreen({
   const [description, setDescription] = useState("");
   // 产品画像：新建时描述被测产品形态，供 AI 判定与报告使用。
   const [profile, setProfile] = useState<ProductProfile>(defaultProductProfile);
+  const [editing, setEditing] = useState<{ id: number; name: string } | null>(
+    null,
+  );
+  const [editProfile, setEditProfile] = useState<ProductProfile>(
+    defaultProductProfile,
+  );
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+
+  const saveEditedProfile = async () => {
+    if (!editing || editSaving) return;
+    if (
+      ["physical_keys", "indicator_lights", "cameras"].some((key) => {
+        const value =
+          editProfile[key as "physical_keys" | "indicator_lights" | "cameras"];
+        return !Number.isInteger(value) || value < 0 || value > 999;
+      })
+    ) {
+      setEditError("按键、指示灯和摄像头数量必须为 0–999 的整数");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await workspace.saveProductProfile(editing.id, editProfile);
+      setEditing(null);
+    } catch (caught) {
+      setEditError(
+        caught instanceof Error ? caught.message : "产品画像保存失败",
+      );
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const createdNoticeRef = useRef<HTMLDivElement>(null);
 
   /** 新建成功后把提示和列表顶部滚进视野，避免新项目落在看不见的位置。 */
@@ -250,7 +286,6 @@ export function V020ProjectsScreen({
                 <div className="prototype-project-card-heading">
                   <div className="prototype-project-name-row">
                     <h2>{project.name}</h2>
-
                   </div>
                   <div className="prototype-project-card-actions">
                     <button
@@ -286,6 +321,20 @@ export function V020ProjectsScreen({
                         更多 <span aria-hidden="true">⌄</span>
                       </summary>
                       <div className="prototype-project-more-menu">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setEditing({ id: project.id, name: project.name });
+                            setEditProfile({
+                              ...(project.product_profile ??
+                                defaultProductProfile),
+                            });
+                            setEditError(null);
+                          }}
+                        >
+                          编辑产品画像
+                        </button>
                         <button
                           className="prototype-project-delete"
                           onClick={(event) => {
@@ -356,6 +405,50 @@ export function V020ProjectsScreen({
 
       <V020DeletionImpactPanel workspace={workspace} />
 
+      {editing && (
+        <div className="prototype-modal-backdrop">
+          <form
+            aria-label="编辑产品画像"
+            className="prototype-modal"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveEditedProfile();
+            }}
+          >
+            <h3>编辑产品画像</h3>
+            <p className="prototype-muted">
+              项目：{editing.name}（PRJ-{String(editing.id).padStart(4, "0")}）
+            </p>
+            <p className="prototype-muted">
+              修改只影响之后发起的相关 AI
+              操作，不会重写已有报告或正在执行任务的画像快照。
+            </p>
+            <ProductProfileFields
+              profile={editProfile}
+              onChange={setEditProfile}
+            />
+            {editError && (
+              <div role="alert" className="prototype-inline-note">
+                {editError}
+              </div>
+            )}
+            <div className="prototype-actions">
+              <button
+                type="button"
+                className="prototype-secondary"
+                disabled={editSaving}
+                onClick={() => setEditing(null)}
+              >
+                取消
+              </button>
+              <button className="prototype-primary" disabled={editSaving}>
+                {editSaving ? "保存中…" : "保存"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {creating && (
         // 新建项目改用弹窗，避免表单在页面底部弹开把列表挤得跳动。
         <div className="prototype-modal-backdrop">
@@ -402,159 +495,7 @@ export function V020ProjectsScreen({
                 value={description}
               />
             </label>
-            <fieldset className="prototype-project-profile">
-              <legend>被测产品画像（决定 AI 判断与报告内容）</legend>
-              <div className="prototype-filter-row">
-                <label>
-                  实体按键
-                  <input
-                    aria-label="实体按键数量"
-                    min={0}
-                    max={999}
-                    onChange={(event) =>
-                      setProfile({
-                        ...profile,
-                        physical_keys: Number(event.target.value) || 0,
-                      })
-                    }
-                    type="number"
-                    value={profile.physical_keys}
-                  />
-                </label>
-                <label>
-                  指示灯
-                  <input
-                    aria-label="指示灯数量"
-                    min={0}
-                    max={999}
-                    onChange={(event) =>
-                      setProfile({
-                        ...profile,
-                        indicator_lights: Number(event.target.value) || 0,
-                      })
-                    }
-                    type="number"
-                    value={profile.indicator_lights}
-                  />
-                </label>
-                <label>
-                  摄像头
-                  <input
-                    aria-label="摄像头数量"
-                    min={0}
-                    max={999}
-                    onChange={(event) =>
-                      setProfile({
-                        ...profile,
-                        cameras: Number(event.target.value) || 0,
-                      })
-                    }
-                    type="number"
-                    value={profile.cameras}
-                  />
-                </label>
-                <label className="prototype-inline-check">
-                  <input
-                    aria-label="有麦克风"
-                    checked={profile.microphone}
-                    onChange={(event) =>
-                      setProfile({
-                        ...profile,
-                        microphone: event.target.checked,
-                      })
-                    }
-                    type="checkbox"
-                  />
-                  麦克风
-                </label>
-                <label className="prototype-inline-check">
-                  <input
-                    aria-label="有提示音"
-                    checked={profile.buzzer}
-                    onChange={(event) =>
-                      setProfile({ ...profile, buzzer: event.target.checked })
-                    }
-                    type="checkbox"
-                  />
-                  提示音
-                </label>
-              </div>
-              <label>
-                通信接口
-                <input
-                  aria-label="通信接口"
-                  maxLength={100}
-                  onChange={(event) =>
-                    setProfile({ ...profile, interfaces: event.target.value })
-                  }
-                  placeholder="例如：USB、WiFi、蓝牙、ADB"
-                  value={profile.interfaces}
-                />
-              </label>
-              <label>
-                测试环境
-                <input
-                  aria-label="测试环境"
-                  maxLength={120}
-                  onChange={(event) =>
-                    setProfile({
-                      ...profile,
-                      test_environment: event.target.value,
-                    })
-                  }
-                  value={profile.test_environment}
-                />
-              </label>
-              <label>
-                测试平台
-                <select
-                  aria-label="测试平台"
-                  onChange={(event) =>
-                    setProfile({
-                      ...profile,
-                      platform: event.target
-                        .value as ProductProfile["platform"],
-                    })
-                  }
-                  value={profile.platform}
-                >
-                  <option value="none">无（纯硬件）</option>
-                  <option value="web">网页 / 后台</option>
-                  <option value="app">手机 App</option>
-                </select>
-              </label>
-              {profile.platform === "web" && (
-                <label>
-                  网站地址
-                  <input
-                    aria-label="网站地址"
-                    maxLength={200}
-                    onChange={(event) =>
-                      setProfile({ ...profile, web_url: event.target.value })
-                    }
-                    placeholder="例如：https://example.com"
-                    value={profile.web_url}
-                  />
-                </label>
-              )}
-              {profile.platform === "app" && (
-                <label>
-                  App 安装包名称
-                  <input
-                    aria-label="App 安装包"
-                    maxLength={120}
-                    onChange={(event) =>
-                      setProfile({
-                        ...profile,
-                        app_package: event.target.value,
-                      })
-                    }
-                    placeholder="填写安装包文件名"
-                    value={profile.app_package}
-                  />
-                </label>
-              )}
-            </fieldset>
+            <ProductProfileFields profile={profile} onChange={setProfile} />{" "}
             <div className="prototype-actions">
               <button
                 className="prototype-secondary"

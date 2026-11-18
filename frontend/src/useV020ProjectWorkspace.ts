@@ -11,6 +11,8 @@ import {
   getVersionDeletionImpact,
   listProjects,
   updateProductVersion,
+  updateProductProfile,
+  type ProductProfile,
   type ProductVersion,
   type ProjectCommand,
   type ProjectDeletionImpact,
@@ -132,6 +134,26 @@ export function useV020ProjectWorkspace() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const saveProductProfile = async (
+    projectId: number,
+    profile: ProductProfile,
+  ): Promise<void> => {
+    const updated = await updateProductProfile(projectId, profile);
+    setProjects(
+      (current) =>
+        current?.map((item) =>
+          item.id === projectId
+            ? {
+                ...item,
+                product_profile: updated.product_profile,
+                updated_at: updated.updated_at,
+              }
+            : item,
+        ) ?? null,
+    );
+    setDetail((current) => (current?.id === projectId ? updated : current));
   };
 
   const submitVersion = async (command: VersionCommand): Promise<boolean> => {
@@ -294,6 +316,7 @@ export function useV020ProjectWorkspace() {
     },
     refreshProjects: () => loadProjects(search, sort),
     submitProject,
+    saveProductProfile,
     createdProject,
     clearCreatedProject: () => setCreatedProject(null),
     detail,
