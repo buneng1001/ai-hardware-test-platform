@@ -221,12 +221,22 @@ export function useV020ProjectWorkspace() {
   };
 
   const saveVersionAiContext = async (versionId: number, aiContext: string) => {
-    const updated = await updateProductVersion(versionId, { ai_context: aiContext });
-    setDetail((current) => current ? {
-      ...current,
-      product_versions: current.product_versions.map((item) => item.id === versionId ? updated : item),
-    } : current);
-    setOpenedVersion((current) => current?.id === versionId ? updated : current);
+    const updated = await updateProductVersion(versionId, {
+      ai_context: aiContext,
+    });
+    setDetail((current) =>
+      current
+        ? {
+            ...current,
+            product_versions: current.product_versions.map((item) =>
+              item.id === versionId ? updated : item,
+            ),
+          }
+        : current,
+    );
+    setOpenedVersion((current) =>
+      current?.id === versionId ? updated : current,
+    );
     return updated;
   };
 

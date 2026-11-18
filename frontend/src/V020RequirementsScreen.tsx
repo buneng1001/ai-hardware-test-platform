@@ -34,7 +34,11 @@ export function V020RequirementsScreen({
       setSaved(note);
       setMessage("已保存当前版本的 AI 补充说明。");
     } catch (error) {
-      setMessage(error instanceof Error ? `保存失败：${error.message}` : "保存失败，请重试。");
+      setMessage(
+        error instanceof Error
+          ? `保存失败：${error.message}`
+          : "保存失败，请重试。",
+      );
     } finally {
       setSaving(false);
     }
@@ -103,10 +107,16 @@ export function V020RequirementsScreen({
         </div>
       </section>
 
-      <section className="prototype-requirement-import" aria-label="本版本 AI 补充说明">
+      <section
+        className="prototype-requirement-import"
+        aria-label="本版本 AI 补充说明"
+      >
         <div className="prototype-requirement-head">
           <h3>本版本 AI 补充说明</h3>
-          <p className="prototype-muted">为当前产品版本补充希望 AI 在后续测试工作中考虑的信息；与版本描述、需求文件互不影响。</p>
+          <p className="prototype-muted">
+            为当前产品版本补充希望 AI
+            在后续测试工作中考虑的信息；与版本描述、需求文件互不影响。
+          </p>
         </div>
         <label className="prototype-requirement-note">
           补充说明
@@ -114,18 +124,47 @@ export function V020RequirementsScreen({
             aria-label="本版本 AI 补充说明输入"
             value={note}
             disabled={!version || saving}
-            onChange={(event) => { setNote(event.target.value); setMessage(""); }}
-            placeholder={version ? "可填写本版本的产品特性、测试要求、历史问题或其他补充信息" : "请先打开具体产品版本"}
+            onChange={(event) => {
+              setNote(event.target.value);
+              setMessage("");
+            }}
+            placeholder={
+              version
+                ? "可填写本版本的产品特性、测试要求、历史问题或其他补充信息"
+                : "请先打开具体产品版本"
+            }
             rows={5}
             aria-invalid={count > limit}
           />
         </label>
-        <p className="prototype-muted" role="status">{count} / {limit} 字符{count > limit ? "，超过限制，无法保存" : dirty ? " · 尚未保存" : ""}</p>
+        <p className="prototype-muted" role="status">
+          {count} / {limit} 字符
+          {count > limit ? "，超过限制，无法保存" : dirty ? " · 尚未保存" : ""}
+        </p>
         <div className="prototype-actions prototype-requirement-submit">
-          <button className="prototype-primary" type="button" disabled={!version || !dirty || saving || count > limit} onClick={() => void save()}>{saving ? "保存中…" : "保存"}</button>
-          <button className="prototype-secondary" type="button" disabled={!version || !dirty || saving} onClick={() => { setNote(saved); setMessage(""); }}>撤销修改</button>
+          <button
+            className="prototype-primary"
+            type="button"
+            disabled={!version || !dirty || saving || count > limit}
+            onClick={() => void save()}
+          >
+            {saving ? "保存中…" : "保存"}
+          </button>
+          <button
+            className="prototype-secondary"
+            type="button"
+            disabled={!version || !dirty || saving}
+            onClick={() => {
+              setNote(saved);
+              setMessage("");
+            }}
+          >
+            撤销修改
+          </button>
           {message && <span role="status">{message}</span>}
-          {!version && <span className="prototype-muted">请先进入一个产品版本。</span>}
+          {!version && (
+            <span className="prototype-muted">请先进入一个产品版本。</span>
+          )}
         </div>
       </section>
 
