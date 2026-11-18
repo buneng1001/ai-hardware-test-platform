@@ -74,6 +74,31 @@ def test_engineer_can_create_open_and_edit_project_versions(client):
     assert client.get(f"/api/product-versions/{version['id']}").json() == edited_response.json()
 
 
+def test_version_ai_context_isolated_and_limit(client):
+    project = client.post("/api/projects", json={"name": "AI Context", "product_name": "Device"}).json()
+    a = client.post(
+        f"/api/projects/{project['id']}/product-versions",
+        json={"version": "A", "description": "原版本描述"},
+    ).json()
+    b = client.post(f"/api/projects/{project['id']}/product-versions", json={"version": "B"}).json()
+    assert a["ai_context"] == b["ai_context"] == ""
+    path = f"/api/product-versions/{a['id']}"
+    valid = "😀测" * 1500
+    saved = client.patch(path, json={"ai_context": valid})
+    assert saved.status_code == 200
+    assert saved.json()["ai_context"] == valid
+    assert saved.json()["description"] == "原版本描述"
+    assert saved.json()["updated_at"] != a["updated_at"]
+    assert client.patch(path, json={"ai_context": valid + "x"}).status_code == 422
+    assert client.patch(path, json={"ai_context": None}).status_code == 422
+    assert client.get(path).json()["ai_context"] == valid
+    assert client.get(f"/api/product-versions/{b['id']}").json()["ai_context"] == ""
+    assert client.get(f"/api/projects/{project['id']}").json()["product_versions"][0]["ai_context"] == valid
+    assert client.patch(path, json={"ai_context": ""}).json()["ai_context"] == ""
+    assert client.patch(path, json={"description": "新描述"}).json()["ai_context"] == ""
+    assert client.patch(path, json={"unexpected": "value"}).status_code == 422
+
+
 def test_product_profile_update_is_isolated_and_validates_legacy_null_and_limits(client):
     first = client.post("/api/projects", json={"name": "A", "product_name": "Device A"}).json()
     second = client.post("/api/projects", json={"name": "B", "product_name": "Device B"}).json()

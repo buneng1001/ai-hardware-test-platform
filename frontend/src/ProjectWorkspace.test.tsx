@@ -78,6 +78,7 @@ test("项目详情可以管理不带测试范围的产品版本并显示趋势�
     version: "EVT1",
     name: "",
     description: "",
+    ai_context: "",
     created_at: "2026-09-21T08:10:00Z",
     updated_at: "2026-09-21T08:10:00Z",
   };
@@ -183,6 +184,7 @@ test("删除产品版本前展示该版本的记录和报告影响范围", async
     version: "EVT1",
     name: "工程验证一版",
     description: "",
+    ai_context: "",
     created_at: "2026-09-21T08:10:00Z",
     updated_at: "2026-09-21T08:10:00Z",
   };
@@ -252,6 +254,7 @@ test("刷新产品版本地址后可以恢复项目和版本上下文", async ()
     version: "EVT1",
     name: "工程验证一版",
     description: "首轮 Beta 验证",
+    ai_context: "",
     created_at: "2026-09-21T08:10:00Z",
     updated_at: "2026-09-21T08:10:00Z",
   };
@@ -310,6 +313,7 @@ test("返回项目列表地址时清除已打开的项目和版本上下文", as
     version: "EVT1",
     name: "工程验证一版",
     description: "首轮 Beta 验证",
+    ai_context: "",
     created_at: "2026-09-21T08:10:00Z",
     updated_at: "2026-09-21T08:10:00Z",
   };

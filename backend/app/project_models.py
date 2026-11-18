@@ -42,6 +42,7 @@ class ProductVersionCreate(BaseModel):
     version: str = Field(max_length=80)
     name: str = Field(default="", max_length=120)
     description: str = Field(default="", max_length=1000)
+    ai_context: str = Field(default="", max_length=3000)
 
     @field_validator("version")
     @classmethod
@@ -63,6 +64,14 @@ class ProductVersionUpdate(BaseModel):
     version: str | None = Field(default=None, max_length=80)
     name: str | None = Field(default=None, max_length=120)
     description: str | None = Field(default=None, max_length=1000)
+    ai_context: str | None = Field(default=None, max_length=3000)
+
+    @field_validator("ai_context")
+    @classmethod
+    def require_non_null_ai_context(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("AI 补充说明不能为 null；清空请传空字符串")
+        return value
 
     @field_validator("version")
     @classmethod
@@ -86,6 +95,7 @@ class ProductVersion(BaseModel):
     version: str
     name: str
     description: str
+    ai_context: str
     created_at: str
     updated_at: str
 

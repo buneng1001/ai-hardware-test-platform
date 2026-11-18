@@ -112,7 +112,7 @@ test("测试需求页提供导入需求点入口和 AI 解析选项", async () =
   expect(
     screen.getByRole("checkbox", { name: "使用 AI 大模型解析上传文件" }),
   ).toBeChecked();
-  expect(screen.getByLabelText("对上传文件的说明")).toBeVisible();
+  expect(screen.getByLabelText("本版本 AI 补充说明输入")).toBeVisible();
   expect(screen.getByRole("button", { name: "开始解析" })).toBeDisabled();
 
   fireEvent.click(screen.getByRole("button", { name: "导入用例" }));
