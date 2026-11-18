@@ -74,6 +74,34 @@ def test_engineer_can_create_open_and_edit_project_versions(client):
     assert client.get(f"/api/product-versions/{version['id']}").json() == edited_response.json()
 
 
+def test_product_profile_update_is_isolated_and_validates_legacy_null_and_limits(client):
+    first = client.post("/api/projects", json={"name": "A", "product_name": "Device A"}).json()
+    second = client.post("/api/projects", json={"name": "B", "product_name": "Device B"}).json()
+    url = f"/api/projects/{first['id']}/product-profile"
+    assert client.get(f"/api/projects/{first['id']}").json()["product_profile"] is None
+    payload = {"interfaces": "X" * 300, "physical_keys": 999, "platform": "app"}
+    saved = client.put(url, json=payload)
+    assert saved.status_code == 200
+    assert saved.json()["product_profile"]["interfaces"] == "X" * 300
+    assert saved.json()["product_profile"]["physical_keys"] == 999
+    assert client.get(f"/api/projects/{first['id']}").json()["product_profile"] == saved.json()["product_profile"]
+    assert (
+        next(item for item in client.get("/api/projects").json() if item["id"] == first["id"])["product_profile"]
+        == saved.json()["product_profile"]
+    )
+    assert client.get(f"/api/projects/{second['id']}").json()["product_profile"] is None
+    for invalid in [
+        {"interfaces": "X" * 301},
+        {"physical_keys": -1},
+        {"physical_keys": 1000},
+        {"cameras": 1.5},
+        {"platform": "desktop"},
+    ]:
+        response = client.put(url, json=invalid)
+        assert response.status_code == 422
+        assert client.get(f"/api/projects/{first['id']}").json()["product_profile"] == saved.json()["product_profile"]
+
+
 def test_project_list_supports_search_and_explicit_sorting(client):
     iris = client.post(
         "/api/projects",

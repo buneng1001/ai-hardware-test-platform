@@ -106,3 +106,29 @@
 .prototype-project-profile .prototype-filter-row {
   gap: 14px;
 }
+
+.prototype-interface-presets {
+  display: grid;
+  gap: 8px;
+}
+.prototype-interface-presets details {
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.prototype-interface-presets summary {
+  cursor: pointer;
+}
+.prototype-interface-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0 4px;
+}
+.prototype-interface-tags button {
+  font-size: 0.85rem;
+}
+.prototype-modal:has(.prototype-project-profile) {
+  max-height: 90vh;
+  overflow-y: auto;
+}
