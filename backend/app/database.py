@@ -993,7 +993,6 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             """
         )
 
-
     if current_version < 35:
         # 版本级 AI 补充说明独立于版本变更描述；历史版本统一使用空值。
         has_versions = connection.execute(

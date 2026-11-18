@@ -211,8 +211,13 @@ def create_product_version(project_id: int, command: ProductVersionCreate) -> Pr
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    project_id, command.version, command.name, command.description,
-                    command.ai_context, timestamp, timestamp,
+                    project_id,
+                    command.version,
+                    command.name,
+                    command.description,
+                    command.ai_context,
+                    timestamp,
+                    timestamp,
                 ),
             )
             connection.execute("UPDATE projects SET updated_at = ? WHERE id = ?", (timestamp, project_id))
