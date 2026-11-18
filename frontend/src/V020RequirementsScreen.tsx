@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { ProductVersion } from "./projectsApi";
 
 import "./V020Requirements.css";
 
-/** 版本级 AI 补充说明独立持久化；旧需求导入占位入口由 T12 单独处理。 */
+/** 需求材料入口仅提示开发中；版本级 AI 补充说明仍独立持久化。 */
 export function V020RequirementsScreen({
   onOpenSource,
   version,
@@ -13,9 +13,7 @@ export function V020RequirementsScreen({
   version: ProductVersion | null;
   onSaveAiContext: (id: number, context: string) => Promise<ProductVersion>;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pickedFile, setPickedFile] = useState<string | null>(null);
-  const [useAiParse, setUseAiParse] = useState(true);
+  const [placeholderNotice, setPlaceholderNotice] = useState("");
   const [note, setNote] = useState(version?.ai_context ?? "");
   const [saved, setSaved] = useState(version?.ai_context ?? "");
   const [saving, setSaving] = useState(false);
@@ -51,13 +49,37 @@ export function V020RequirementsScreen({
           <div className="prototype-kicker">REQUIREMENT INTAKE</div>
           <h3>导入需求点</h3>
           <p className="prototype-muted">
-            现成用例可直接进入测试用例表；需求材料入口由后续任务处理。
+            管理当前版本的需求材料操作；正式测试用例可在用例表中导入。
           </p>
         </div>
 
         <div className="prototype-actions">
-          <button onClick={() => fileInputRef.current?.click()} type="button">
+          <button
+            onClick={() => setPlaceholderNotice("该功能开发中")}
+            type="button"
+          >
             导入需求点
+          </button>
+          <button
+            className="prototype-secondary"
+            onClick={() => setPlaceholderNotice("该功能开发中")}
+            type="button"
+          >
+            AI 分析
+          </button>
+          <button
+            className="prototype-secondary"
+            onClick={() => setPlaceholderNotice("该功能开发中")}
+            type="button"
+          >
+            智能测试用例推荐
+          </button>
+          <button
+            className="prototype-secondary"
+            onClick={() => setPlaceholderNotice("该功能开发中")}
+            type="button"
+          >
+            AI 风险分析与审核
           </button>
           <button
             className="prototype-secondary"
@@ -66,45 +88,20 @@ export function V020RequirementsScreen({
           >
             导入用例
           </button>
-          <input
-            ref={fileInputRef}
-            aria-label="选择需求资料文件"
-            accept=".csv,.xlsx,.docx,.md,.txt"
-            className="prototype-file-input"
-            type="file"
-            onChange={(event) => {
-              setPickedFile(event.target.files?.[0]?.name ?? null);
-              event.target.value = "";
-            }}
-          />
         </div>
 
-        <p className="prototype-muted prototype-picked-file">
-          {pickedFile ? `已选择文件：${pickedFile}` : "尚未选择文件。"}
-        </p>
-
-        <label className="prototype-checkbox">
-          <input
-            checked={useAiParse}
-            onChange={(event) => setUseAiParse(event.target.checked)}
-            type="checkbox"
-          />
-          使用 AI 大模型解析上传文件
-        </label>
-
-        <div className="prototype-actions prototype-requirement-submit">
-          <button
-            className="prototype-primary"
-            disabled
-            title="需求点解析尚未接入"
-            type="button"
-          >
-            开始解析
-          </button>
-          <span className="prototype-muted">
-            下方版本级 AI 补充说明独立于本区，不随需求文件提交。
-          </span>
-        </div>
+        {placeholderNotice && (
+          <div className="prototype-actions">
+            <span role="status">{placeholderNotice}</span>
+            <button
+              className="prototype-secondary"
+              type="button"
+              onClick={() => setPlaceholderNotice("")}
+            >
+              关闭提示
+            </button>
+          </div>
+        )}
       </section>
 
       <section
@@ -166,13 +163,6 @@ export function V020RequirementsScreen({
             <span className="prototype-muted">请先进入一个产品版本。</span>
           )}
         </div>
-      </section>
-
-      <section className="prototype-requirement-list" aria-label="需求点列表">
-        <h3>需求点列表</h3>
-        <p className="prototype-muted">
-          暂无需求点。导入并解析后，需求点会按模块出现在这里，并可以勾选生成测试用例。
-        </p>
       </section>
     </div>
   );

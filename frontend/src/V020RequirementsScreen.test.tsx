@@ -23,6 +23,55 @@ const version = (id: number, ai_context = ""): ProductVersion => ({
 
 afterEach(cleanup);
 
+test("需求与风险占位只提示开发中，无文件选择、AI 请求或审核发布入口", () => {
+  const onOpenSource = vi.fn();
+  const onSave = vi.fn();
+  const requestSpy = vi.spyOn(globalThis, "fetch");
+  try {
+    render(
+      <V020RequirementsScreen
+        version={version(1, "已保存说明")}
+        onOpenSource={onOpenSource}
+        onSaveAiContext={onSave}
+      />,
+    );
+    expect(screen.queryByLabelText("选择需求资料文件")).not.toBeInTheDocument();
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+    expect(
+      screen.queryByText("使用 AI 大模型解析上传文件"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "审核推荐用例" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /发布推荐用例/ }),
+    ).not.toBeInTheDocument();
+    for (const label of [
+      "导入需求点",
+      "AI 分析",
+      "智能测试用例推荐",
+      "AI 风险分析与审核",
+    ]) {
+      const button = screen.getByRole("button", { name: label });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      expect(screen.getByText("该功能开发中")).toBeVisible();
+      expect(screen.getByLabelText("本版本 AI 补充说明输入")).toHaveValue(
+        "已保存说明",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "关闭提示" }));
+      expect(screen.queryByText("该功能开发中")).not.toBeInTheDocument();
+    }
+    expect(requestSpy).not.toHaveBeenCalled();
+    expect(onOpenSource).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "导入用例" }));
+    expect(onOpenSource).toHaveBeenCalledOnce();
+  } finally {
+    requestSpy.mockRestore();
+  }
+});
+
 test("说明保存、撤销修改与版本隔离", async () => {
   const onSave = vi.fn(async (id: number, note: string) => ({
     ...version(id),
