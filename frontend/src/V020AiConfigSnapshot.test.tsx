@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { FrontendRoot } from "./FrontendRoot";
@@ -130,5 +131,39 @@ test("恢复已保存 AI 配置，变更即失效并可保存和确认目录缺�
     expect.objectContaining({
       body: expect.stringContaining('"network_mode":"direct"'),
     }),
+  );
+});
+
+test("独立测试不同模型不能让未保存表单显示正式验证通过", async () => {
+  const fetchMock = vi.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/settings/ai/test")
+        return jsonResponse({
+          ok: true,
+          provider: "deepseek",
+          model: "deepseek-v4-pro",
+          message: "独立测试通过",
+          config_fingerprint: "fingerprint-b",
+        });
+      if (url === "/api/settings/ai/config" && !init?.method)
+        return jsonResponse(configState());
+      return jsonResponse({ detail: "未模拟" });
+    },
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  render(<FrontendRoot />);
+  expect(await screen.findByText(/验证状态：已验证/)).toBeVisible();
+  fireEvent.change(screen.getByRole("combobox", { name: "模型" }), {
+    target: { value: "deepseek-v4-pro" },
+  });
+  expect(screen.getByText(/验证状态：验证已失效/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "AI 连接测试" }));
+  expect(await screen.findByText(/连接成功：DeepSeek/)).toBeVisible();
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+  expect(screen.getByText(/验证状态：验证已失效/)).toBeVisible();
+  expect(fetchMock).not.toHaveBeenCalledWith(
+    "/api/settings/ai/config",
+    expect.objectContaining({ method: "POST" }),
   );
 });

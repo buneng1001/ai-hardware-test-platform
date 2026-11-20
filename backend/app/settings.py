@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.ai_config import save_model_catalog, save_request_logs, save_selection, save_verification
+from app.ai_config import _now, get_or_create_snapshot, save_model_catalog, save_request_logs, save_verification
 from app.database import open_database
 from app.siliconflow import DeepSeekAdapter, KimiAdapter, SiliconFlowAdapter, SiliconFlowError
 
@@ -209,7 +209,7 @@ def query_ai_models(request: ModelCatalogQuery) -> ModelCatalogResponse:
 def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse:
     validate_model(request.provider, request.model)
     with open_database() as connection:
-        snapshot = save_selection(
+        snapshot = get_or_create_snapshot(
             connection,
             provider=request.provider,
             model=request.model,
@@ -217,6 +217,7 @@ def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse
             network_mode=request.network_mode,
             prompt_version="diagnosis-v1",
         )
+    tested_at = _now()  # 测试启动前的正式配置切换才能获得验证资格。
     adapter = get_provider_adapter(request.provider)
     if hasattr(adapter, "network_mode"):
         adapter.network_mode = request.network_mode
@@ -243,6 +244,7 @@ def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse
                 retryable=error.retryable,
                 network_diagnostic=diagnostic,
                 error_detail=error.to_dict(),
+                tested_at=tested_at,
             )
         save_request_logs(getattr(adapter, "request_logs", []))
         return ConnectionTestResponse(
@@ -266,6 +268,7 @@ def test_ai_connection(request: ConnectionTestRequest) -> ConnectionTestResponse
             error_kind=None,
             retryable=False,
             network_diagnostic=diagnostic,
+            tested_at=tested_at,
         )
     save_request_logs(getattr(adapter, "request_logs", []))
     return ConnectionTestResponse(

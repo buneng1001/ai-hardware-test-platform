@@ -1,4 +1,5 @@
 import {
+  getAiConfig,
   queryAiModelCatalog,
   verifyAiConnection,
   type AiNetworkMode,
@@ -116,16 +117,32 @@ export async function testConnection(params: {
     );
     setters.setConnectionSucceeded(result.ok);
     setters.setConnectionAction(result.ok ? "" : (result.error?.action ?? ""));
-    setters.setVerificationStatus(result.ok ? "verified" : "failed");
-    setters.setVerificationMessage(result.message);
+    // 连接测试只更新其自身反馈；正式验证状态必须以服务端已保存配置为准。
+    try {
+      const current = await getAiConfig();
+      const selected = current.snapshot;
+      const matchesDraft =
+        selected !== null &&
+        selected.fingerprint === result.config_fingerprint &&
+        selected.provider === params.provider &&
+        selected.model === params.model &&
+        selected.key_source ===
+          (params.accessMode === "temporary" ? "temporary" : "environment") &&
+        selected.network_mode === params.networkMode;
+      if (matchesDraft && current.verification) {
+        setters.setVerificationStatus(current.verification.status);
+        setters.setVerificationMessage(current.verification.message);
+      }
+    } catch {
+      // 已完成的独立连接测试不因正式配置状态读取失败而重标为失败。
+    }
     setters.setModelWarning("");
   } catch (error) {
     const message = error instanceof Error ? error.message : "请求失败";
     setters.setConnectionMessage(`连接测试失败：${message}`);
     setters.setConnectionSucceeded(false);
     setters.setConnectionAction("");
-    setters.setVerificationStatus("failed");
-    setters.setVerificationMessage(message);
+    // 网络或接口异常同样不能把正式配置标记成验证失败。
   } finally {
     setters.setLoadingAction(null);
   }
