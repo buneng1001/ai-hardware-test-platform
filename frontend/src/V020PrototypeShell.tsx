@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 
+import { AiGlobalSwitch } from "./AiGlobalSwitch";
 import { PROTOTYPE_BRAND } from "./V020PrototypeBrand";
 import { PrototypeBrandGlyph } from "./V020PrototypeBrandGlyph";
 import { sections, type SectionKey } from "./V020PrototypeShared";
@@ -187,6 +188,7 @@ export function PrototypeWorkspaceShell({
             工作空间&nbsp;&nbsp;/&nbsp;&nbsp;{currentProject}
             &nbsp;&nbsp;/&nbsp;&nbsp;{currentVersion}
           </span>
+          <AiGlobalSwitch />
           <span className="prototype-workspace-status">本地工作区</span>
         </div>
         {children}

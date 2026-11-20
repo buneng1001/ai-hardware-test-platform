@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { AiGlobalSwitch } from "./AiGlobalSwitch";
 import { V020DeletionImpactPanel } from "./V020DeletionImpactPanel";
 import { ProductProfileFields } from "./ProductProfileFields";
 import {
@@ -135,6 +136,7 @@ export function V020ProjectsScreen({
           </p>
         </div>
         <div className="prototype-actions">
+          <AiGlobalSwitch />
           <button className="prototype-secondary" onClick={onBack}>
             回到首页
           </button>

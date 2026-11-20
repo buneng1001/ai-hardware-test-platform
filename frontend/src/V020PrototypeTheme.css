@@ -1,3 +1,22 @@
+.prototype-ai-global-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+}
+.prototype-ai-global-control button {
+  cursor: pointer;
+  border: 1px solid #a7bdca;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: transparent;
+  color: inherit;
+}
+.prototype-ai-global-control [role="alert"] {
+  color: #b33030;
+}
+
 .prototype-page {
   --prototype-color-canvas: #f3f6f8;
   --prototype-color-surface: #ffffff;
