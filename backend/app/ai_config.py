@@ -202,7 +202,6 @@ def save_verification(
         ),
     )
 
-
 def _snapshot_model(row: sqlite3.Row) -> AiConfigSnapshot:
     return AiConfigSnapshot(
         provider=row["provider"],
@@ -347,7 +346,9 @@ def save_ai_config(command: AiConfigCommand) -> AiConfigState:
 
     validate_model(command.provider, command.model)
     with open_database() as connection:
-        save_selection(
+        connection.execute("BEGIN IMMEDIATE")
+        before = get_selected_snapshot(connection)
+        selected = save_selection(
             connection,
             provider=command.provider,
             model=command.model,
@@ -355,4 +356,7 @@ def save_ai_config(command: AiConfigCommand) -> AiConfigState:
             network_mode=command.network_mode,
             prompt_version=command.prompt_version,
         )
+        if before is None or before["fingerprint"] != selected["fingerprint"]:
+            # 正式选择改变就关闭全局 AI；待测试连接不调用此接口。
+            connection.execute("UPDATE ai_global_state SET enabled = 0 WHERE id = 1")
         return get_config_state(connection)

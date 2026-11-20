@@ -39,7 +39,10 @@ test("测试数据页展示真实数据包、来源属性、指纹和输入源�
     ),
   ).toBeVisible();
   expect(
-    callsOf(fetchMock).filter(([, init]) => (init?.method ?? "GET") !== "GET"),
+    callsOf(fetchMock).filter(
+      ([url, init]) =>
+        url !== "/api/settings/ai/state" && (init?.method ?? "GET") !== "GET",
+    ),
   ).toHaveLength(0);
 });
 

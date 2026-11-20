@@ -1,3 +1,4 @@
+import { useAiGlobalState } from "./AiGlobalSwitch";
 import { PROTOTYPE_BRAND } from "./V020PrototypeBrand";
 import { PrototypeBrandGlyph } from "./V020PrototypeBrandGlyph";
 import { PrototypeAiConfiguration } from "./V020PrototypeAiConfiguration";
@@ -7,6 +8,17 @@ export function PrototypeHome({
 }: {
   onOpenProjects: () => void;
 }) {
+  const { state, message, busy, toggle } = useAiGlobalState();
+  const openWithAi = () => {
+    // 平台的非 AI 业务不受准入拒绝影响；开关仅控制 AI 能力。
+    if (!state?.enabled) void toggle(true);
+    onOpenProjects();
+  };
+  const skipAi = () => {
+    // 即便后端暂不可用，也允许进入不依赖 AI 的工作区。
+    void toggle(false);
+    onOpenProjects();
+  };
   return (
     <div className="prototype-home">
       <header className="prototype-home-topbar">
@@ -37,11 +49,17 @@ export function PrototypeHome({
           <span>测试数据</span>
           <span>报告分析</span>
         </div>
-        <button className="prototype-primary" onClick={onOpenProjects}>
+        <button
+          className="prototype-primary"
+          disabled={busy}
+          onClick={openWithAi}
+        >
           开启平台 <span aria-hidden="true">→</span>
         </button>
+        <span>AI {state?.enabled ? "已开启" : "已关闭"}</span>
+        {message && <p role="alert">{message}</p>}
       </div>
-      <PrototypeAiConfiguration onSkip={onOpenProjects} />
+      <PrototypeAiConfiguration onSkip={skipAi} />
     </div>
   );
 }

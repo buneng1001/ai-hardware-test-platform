@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 35
+LATEST_SCHEMA_VERSION = 36
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -1004,6 +1004,21 @@ def migrate_database(connection: sqlite3.Connection) -> None:
                 connection.execute("ALTER TABLE product_versions ADD COLUMN ai_context TEXT NOT NULL DEFAULT ''")
         connection.executescript(
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (35); PRAGMA user_version = 35;"
+        )
+
+    if current_version < 36:
+        # 唯一全局开关由 SQLite 持久化；旧数据库升级后安全默认关闭。
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS ai_global_state (
+                id INTEGER PRIMARY KEY CHECK(id = 1),
+                enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0, 1)),
+                updated_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO ai_global_state (id, enabled, updated_at) VALUES (1, 0, CURRENT_TIMESTAMP);
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (36);
+            PRAGMA user_version = 36;
+            """
         )
 
 

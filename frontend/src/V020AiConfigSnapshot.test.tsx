@@ -160,7 +160,11 @@ test("独立测试不同模型不能让未保存表单显示正式验证通过",
   expect(screen.getByText(/验证状态：验证已失效/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "AI 连接测试" }));
   expect(await screen.findByText(/连接成功：DeepSeek/)).toBeVisible();
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+  await waitFor(() =>
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url !== "/api/settings/ai/state"),
+    ).toHaveLength(3),
+  );
   expect(screen.getByText(/验证状态：验证已失效/)).toBeVisible();
   expect(fetchMock).not.toHaveBeenCalledWith(
     "/api/settings/ai/config",
