@@ -202,6 +202,7 @@ def save_verification(
         ),
     )
 
+
 def _snapshot_model(row: sqlite3.Row) -> AiConfigSnapshot:
     return AiConfigSnapshot(
         provider=row["provider"],
