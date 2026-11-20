@@ -93,21 +93,32 @@ def test_testing_another_model_never_switches_or_invalidates_formal_selection(tm
         def check_connection(self, *, api_key, model):
             if model == "deepseek-v4-pro":
                 from app.siliconflow import ModelErrorKind
+
                 raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, "测试模型失败", False)
 
     monkeypatch.setattr(settings_module, "get_provider_adapter", lambda _provider: Adapter())
     client = TestClient(app)
     saved = _save_deepseek_config(client)
     formal_fingerprint = saved["snapshot"]["fingerprint"]
-    success = client.post("/api/settings/ai/test", json={
-        "provider": "deepseek", "model": "deepseek-flash", "key_source": "environment",
-    })
+    success = client.post(
+        "/api/settings/ai/test",
+        json={
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "key_source": "environment",
+        },
+    )
     assert success.json()["ok"] is True
     assert client.get("/api/settings/ai/config").json()["verification"]["status"] == "verified"
 
-    failed = client.post("/api/settings/ai/test", json={
-        "provider": "deepseek", "model": "deepseek-v4-pro", "api_key": "private-test-key",
-    })
+    failed = client.post(
+        "/api/settings/ai/test",
+        json={
+            "provider": "deepseek",
+            "model": "deepseek-v4-pro",
+            "api_key": "private-test-key",
+        },
+    )
     assert failed.json()["ok"] is False
     assert failed.json()["config_fingerprint"] != formal_fingerprint
     state = client.get("/api/settings/ai/config").json()
@@ -129,9 +140,14 @@ def test_connection_without_saved_configuration_does_not_select_it(tmp_path, mon
 
     monkeypatch.setattr(settings_module, "get_provider_adapter", lambda _provider: Adapter())
     client = TestClient(app)
-    tested = client.post("/api/settings/ai/test", json={
-        "provider": "deepseek", "model": "deepseek-flash", "api_key": "ephemeral-key",
-    })
+    tested = client.post(
+        "/api/settings/ai/test",
+        json={
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "api_key": "ephemeral-key",
+        },
+    )
     assert tested.json()["ok"] is True
     state = client.get("/api/settings/ai/config").json()
     assert state["snapshot"] is None
