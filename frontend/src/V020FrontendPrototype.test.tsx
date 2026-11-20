@@ -255,6 +255,8 @@ test("首页和项目列表进入下一页时使用统一页面切换容器", as
   expect(screen.getByTestId("prototype-screen-transition")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
   expect(screen.getByRole("heading", { name: "项目列表" })).toBeVisible();
+  expect(screen.getByLabelText("全局 AI 状态")).toBeVisible();
+  expect(screen.getByRole("button", { name: "开启 AI" })).toBeVisible();
   expect(screen.getByTestId("prototype-screen-transition")).toBeVisible();
 
   fireEvent.click(await screen.findByRole("button", { name: /IRIS 头环/ }));
