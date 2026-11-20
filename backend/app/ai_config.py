@@ -84,7 +84,7 @@ def config_fingerprint(
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def save_selection(
+def get_or_create_snapshot(
     connection: sqlite3.Connection,
     *,
     provider: str,
@@ -111,7 +111,29 @@ def save_selection(
             _now(),
         ),
     )
-    snapshot = connection.execute("SELECT * FROM ai_config_snapshots WHERE fingerprint = ?", (fingerprint,)).fetchone()
+    return connection.execute("SELECT * FROM ai_config_snapshots WHERE fingerprint = ?", (fingerprint,)).fetchone()
+
+
+def save_selection(
+    connection: sqlite3.Connection,
+    *,
+    provider: str,
+    model: str,
+    key_source: str,
+    network_mode: str,
+    prompt_version: str,
+) -> sqlite3.Row:
+    snapshot = get_or_create_snapshot(
+        connection,
+        provider=provider,
+        model=model,
+        key_source=key_source,
+        network_mode=network_mode,
+        prompt_version=prompt_version,
+    )
+    selected = get_selected_snapshot(connection)
+    if selected is not None and selected["id"] == snapshot["id"]:
+        return snapshot
     connection.execute(
         """INSERT INTO ai_config_selection (id, snapshot_id, updated_at)
            VALUES (1, ?, ?)
@@ -161,6 +183,7 @@ def save_verification(
     retryable: bool,
     network_diagnostic: str | None,
     error_detail: dict[str, object] | None = None,
+    tested_at: str | None = None,
 ) -> None:
     connection.execute(
         """INSERT INTO ai_verification_runs
@@ -174,7 +197,7 @@ def save_verification(
             error_kind,
             int(retryable),
             network_diagnostic,
-            _now(),
+            tested_at or _now(),
             json.dumps(error_detail or {}, ensure_ascii=False),
         ),
     )
@@ -219,14 +242,20 @@ def get_config_state(connection: sqlite3.Connection) -> AiConfigState:
             selected_model=snapshot.model,
             selected_model_available=snapshot.model in models,
         )
-    latest = connection.execute("SELECT * FROM ai_verification_runs ORDER BY id DESC LIMIT 1").fetchone()
+    # 待测试的其他配置可以独立产生验证记录，但不能覆盖当前正式配置的状态。
+    selection = connection.execute("SELECT updated_at FROM ai_config_selection WHERE id = 1").fetchone()
+    latest = connection.execute(
+        "SELECT * FROM ai_verification_runs WHERE snapshot_id = ? ORDER BY id DESC LIMIT 1",
+        (snapshot_row["id"],),
+    ).fetchone()
     if latest is None:
+        had_verification = connection.execute("SELECT 1 FROM ai_verification_runs LIMIT 1").fetchone()
         verification = AiVerificationState(
-            status="untested",
-            message="尚未验证当前配置",
+            status="invalidated" if had_verification else "untested",
+            message="配置已变更，请重新测试" if had_verification else "尚未验证当前配置",
             fingerprint=snapshot.fingerprint,
         )
-    elif latest["snapshot_id"] != snapshot_row["id"]:
+    elif latest["created_at"] < selection["updated_at"]:
         verification = AiVerificationState(
             status="invalidated",
             message="配置已变更，请重新测试",

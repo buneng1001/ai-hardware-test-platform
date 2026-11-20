@@ -86,6 +86,75 @@ def test_any_config_change_invalidates_previous_verification(tmp_path, monkeypat
     assert "temporary-secret" not in tested.text
 
 
+def test_testing_another_model_never_switches_or_invalidates_formal_selection(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    class Adapter:
+        def check_connection(self, *, api_key, model):
+            if model == "deepseek-v4-pro":
+                from app.siliconflow import ModelErrorKind
+
+                raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, "测试模型失败", False)
+
+    monkeypatch.setattr(settings_module, "get_provider_adapter", lambda _provider: Adapter())
+    client = TestClient(app)
+    saved = _save_deepseek_config(client)
+    formal_fingerprint = saved["snapshot"]["fingerprint"]
+    success = client.post(
+        "/api/settings/ai/test",
+        json={
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "key_source": "environment",
+        },
+    )
+    assert success.json()["ok"] is True
+    assert client.get("/api/settings/ai/config").json()["verification"]["status"] == "verified"
+
+    failed = client.post(
+        "/api/settings/ai/test",
+        json={
+            "provider": "deepseek",
+            "model": "deepseek-v4-pro",
+            "api_key": "private-test-key",
+        },
+    )
+    assert failed.json()["ok"] is False
+    assert failed.json()["config_fingerprint"] != formal_fingerprint
+    state = client.get("/api/settings/ai/config").json()
+    assert state["snapshot"]["fingerprint"] == formal_fingerprint
+    assert state["verification"]["status"] == "verified"
+    assert "private-test-key" not in failed.text
+
+    # 先测试后保存的配置不能把先前独立测试直接当作正式验证。
+    switched = _save_deepseek_config(client, "deepseek-v4-pro")
+    assert switched["verification"]["status"] == "invalidated"
+
+
+def test_connection_without_saved_configuration_does_not_select_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+
+    class Adapter:
+        def check_connection(self, **_kwargs):
+            return None
+
+    monkeypatch.setattr(settings_module, "get_provider_adapter", lambda _provider: Adapter())
+    client = TestClient(app)
+    tested = client.post(
+        "/api/settings/ai/test",
+        json={
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "api_key": "ephemeral-key",
+        },
+    )
+    assert tested.json()["ok"] is True
+    state = client.get("/api/settings/ai/config").json()
+    assert state["snapshot"] is None
+    assert state["verification"]["status"] == "untested"
+    assert "ephemeral-key" not in tested.text
+
+
 def test_catalog_verification_and_selection_are_stored_separately(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
 
