@@ -56,6 +56,10 @@ def set_ai_global_state(command: dict[str, bool]) -> AiGlobalState:
         # 与正式配置保存共享 SQLite 写锁，防止验证后在切换前被替换。
         connection.execute("BEGIN IMMEDIATE")
         current = _read_state(connection)
+        from app.ai_invocation import ensure_no_active_invocation
+
+        if not command["enabled"]:
+            ensure_no_active_invocation(connection, action="关闭全局 AI")
         if command["enabled"] and not current.can_enable:
             raise HTTPException(status_code=409, detail=current.reason)
         connection.execute(

@@ -349,6 +349,9 @@ def save_ai_config(command: AiConfigCommand) -> AiConfigState:
     with open_database() as connection:
         connection.execute("BEGIN IMMEDIATE")
         before = get_selected_snapshot(connection)
+        from app.ai_invocation import ensure_no_active_invocation
+
+        ensure_no_active_invocation(connection, action="保存正式 AI 配置")
         selected = save_selection(
             connection,
             provider=command.provider,

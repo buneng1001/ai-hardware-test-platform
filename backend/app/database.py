@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 36
+LATEST_SCHEMA_VERSION = 37
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -1018,6 +1018,33 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             INSERT OR IGNORE INTO ai_global_state (id, enabled, updated_at) VALUES (1, 0, CURRENT_TIMESTAMP);
             INSERT OR IGNORE INTO schema_migrations (version) VALUES (36);
             PRAGMA user_version = 36;
+            """
+        )
+
+    if current_version < 37:
+        # 单一当前 AI 业务调用：终态由下一次运行覆盖，不创建集中任务历史或队列。
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS ai_active_invocation (
+                id INTEGER PRIMARY KEY CHECK(id = 1),
+                invocation_id TEXT NOT NULL UNIQUE,
+                operation_type TEXT NOT NULL CHECK(operation_type IN (
+                    'diagnosis', 'report_analysis', 'automation_conversion', 'intelligent_regression'
+                )),
+                project_id INTEGER,
+                resource_id INTEGER,
+                status TEXT NOT NULL CHECK(status IN (
+                    'running', 'completed', 'failed', 'cancelled', 'interrupted'
+                )),
+                started_at TEXT NOT NULL,
+                cancel_requested_at TEXT,
+                finished_at TEXT,
+                config_fingerprint TEXT NOT NULL,
+                execution_mode TEXT NOT NULL CHECK(execution_mode IN ('single_request', 'checkpointed_batch')),
+                input_fingerprint TEXT
+            );
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (37);
+            PRAGMA user_version = 37;
             """
         )
 
