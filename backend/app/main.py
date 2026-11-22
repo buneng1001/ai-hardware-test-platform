@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from app.ai_config import router as ai_config_router
 from app.ai_evaluation import router as ai_evaluation_router
 from app.ai_global_state import router as ai_global_state_router
+from app.ai_invocation import recover_interrupted_invocations
+from app.ai_invocation import router as ai_invocation_router
 from app.automation_case_history import router as automation_case_history_router
 from app.automation_conversion import router as automation_conversion_router
 from app.automation_conversion_ai import router as automation_conversion_ai_router
@@ -48,6 +50,7 @@ class HealthResponse(BaseModel):
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """启动时恢复可信状态，关闭时让执行器停在安全阶段边界。"""
     recover_unfinished_runs()
+    recover_interrupted_invocations()
     cleanup_expired_staging()
     application.state.run_executor = RunExecutor(process_run)
     try:
@@ -63,6 +66,7 @@ app.include_router(fact_reports_router)
 app.include_router(ai_evaluation_router)
 app.include_router(ai_config_router)
 app.include_router(ai_global_state_router)
+app.include_router(ai_invocation_router)
 app.include_router(manual_check_results_router)
 app.include_router(manual_result_import_router)
 app.include_router(manual_test_results_router)
