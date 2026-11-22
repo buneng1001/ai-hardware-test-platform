@@ -9,6 +9,11 @@ import type {
   RunStatus,
 } from "./collectionTasksApi";
 import { createDiagnosis, listDiagnoses } from "./collectionTasksApi";
+import {
+  cancelAiInvocation,
+  getActiveAiInvocation,
+  type ActiveAiInvocation,
+} from "./diagnosisApi";
 import { ManualCheckResultsPanel } from "./ManualCheckResultsPanel";
 
 const terminalRunStatuses = new Set<RunStatus>([
@@ -105,7 +110,13 @@ export function RunDetail({
   const [diagnosis, setDiagnosis] = useState<DiagnosisRun | null>(null);
   const [diagnosisError, setDiagnosisError] = useState<string | null>(null);
   const [diagnosisSubmitting, setDiagnosisSubmitting] = useState(false);
+  const [activeDiagnosis, setActiveDiagnosis] =
+    useState<ActiveAiInvocation | null>(null);
+  const [diagnosisStopping, setDiagnosisStopping] = useState(false);
   const previousRunId = useRef<number | null>(null);
+  // Prevent a response started for a previous run from painting the new run.
+  const displayedRunId = useRef(run.id);
+  displayedRunId.current = run.id;
 
   useEffect(() => {
     const details = run.alignment_result?.anchor_details ?? [];
@@ -124,47 +135,130 @@ export function RunDetail({
   }, [run.id, run.alignment_result?.review_revision]);
 
   const generateDiagnosis = async () => {
+    const requestedRunId = run.id;
     setDiagnosisError(null);
     setDiagnosisSubmitting(true);
     try {
-      setDiagnosis(
-        await createDiagnosis(
-          run.id,
-          diagnosisMode,
-          diagnosisModel,
-          temporaryApiKey,
-          diagnosisMode === "mock" ? undefined : diagnosisProvider,
-        ),
+      const result = await createDiagnosis(
+        run.id,
+        diagnosisMode,
+        diagnosisModel,
+        temporaryApiKey,
+        diagnosisMode === "mock" ? undefined : diagnosisProvider,
       );
-    } catch {
-      console.error("结构化诊断生成失败");
-      setDiagnosisError("结构化诊断生成失败，请查看诊断运行状态");
+      if (displayedRunId.current !== requestedRunId) return;
+      if (result.status === "cancelled") {
+        setDiagnosisError("本次 AI 诊断已取消，已保留此前有效诊断结果");
+        void loadDiagnosisHistory();
+      } else {
+        setDiagnosis(result);
+      }
+    } catch (error) {
+      if (displayedRunId.current === requestedRunId) {
+        setDiagnosisError(
+          error instanceof Error ? error.message : "结构化诊断生成失败",
+        );
+      }
     } finally {
-      setDiagnosisSubmitting(false);
+      if (displayedRunId.current === requestedRunId) {
+        setDiagnosisSubmitting(false);
+      }
     }
   };
 
   const loadDiagnosisHistory = async () => {
+    const requestedRunId = run.id;
     try {
-      const history = await listDiagnoses(run.id);
-      setDiagnosis(history.at(-1) ?? null);
+      const history = await listDiagnoses(requestedRunId);
+      if (displayedRunId.current !== requestedRunId) return;
+      const latest = history.at(-1);
+      setDiagnosis(
+        latest?.status === "cancelled"
+          ? ([...history].reverse().find((item) => item.output) ?? latest)
+          : (latest ?? null),
+      );
     } catch {
-      console.error("诊断历史加载失败");
-      setDiagnosisError("诊断状态加载失败，请稍后重试");
+      if (displayedRunId.current === requestedRunId) {
+        console.error("诊断历史加载失败");
+        setDiagnosisError("诊断状态加载失败，请稍后重试");
+      }
     }
   };
 
   useEffect(() => {
     if (previousRunId.current === null) {
       previousRunId.current = run.id;
+      void loadDiagnosisHistory();
       return;
     }
     if (previousRunId.current === run.id) return;
     previousRunId.current = run.id;
     setDiagnosis(null);
     setDiagnosisError(null);
+    setDiagnosisSubmitting(false);
+    setActiveDiagnosis(null);
+    setDiagnosisStopping(false);
     void loadDiagnosisHistory();
   }, [run.id]);
+
+  // The backend owns the call lifecycle; re-entering this page only reads status.
+  useEffect(() => {
+    let alive = true;
+    let wasActive = false;
+    const refresh = async () => {
+      try {
+        const active = await getActiveAiInvocation();
+        if (!alive) return;
+        const forThisRun =
+          active?.operation_type === "diagnosis" &&
+          active.resource_id === run.id
+            ? active
+            : null;
+        setActiveDiagnosis(forThisRun);
+        setDiagnosisStopping(Boolean(forThisRun?.stopping));
+        if (wasActive && !forThisRun) {
+          const history = await listDiagnoses(run.id);
+          if (alive)
+            setDiagnosis(
+              [...history].reverse().find((item) => item.output) ??
+                history.at(-1) ??
+                null,
+            );
+        }
+        wasActive = Boolean(forThisRun);
+      } catch {
+        // A temporary polling failure must not create a new diagnosis.
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 1200);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [run.id]);
+
+  const stopDiagnosis = async () => {
+    if (
+      !activeDiagnosis ||
+      activeDiagnosis.resource_id !== run.id ||
+      diagnosisStopping
+    )
+      return;
+    setDiagnosisError(null);
+    setDiagnosisStopping(true);
+    try {
+      await cancelAiInvocation(activeDiagnosis.invocation_id);
+    } catch (error) {
+      setDiagnosisStopping(false);
+      setDiagnosisError(
+        error instanceof Error ? error.message : "停止诊断请求失败",
+      );
+    }
+  };
+
+  const currentDiagnosis =
+    activeDiagnosis?.resource_id === run.id ? activeDiagnosis : null;
 
   const submitAnchorReview = () => {
     onReviewAlignment(Object.values(anchorDrafts));
@@ -282,11 +376,27 @@ export function RunDetail({
             </h4>
             <button
               type="button"
-              disabled={diagnosisSubmitting}
+              disabled={diagnosisSubmitting || Boolean(currentDiagnosis)}
               onClick={() => void generateDiagnosis()}
             >
               生成 {diagnosisMode === "mock" ? "Mock" : "真实模型"} 诊断
             </button>
+            {currentDiagnosis && (
+              <>
+                <p role="status">
+                  {diagnosisStopping || currentDiagnosis.stopping
+                    ? "正在停止诊断"
+                    : "AI 诊断正在运行"}
+                </p>
+                <button
+                  type="button"
+                  disabled={diagnosisStopping || currentDiagnosis.stopping}
+                  onClick={() => void stopDiagnosis()}
+                >
+                  停止当前诊断
+                </button>
+              </>
+            )}
             <button type="button" onClick={() => void loadDiagnosisHistory()}>
               刷新诊断状态
             </button>

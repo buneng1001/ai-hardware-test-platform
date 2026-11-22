@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError
 
 from app.ai_config import save_request_logs, selected_snapshot_payload
+from app.ai_invocation import AiInvocationCancelled, AiInvocationLease, begin_invocation
 from app.database import open_database
 from app.run_models import (
     DiagnosisCause,
@@ -20,7 +21,7 @@ from app.run_models import (
     StructuredDiagnosis,
 )
 from app.runs import _get_run
-from app.settings import configured_api_key, current_settings, validate_model
+from app.settings import configured_api_key, validate_model
 from app.settings import get_provider_adapter as configured_provider_adapter
 from app.siliconflow import ModelErrorKind, SiliconFlowAdapter, SiliconFlowError
 
@@ -214,7 +215,12 @@ def list_diagnoses(run_id: int) -> list[DiagnosisRun]:
 
 def latest_diagnosis(run_id: int) -> DiagnosisRun | None:
     diagnoses = list_diagnoses(run_id)
-    return diagnoses[-1] if diagnoses else None
+    # A cancelled attempt is not a replacement for the last published result.
+    # Keep the cancelled attempt available in history, but preserve the report's
+    # last prior diagnosis (if any) instead of masking it with an empty output.
+    return next((item for item in reversed(diagnoses) if item.status != "cancelled"), None) or (
+        diagnoses[-1] if diagnoses else None
+    )
 
 
 def _save_diagnosis(
@@ -230,6 +236,7 @@ def _save_diagnosis(
     status_override: str | None = None,
     config_snapshot: dict[str, object] | None = None,
     error_detail: dict[str, object] | None = None,
+    lease: AiInvocationLease | None = None,
 ) -> DiagnosisRun:
     created_at = datetime.now(UTC)
     diagnosis_status = status_override or ("completed" if output else "failed")
@@ -256,6 +263,9 @@ def _save_diagnosis(
     )
     evaluation = evaluate_diagnosis(run, draft)
     with open_database() as connection:
+        if lease is not None:
+            connection.execute("BEGIN IMMEDIATE")
+            lease.assert_can_commit(connection)
         cursor = connection.execute(
             """INSERT INTO diagnosis_runs
             (run_id, status, model, prompt_version, is_mock, evidence_package, output,
@@ -314,80 +324,120 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
     if provider not in {"siliconflow", "deepseek", "kimi"}:
         raise HTTPException(status_code=422, detail="不支持的诊断模式")
 
-    settings = current_settings()
-    model = request.model or (settings.model if provider == settings.provider else "")
-    if not model:
-        raise HTTPException(status_code=422, detail=f"未选择 {provider} 模型")
-    validate_model(provider, model)
-    api_key = request.api_key or configured_api_key(provider)
-    adapter = get_provider_adapter(provider)
-    if hasattr(adapter, "network_mode"):
-        adapter.network_mode = str(config_snapshot.get("network_mode", "auto"))
+    # Mock diagnostics are deterministic and are not an AI business invocation.
+    # Real model diagnostics must acquire T03's global lease before any model request.
+    lease = begin_invocation(operation_type="diagnosis", resource_id=run_id)
+    config_snapshot = dict(lease.config_snapshot)
+    provider = str(config_snapshot["provider"])
+    model = str(config_snapshot["model"])
+    outcome = "failed"
+    adapter = None
     try:
-        raw_output = adapter.generate(
-            api_key=api_key,
-            model=model,
-            evidence_json=package.model_dump_json(),
-        )
-        output = validate_evidence_refs(
-            StructuredDiagnosis.model_validate(_unwrap_structured_output(raw_output)), package
-        )
-    except ValidationError:
-        logger.exception("AI 诊断输出结构校验失败")
-        schema_error = SiliconFlowError(
-            ModelErrorKind.SCHEMA_VALIDATION,
-            "模型输出不符合诊断结构",
-            False,
-            stage="diagnosis",
-            provider=provider,
-            model=model,
-        )
-        result = _save_diagnosis(
+        if request.provider is not None and request.provider != provider:
+            raise HTTPException(status_code=409, detail="诊断服务商与当前正式 AI 配置不一致")
+        if request.model is not None and request.model != model:
+            raise HTTPException(status_code=409, detail="诊断模型与当前正式 AI 配置不一致")
+        validate_model(provider, model)
+        # Only the selected, validated formal configuration is used for this invocation.
+        api_key = configured_api_key(provider)
+        if not api_key and request.api_key and config_snapshot["key_source"] == "temporary":
+            api_key = request.api_key
+        adapter = get_provider_adapter(provider)
+        if hasattr(adapter, "network_mode"):
+            adapter.network_mode = str(config_snapshot.get("network_mode", "auto"))
+
+        try:
+            raw_output = adapter.generate(
+                api_key=api_key,
+                model=model,
+                evidence_json=package.model_dump_json(),
+            )
+            # An already-cancelled request must not parse, validate or persist late output.
+            if lease.cancel_requested():
+                raise AiInvocationCancelled("诊断已取消")
+            output = validate_evidence_refs(
+                StructuredDiagnosis.model_validate(_unwrap_structured_output(raw_output)), package
+            )
+        except AiInvocationCancelled:
+            raise
+        except ValidationError:
+            logger.exception("AI 诊断输出结构校验失败")
+            schema_error = SiliconFlowError(
+                ModelErrorKind.SCHEMA_VALIDATION,
+                "模型输出不符合诊断结构",
+                False,
+                stage="diagnosis",
+                provider=provider,
+                model=model,
+            )
+            result = _save_diagnosis(
+                run_id,
+                package,
+                model=model,
+                provider=provider,
+                prompt_version=str(config_snapshot["prompt_version"]),
+                is_mock=False,
+                output=None,
+                error="invalid_response: 模型输出不符合诊断结构",
+                config_snapshot=config_snapshot,
+                error_detail=schema_error.to_dict(),
+                lease=lease,
+            )
+        except (SiliconFlowError, HTTPException) as error:
+            message = error.detail if isinstance(error, HTTPException) else str(error)
+            if isinstance(error, SiliconFlowError):
+                message = f"{error.kind}: {message}"
+            result = _save_diagnosis(
+                run_id,
+                package,
+                model=model,
+                provider=provider,
+                prompt_version=str(config_snapshot["prompt_version"]),
+                is_mock=False,
+                output=None,
+                error=message,
+                status_override="retryable" if isinstance(error, SiliconFlowError) and error.retryable else None,
+                config_snapshot=config_snapshot,
+                error_detail=error.to_dict() if isinstance(error, SiliconFlowError) else {},
+                lease=lease,
+            )
+        else:
+            result = _save_diagnosis(
+                run_id,
+                package,
+                model=model,
+                provider=provider,
+                prompt_version=str(config_snapshot["prompt_version"]),
+                is_mock=False,
+                output=output,
+                error=None,
+                config_snapshot=config_snapshot,
+                lease=lease,
+            )
+        outcome = "completed" if result.status == "completed" else "failed"
+        return result
+    except AiInvocationCancelled:
+        # Keep the prior diagnosis untouched; record the stopped attempt without AI output.
+        outcome = "cancelled"
+        return _save_diagnosis(
             run_id,
             package,
             model=model,
             provider=provider,
-            prompt_version="diagnosis-v1",
+            prompt_version=str(config_snapshot["prompt_version"]),
             is_mock=False,
             output=None,
-            error="invalid_response: 模型输出不符合诊断结构",
+            error="用户已取消诊断",
+            status_override="cancelled",
             config_snapshot=config_snapshot,
-            error_detail=schema_error.to_dict(),
         )
-        save_request_logs(getattr(adapter, "request_logs", []))
-        return result
-    except (SiliconFlowError, HTTPException) as error:
-        message = error.detail if isinstance(error, HTTPException) else str(error)
-        if isinstance(error, SiliconFlowError):
-            message = f"{error.kind}: {message}"
-        result = _save_diagnosis(
-            run_id,
-            package,
-            model=model,
-            provider=provider,
-            prompt_version="diagnosis-v1",
-            is_mock=False,
-            output=None,
-            error=message,
-            status_override="retryable" if isinstance(error, SiliconFlowError) and error.retryable else None,
-            config_snapshot=config_snapshot,
-            error_detail=error.to_dict() if isinstance(error, SiliconFlowError) else {},
-        )
-        save_request_logs(getattr(adapter, "request_logs", []))
-        return result
-    result = _save_diagnosis(
-        run_id,
-        package,
-        model=model,
-        provider=provider,
-        prompt_version="diagnosis-v1",
-        is_mock=False,
-        output=output,
-        error=None,
-        config_snapshot=config_snapshot,
-    )
-    save_request_logs(getattr(adapter, "request_logs", []))
-    return result
+    finally:
+        try:
+            if adapter is not None:
+                save_request_logs(getattr(adapter, "request_logs", []))
+        finally:
+            # Even if request-log persistence fails, the global lease is released.
+            lease.finish(outcome)
 
 
 @router.get("", response_model=list[DiagnosisRun])

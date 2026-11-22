@@ -24,6 +24,34 @@ def wait_for_completion(client, run_id: int) -> dict:
     raise AssertionError(f"运行 #{run_id} 未在 10 秒内完成")
 
 
+def enable_formal_ai(client, monkeypatch, *, provider="siliconflow", model="demo-model"):
+    """Historical real-model contract tests now satisfy T02/T03 admission first."""
+
+    class Verifier:
+        def check_connection(self, **_kwargs):
+            return None
+
+    monkeypatch.setattr("app.settings.get_provider_adapter", lambda _: Verifier())
+    config = client.post(
+        "/api/settings/ai/config",
+        json={"provider": provider, "model": model, "key_source": "temporary", "network_mode": "auto"},
+    )
+    assert config.status_code == 200, config.text
+    verified = client.post(
+        "/api/settings/ai/test",
+        json={
+            "provider": provider,
+            "model": model,
+            "key_source": "temporary",
+            "network_mode": "auto",
+            "api_key": "session-secret",
+        },
+    )
+    assert verified.status_code == 200 and verified.json()["ok"], verified.text
+    enabled = client.put("/api/settings/ai/state", json={"enabled": True})
+    assert enabled.status_code == 200 and enabled.json()["enabled"], enabled.text
+
+
 def test_adapter_returns_structured_json_from_openai_compatible_response():
     def transport(_request):
         return 200, json.dumps({"choices": [{"message": {"content": '{"diagnosis_status":"completed"}'}}]})
@@ -203,6 +231,7 @@ def test_diagnosis_accepts_allowed_structured_wrapper_and_saves_provider(tmp_pat
 
     monkeypatch.setattr(diagnosis_module, "get_provider_adapter", lambda _provider: FakeAdapter())
     with TestClient(app) as client:
+        enable_formal_ai(client, monkeypatch, provider="kimi", model="moonshot-v1-8k")
         task = client.post(
             "/api/collection-tasks", json={"name": "包装诊断", "mode": "quick", "scenario": "normal"}
         ).json()
@@ -265,6 +294,7 @@ def test_real_diagnosis_is_saved_separately_and_accepts_structured_output(tmp_pa
 
     monkeypatch.setattr(diagnosis_module, "SiliconFlowAdapter", FakeAdapter)
     with TestClient(app) as client:
+        enable_formal_ai(client, monkeypatch, provider="siliconflow", model="demo-model")
         task = client.post(
             "/api/collection-tasks",
             json={"name": "真实诊断契约", "mode": "quick", "scenario": "normal"},
@@ -292,6 +322,7 @@ def test_model_failure_is_saved_without_blocking_original_run(tmp_path, monkeypa
 
     monkeypatch.setattr(diagnosis_module, "SiliconFlowAdapter", FailingAdapter)
     with TestClient(app) as client:
+        enable_formal_ai(client, monkeypatch, provider="siliconflow", model="demo-model")
         task = client.post(
             "/api/collection-tasks",
             json={"name": "降级诊断", "mode": "quick", "scenario": "normal"},

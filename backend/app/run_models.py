@@ -323,7 +323,7 @@ class AiEvaluationResult(BaseModel):
 class DiagnosisRun(BaseModel):
     id: int
     run_id: int
-    status: Literal["pending", "generating", "completed", "failed", "retryable"]
+    status: Literal["pending", "generating", "completed", "failed", "retryable", "cancelled"]
     model: str
     provider: str = "siliconflow"
     prompt_version: str
