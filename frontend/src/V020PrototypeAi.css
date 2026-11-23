@@ -214,3 +214,41 @@
   background: transparent !important;
   box-shadow: none !important;
 }
+
+.prototype-ai-stop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(12 24 38 / 48%);
+}
+.prototype-ai-stop-dialog {
+  width: min(100%, 480px);
+  padding: 28px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 18px;
+  background: var(--prototype-color-surface);
+  color: var(--prototype-color-text);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 22%);
+}
+.prototype-ai-stop-dialog h2 {
+  margin: 0 0 18px;
+  font-size: 1.25rem;
+}
+.prototype-ai-stop-dialog p {
+  line-height: 1.6;
+}
+.prototype-ai-stop-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+.prototype-ai-stop-actions button {
+  min-height: 42px;
+}
+.prototype-ai-stop-actions button:first-child {
+  background: #b42318;
+  color: white;
+}

@@ -54,14 +54,25 @@ class AiInvocationSummary(BaseModel):
     config_fingerprint: str
     execution_mode: ExecutionMode
     input_fingerprint: str | None
+    project_name: str | None = None
 
 
 class ActiveInvocationResponse(BaseModel):
     active: AiInvocationSummary | None
 
 
+class StopAndDisableResponse(BaseModel):
+    active: AiInvocationSummary | None
+    enabled: bool
+
+
 def _active_row(connection: sqlite3.Connection) -> sqlite3.Row | None:
-    return connection.execute("SELECT * FROM ai_active_invocation WHERE id = 1 AND status = 'running'").fetchone()
+    return connection.execute(
+        """SELECT invocation.*, projects.name AS project_name
+           FROM ai_active_invocation invocation
+           LEFT JOIN projects ON projects.id = invocation.project_id
+           WHERE invocation.id = 1 AND invocation.status = 'running'"""
+    ).fetchone()
 
 
 def _summary(row: sqlite3.Row) -> AiInvocationSummary:
@@ -78,6 +89,7 @@ def _summary(row: sqlite3.Row) -> AiInvocationSummary:
         config_fingerprint=row["config_fingerprint"],
         execution_mode=row["execution_mode"],
         input_fingerprint=row["input_fingerprint"],
+        project_name=row["project_name"],
     )
 
 
@@ -157,18 +169,19 @@ def begin_invocation(
                 status, started_at, cancel_requested_at, finished_at,
                 config_fingerprint, execution_mode, input_fingerprint)
                VALUES (1, ?, ?, ?, ?, 'running', ?, NULL, NULL, ?, ?, ?)
-               ON CONFLICT(id) DO UPDATE SET
-                invocation_id = excluded.invocation_id,
-                operation_type = excluded.operation_type,
-                project_id = excluded.project_id,
-                resource_id = excluded.resource_id,
-                status = excluded.status,
-                started_at = excluded.started_at,
-                cancel_requested_at = NULL,
-                finished_at = NULL,
-                config_fingerprint = excluded.config_fingerprint,
-                execution_mode = excluded.execution_mode,
-                input_fingerprint = excluded.input_fingerprint""",
+                ON CONFLICT(id) DO UPDATE SET
+                 invocation_id = excluded.invocation_id,
+                 operation_type = excluded.operation_type,
+                 project_id = excluded.project_id,
+                 resource_id = excluded.resource_id,
+                 status = excluded.status,
+                 started_at = excluded.started_at,
+                 cancel_requested_at = NULL,
+                 finished_at = NULL,
+                 config_fingerprint = excluded.config_fingerprint,
+                 execution_mode = excluded.execution_mode,
+                 input_fingerprint = excluded.input_fingerprint,
+                 disable_global_after_finish = 0""",
             (
                 invocation_id,
                 operation_type,
@@ -275,18 +288,31 @@ def finish_invocation(invocation_id: str, *, status: Literal["completed", "faile
                WHERE invocation_id = ? AND status = 'running'""",
             (final_status, _now(), invocation_id),
         )
+        if row["disable_global_after_finish"]:
+            connection.execute(
+                "UPDATE ai_global_state SET enabled = 0, updated_at = ? WHERE id = 1",
+                (_now(),),
+            )
         return final_status
 
 
 def recover_interrupted_invocations() -> int:
-    """仅在后端启动时调用；不自动重试、不修改全局开关。"""
+    """仅在后端启动时调用；不自动重试；已确认停止的调用恢复时关闭全局 AI。"""
     with open_database() as connection:
         connection.execute("BEGIN IMMEDIATE")
+        pending_disable = connection.execute(
+            "SELECT disable_global_after_finish FROM ai_active_invocation WHERE id = 1 AND status = 'running'"
+        ).fetchone()
         cursor = connection.execute(
             """UPDATE ai_active_invocation SET status = 'interrupted', finished_at = ?
                WHERE id = 1 AND status = 'running'""",
             (_now(),),
         )
+        if pending_disable is not None and pending_disable["disable_global_after_finish"]:
+            connection.execute(
+                "UPDATE ai_global_state SET enabled = 0, updated_at = ? WHERE id = 1",
+                (_now(),),
+            )
         connection.execute(
             """UPDATE ai_batch_runs SET status = 'interrupted', finished_at = ?
                WHERE status = 'running'""",
@@ -317,3 +343,27 @@ def request_invocation_cancel(invocation_id: str) -> AiInvocationSummary:
             )
         row = _active_row(connection)
         return _summary(row)
+
+
+@router.post("/invocations/{invocation_id}/stop-and-disable", response_model=StopAndDisableResponse)
+def stop_invocation_and_disable(invocation_id: str) -> StopAndDisableResponse:
+    """请求取消当前调用，并在原调用完成本地收尾时原子关闭全局 AI。"""
+    with open_database() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = _active_row(connection)
+        if row is None:
+            connection.execute(
+                "UPDATE ai_global_state SET enabled = 0, updated_at = ? WHERE id = 1",
+                (_now(),),
+            )
+            return StopAndDisableResponse(active=None, enabled=False)
+        if row["invocation_id"] != invocation_id:
+            raise HTTPException(status_code=409, detail="当前 AI 调用已变化，请重新确认")
+        connection.execute(
+            """UPDATE ai_active_invocation
+               SET disable_global_after_finish = 1,
+                   cancel_requested_at = COALESCE(cancel_requested_at, ?)
+               WHERE id = 1""",
+            (_now(),),
+        )
+        return StopAndDisableResponse(active=_summary(_active_row(connection)), enabled=True)

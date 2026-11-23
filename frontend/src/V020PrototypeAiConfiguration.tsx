@@ -33,6 +33,10 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
     clearTemporaryKey,
     chooseAccessMode,
     saveConfiguration,
+    saveConflict,
+    stoppingForSave,
+    stopForConfigurationSave,
+    cancelConfigurationSave,
     validateConnectionConfiguration,
     refreshModelCatalog,
   } = usePrototypeAiConfiguration();
@@ -257,6 +261,58 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
       >
         保存 AI 配置
       </button>
+      {saveConflict && (
+        <div className="prototype-ai-stop-backdrop" role="presentation">
+          <section
+            className="prototype-ai-stop-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="prototype-ai-save-conflict-title"
+          >
+            <h2 id="prototype-ai-save-conflict-title">
+              当前有 AI 任务正在运行
+            </h2>
+            <p>
+              修改正式配置可能影响当前调用。业务操作：
+              <strong>{saveConflict.display_name}</strong>
+            </p>
+            <p>
+              所属项目：
+              <strong>
+                {saveConflict.project_name ||
+                  (saveConflict.project_id
+                    ? `项目 #${saveConflict.project_id}`
+                    : "未关联项目")}
+              </strong>
+            </p>
+            {saveConflict.resource_id !== null && (
+              <p>
+                关联对象编号：<strong>#{saveConflict.resource_id}</strong>
+              </p>
+            )}
+            {stoppingForSave && (
+              <p role="status">正在停止，等待本地请求结束及结果收尾…</p>
+            )}
+            <div className="prototype-ai-stop-actions">
+              <button
+                type="button"
+                disabled={stoppingForSave}
+                onClick={() => void stopForConfigurationSave()}
+              >
+                {stoppingForSave ? "正在停止…" : "停止当前的AI运行"}
+              </button>
+              <button
+                type="button"
+                className="prototype-secondary"
+                disabled={stoppingForSave}
+                onClick={cancelConfigurationSave}
+              >
+                取消本次配置修改
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <button className="prototype-ai-skip" type="button" onClick={onSkip}>
         暂不配置，进入平台
       </button>
