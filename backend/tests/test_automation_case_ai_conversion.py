@@ -5,6 +5,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
+from app import settings as settings_module
+from app.ai_invocation import OCCUPIED_MESSAGE, begin_invocation
 from app.main import app
 
 
@@ -50,7 +52,35 @@ class DecisionAdapter:
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("SILICONFLOW_API_KEY", "test-key")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+
+    class VerificationAdapter:
+        def check_connection(self, **_kwargs):
+            return None
+
+    monkeypatch.setattr(settings_module, "get_provider_adapter", lambda _provider: VerificationAdapter())
     with TestClient(app) as test_client:
+        assert (
+            test_client.post(
+                "/api/settings/ai/config",
+                json={
+                    "provider": "deepseek",
+                    "model": "deepseek-flash",
+                    "key_source": "environment",
+                    "network_mode": "auto",
+                },
+            ).status_code
+            == 200
+        )
+        assert test_client.post(
+            "/api/settings/ai/test",
+            json={
+                "provider": "deepseek",
+                "model": "deepseek-flash",
+                "key_source": "environment",
+            },
+        ).json()["ok"]
+        assert test_client.put("/api/settings/ai/state", json={"enabled": True}).json()["enabled"]
         yield test_client
 
 
@@ -130,6 +160,7 @@ def test_ai_conversion_is_idempotent_for_already_converted_cases(client, monkeyp
 
 
 def test_ai_conversion_requires_configured_key(client, monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("SILICONFLOW_API_KEY", raising=False)
     version_id = create_version_with_source_cases(client)
 
@@ -219,3 +250,107 @@ def test_ai_conversion_mode_all_rejudges_existing_candidates(client, monkeypatch
     assert rejudged["removed_count"] == 1
     listed = client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"]
     assert [item["source_case_number"] for item in listed] == ["REC-001"]
+
+
+def test_ai_disabled_rejects_model_but_allows_rules(client, monkeypatch):
+    adapter = DecisionAdapter()
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: adapter)
+    version_id = create_version_with_source_cases(client)
+    assert client.put("/api/settings/ai/state", json={"enabled": False}).status_code == 200
+    blocked = client.post(f"/api/product-versions/{version_id}/automation-test-case-conversions/ai", json={})
+    assert blocked.status_code == 409
+    assert adapter.calls == 0
+    rules = client.post(f"/api/product-versions/{version_id}/automation-test-case-conversions/rules")
+    assert rules.status_code == 201
+    assert rules.json()["created_count"] == 2
+
+
+def test_ai_conversion_cancel_keeps_committed_batches_and_discards_late_result(client, monkeypatch):
+    from app.ai_batching import BatchConfig
+    from app.ai_invocation import get_active_invocation, request_invocation_cancel
+
+    version_id = create_version_with_source_cases(client)
+    monkeypatch.setattr("app.automation_conversion_ai.batch_config", lambda: BatchConfig(cases_per_batch=1))
+
+    class CancellingAdapter(DecisionAdapter):
+        def generate_json(self, **kwargs):
+            if self.calls == 1:
+                active = get_active_invocation().active
+                assert active is not None
+                assert active.operation_type == "automation_conversion"
+                request_invocation_cancel(active.invocation_id)
+                # Cancel occurs while the second model response is in flight.
+            return super().generate_json(**kwargs)
+
+    adapter = CancellingAdapter()
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: adapter)
+    response = client.post(
+        f"/api/product-versions/{version_id}/automation-test-case-conversions/ai", json={"mode": "all"}
+    )
+    assert response.status_code == 409
+    assert "取消" in response.json()["detail"]
+    assert adapter.calls == 2
+    assert get_active_invocation().active is None
+    from app.database import open_database
+
+    with open_database() as connection:
+        stored = connection.execute(
+            "SELECT ai_decision FROM source_test_cases WHERE product_version_id = ? ORDER BY id",
+            (version_id,),
+        ).fetchall()
+    # First complete batch is durable; second, cancelled batch never writes.
+    assert [row["ai_decision"] for row in stored] == ["automation", ""]
+
+
+def test_ai_conversion_freezes_context_and_fingerprint_between_runs(client, monkeypatch):
+    from app.ai_invocation import get_active_invocation
+
+    version_id = create_version_with_source_cases(client)
+    assert client.patch(f"/api/product-versions/{version_id}", json={"ai_context": "旧版说明"}).status_code == 200
+    fingerprints = []
+    contexts = []
+
+    class SnapshotAdapter(DecisionAdapter):
+        def generate_json(self, **kwargs):
+            evidence = json.loads(kwargs["evidence_json"])
+            contexts.append(evidence["ai_context"])
+            fingerprints.append(get_active_invocation().active.input_fingerprint)
+            if self.calls == 0:
+                # Saving a new version context mid-run must not mutate later batches.
+                assert (
+                    client.patch(f"/api/product-versions/{version_id}", json={"ai_context": "新版说明"}).status_code
+                    == 200
+                )
+            return super().generate_json(**kwargs)
+
+    monkeypatch.setattr(
+        "app.automation_conversion_ai.batch_config",
+        lambda: __import__("app.ai_batching", fromlist=["BatchConfig"]).BatchConfig(cases_per_batch=1),
+    )
+    adapter = SnapshotAdapter()
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: adapter)
+    first = client.post(f"/api/product-versions/{version_id}/automation-test-case-conversions/ai", json={"mode": "all"})
+    assert first.status_code == 201
+    assert contexts == ["旧版说明", "旧版说明"]
+    assert fingerprints[0] == fingerprints[1]
+
+    second = client.post(
+        f"/api/product-versions/{version_id}/automation-test-case-conversions/ai", json={"mode": "all"}
+    )
+    assert second.status_code == 201
+    assert contexts[2:] == ["新版说明", "新版说明"]
+    assert fingerprints[2] != fingerprints[0]
+
+
+def test_ai_conversion_cross_project_occupancy(client, monkeypatch):
+    adapter = DecisionAdapter()
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: adapter)
+    version_id = create_version_with_source_cases(client)
+    lease = begin_invocation(operation_type="diagnosis", project_id=999)
+    try:
+        blocked = client.post(f"/api/product-versions/{version_id}/automation-test-case-conversions/ai", json={})
+        assert blocked.status_code == 409
+        assert blocked.json()["detail"] == OCCUPIED_MESSAGE
+        assert adapter.calls == 0
+    finally:
+        lease.finish("completed")
