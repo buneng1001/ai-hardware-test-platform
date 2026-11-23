@@ -19,7 +19,13 @@ export type AiEvaluationResult = {
 export type DiagnosisRun = {
   id: number;
   run_id: number;
-  status: "pending" | "generating" | "completed" | "failed" | "retryable";
+  status:
+    | "pending"
+    | "generating"
+    | "completed"
+    | "failed"
+    | "retryable"
+    | "cancelled";
   model: string;
   prompt_version: string;
   is_mock: boolean;
@@ -85,6 +91,34 @@ export async function createDiagnosis(
       ...(provider && { provider }),
     }),
   });
-  if (!response.ok) throw new Error("结构化诊断生成失败");
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as {
+      detail?: string;
+    };
+    throw new Error(body.detail ?? "结构化诊断生成失败");
+  }
   return (await response.json()) as DiagnosisRun;
+}
+
+export type ActiveAiInvocation = {
+  invocation_id: string;
+  operation_type: string;
+  resource_id: number | null;
+  status: "running";
+  stopping: boolean;
+};
+
+export async function getActiveAiInvocation(): Promise<ActiveAiInvocation | null> {
+  const response = await fetch("/api/settings/ai/active-invocation");
+  if (!response.ok) throw new Error("AI 运行状态加载失败");
+  const body = (await response.json()) as { active: ActiveAiInvocation | null };
+  return body.active;
+}
+
+export async function cancelAiInvocation(invocationId: string): Promise<void> {
+  const response = await fetch(
+    `/api/settings/ai/invocations/${encodeURIComponent(invocationId)}/cancel`,
+    { method: "POST" },
+  );
+  if (!response.ok) throw new Error("停止诊断请求失败");
 }

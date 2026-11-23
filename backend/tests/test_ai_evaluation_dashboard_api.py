@@ -3,7 +3,10 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from app import diagnosis as diagnosis_module
+from app import settings as settings_module
 from app.main import app
+from app.siliconflow import ModelErrorKind, SiliconFlowError
 
 
 def wait_for_completion(client: TestClient, run_id: int) -> dict:
@@ -69,12 +72,47 @@ def test_normal_diagnosis_is_not_assigned_a_fault_and_empty_dashboard_is_safe(tm
 def test_failed_diagnosis_is_visible_without_changing_run_status(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
 
+    class VerificationAdapter:
+        def check_connection(self, **_kwargs):
+            return None
+
+    class FailingDiagnosisAdapter:
+        def generate(self, **_kwargs):
+            raise SiliconFlowError(ModelErrorKind.AUTHENTICATION, "模型认证失败", False)
+
     with TestClient(app) as client:
+        config = client.post(
+            "/api/settings/ai/config",
+            json={
+                "provider": "siliconflow",
+                "model": "demo-model",
+                "key_source": "temporary",
+                "network_mode": "auto",
+            },
+        )
+        assert config.status_code == 200, config.text
+        monkeypatch.setattr(settings_module, "get_provider_adapter", lambda _provider: VerificationAdapter())
+        verified = client.post(
+            "/api/settings/ai/test",
+            json={
+                "provider": "siliconflow",
+                "model": "demo-model",
+                "key_source": "temporary",
+                "api_key": "test-only-key",
+            },
+        )
+        assert verified.status_code == 200 and verified.json()["ok"], verified.text
+        enabled = client.put("/api/settings/ai/state", json={"enabled": True})
+        assert enabled.status_code == 200 and enabled.json()["enabled"], enabled.text
+
+        monkeypatch.setattr(diagnosis_module, "get_provider_adapter", lambda _provider: FailingDiagnosisAdapter())
         run = create_run(client, "storage_exhaustion")
-        failed = client.post(
+        response = client.post(
             f"/api/runs/{run['id']}/diagnoses",
-            json={"mode": "siliconflow", "api_key": "missing"},
-        ).json()
+            json={"mode": "siliconflow", "api_key": "test-only-key"},
+        )
+        assert response.status_code == 201, response.text
+        failed = response.json()
         dashboard = client.get("/api/dashboard").json()
         after = client.get(f"/api/runs/{run['id']}").json()
 

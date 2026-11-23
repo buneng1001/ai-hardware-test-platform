@@ -220,6 +220,24 @@ def test_ai_run_freezes_saved_config_snapshot(tmp_path, monkeypatch):
     client.__enter__()
     saved = _save_deepseek_config(client)
 
+    class Verifier:
+        def check_connection(self, **kwargs):
+            return None
+
+    monkeypatch.setattr(settings_module, "get_provider_adapter", lambda _: Verifier())
+    verified = client.post(
+        "/api/settings/ai/test",
+        json={
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "key_source": "environment",
+            "api_key": "temporary-secret",
+        },
+    )
+    assert verified.status_code == 200 and verified.json()["ok"], verified.text
+    enabled = client.put("/api/settings/ai/state", json={"enabled": True})
+    assert enabled.status_code == 200 and enabled.json()["enabled"], enabled.text
+
     class FakeAdapter:
         def generate(self, *, api_key, model, evidence_json):
             return {
@@ -233,7 +251,7 @@ def test_ai_run_freezes_saved_config_snapshot(tmp_path, monkeypatch):
                 "limitations": [],
             }
 
-    monkeypatch.setattr(diagnosis_module, "SiliconFlowAdapter", FakeAdapter)
+    monkeypatch.setattr(diagnosis_module, "get_provider_adapter", lambda _provider: FakeAdapter())
     task = client.post(
         "/api/collection-tasks",
         json={"name": "配置快照诊断", "mode": "quick", "scenario": "normal"},
