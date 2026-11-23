@@ -178,6 +178,7 @@ export function convertSourceTestCasesWithAi(
   mode: "missing" | "all" | "selected" = "missing",
   repeatConfirmed = false,
   overwritePrevious = false,
+  resumeChoice: "continue" | "restart" | null = null,
 ) {
   return request<AutomationCaseAiConversionBatch>(
     `/api/product-versions/${versionId}/automation-test-case-conversions/ai`,
@@ -190,6 +191,7 @@ export function convertSourceTestCasesWithAi(
         source_case_ids: sourceCaseIds,
         repeat_confirmed: repeatConfirmed,
         overwrite_previous: overwritePrevious,
+        resume_choice: resumeChoice,
       }),
     },
   );

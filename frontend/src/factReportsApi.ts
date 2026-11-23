@@ -181,6 +181,7 @@ export function createFactReport(
 
 export function getFactReportRepeatInfo(reportId: number) {
   return request<{
+    resume_available?: boolean;
     same_input: boolean;
     has_previous: boolean;
     running_same_operation: boolean;
@@ -192,8 +193,15 @@ export function retryFactReportAnalysis(
   reportId: number,
   force = false,
   overwrite = false,
+  resumeChoice?: "continue" | "restart",
 ) {
-  const suffix = force ? `?force=true&overwrite_previous=${overwrite}` : "";
+  const params = new URLSearchParams();
+  if (force) {
+    params.set("force", "true");
+    params.set("overwrite_previous", String(overwrite));
+  }
+  if (resumeChoice) params.set("resume_choice", resumeChoice);
+  const suffix = params.size ? `?${params.toString()}` : "";
   return request<ReportAnalysis>(
     `/api/fact-reports/${reportId}/analysis${suffix}`,
     { method: "POST" },

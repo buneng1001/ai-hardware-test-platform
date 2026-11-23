@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 40
+LATEST_SCHEMA_VERSION = 41
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -1081,6 +1081,39 @@ def migrate_database(connection: sqlite3.Connection) -> None:
                 ON ai_conversion_runs(product_version_id, fingerprint, status, is_visible);
             INSERT OR IGNORE INTO schema_migrations (version) VALUES (40);
             PRAGMA user_version = 40;
+            """
+        )
+
+    if current_version < 41:
+        # T08: business-scoped, immutable invocation checkpoints. No global queue or prompt storage.
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS ai_batch_runs (
+                invocation_id TEXT PRIMARY KEY,
+                operation_type TEXT NOT NULL,
+                resource_id INTEGER NOT NULL,
+                input_fingerprint TEXT NOT NULL,
+                config_fingerprint TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN (
+                    'running', 'completed', 'failed', 'cancelled', 'interrupted'
+                )),
+                resumed_from_invocation_id TEXT,
+                plan_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                finished_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_batch_runs_resume
+                ON ai_batch_runs(operation_type, resource_id, status, created_at);
+            CREATE TABLE IF NOT EXISTS ai_batch_units (
+                invocation_id TEXT NOT NULL REFERENCES ai_batch_runs(invocation_id),
+                batch_key TEXT NOT NULL,
+                batch_index INTEGER NOT NULL,
+                output_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(invocation_id, batch_key)
+            );
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (41);
+            PRAGMA user_version = 41;
             """
         )
 

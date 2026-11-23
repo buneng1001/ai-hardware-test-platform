@@ -44,9 +44,13 @@ export function V020ReportPreviewDialog({
   busy: boolean;
   onBack: () => void;
   onClose: () => void;
-  onRetryAnalysis: () => void;
-  onRerunAnalysis: (overwrite: boolean) => void;
+  onRetryAnalysis: (resumeChoice?: "continue" | "restart") => void;
+  onRerunAnalysis: (
+    overwrite: boolean,
+    resumeChoice?: "continue" | "restart",
+  ) => void;
   onCheckRepeat: () => Promise<{
+    resume_available?: boolean;
     same_input: boolean;
     has_previous: boolean;
     running_same_operation: boolean;

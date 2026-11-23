@@ -188,6 +188,17 @@ export function stubReportApi(state: ReportStubState) {
         }
         return jsonResponse({ cancel_requested: true, stopping: true });
       }
+      if (
+        /^\/api\/fact-reports\/\d+\/analysis\/repeat-info$/.test(url) &&
+        method === "GET"
+      ) {
+        return jsonResponse({
+          same_input: false,
+          has_previous: false,
+          running_same_operation: false,
+          occupied_other: false,
+        });
+      }
       const analysisMatch = url.match(/^\/api\/fact-reports\/(\d+)\/analysis$/);
       if (analysisMatch && method === "POST") {
         const reportId = Number(analysisMatch[1]);

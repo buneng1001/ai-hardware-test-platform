@@ -23,9 +23,10 @@ export function V020ReportAnalysisSection({
 }: {
   report: FactReport;
   busy: boolean;
-  onRetry: () => void;
-  onRerun: (overwrite: boolean) => void;
+  onRetry: (resumeChoice?: "continue" | "restart") => void;
+  onRerun: (overwrite: boolean, resumeChoice?: "continue" | "restart") => void;
   onCheckRepeat: () => Promise<{
+    resume_available?: boolean;
     same_input: boolean;
     has_previous: boolean;
     running_same_operation: boolean;
@@ -43,11 +44,38 @@ export function V020ReportAnalysisSection({
   const [rerunStopsCurrent, setRerunStopsCurrent] = useState(false);
   const [checkingRepeat, setCheckingRepeat] = useState(false);
   const [repeatError, setRepeatError] = useState<string | null>(null);
+  const [resumeIntent, setResumeIntent] = useState<"retry" | "rerun" | null>(
+    null,
+  );
+  const [resumeAvailable, setResumeAvailable] = useState(false);
+  const [resumeOverwrite, setResumeOverwrite] = useState(false);
+  const beginRetry = async () => {
+    setRepeatError(null);
+    setCheckingRepeat(true);
+    try {
+      const info = await onCheckRepeat();
+      if (info.occupied_other) {
+        setRepeatError("当前有功能正在占用 AI，请稍后再试。");
+      } else if (info.resume_available) {
+        setResumeIntent("retry");
+      } else {
+        onRetry();
+      }
+    } catch (error) {
+      setRepeatError(
+        error instanceof Error ? error.message : "续做条件检查失败",
+      );
+    } finally {
+      setCheckingRepeat(false);
+    }
+  };
+
   const beginRerun = async () => {
     setRepeatError(null);
     setCheckingRepeat(true);
     try {
       const info = await onCheckRepeat();
+      setResumeAvailable(Boolean(info.resume_available));
       if (info.occupied_other) {
         setRepeatError("当前有功能正在占用 AI，请稍后再试。");
         return;
@@ -57,6 +85,9 @@ export function V020ReportAnalysisSection({
         setHasPriorResult(info.has_previous);
         setRerunStopsCurrent(info.running_same_operation);
         setConfirmRepeat(true);
+      } else if (info.resume_available) {
+        setResumeIntent("rerun");
+        setResumeOverwrite(false);
       } else {
         onRerun(false);
       }
@@ -155,8 +186,8 @@ export function V020ReportAnalysisSection({
         )}
         <button
           className="prototype-secondary"
-          disabled={busy || analysis.status === "pending"}
-          onClick={onRetry}
+          disabled={busy || checkingRepeat || analysis.status === "pending"}
+          onClick={() => void beginRetry()}
           type="button"
         >
           重试报告分析
@@ -202,12 +233,55 @@ export function V020ReportAnalysisSection({
               type="button"
               onClick={() => {
                 setConfirmRepeat(false);
-                onRerun(overwrite);
+                if (resumeAvailable) {
+                  setResumeOverwrite(overwrite);
+                  setResumeIntent("rerun");
+                } else {
+                  onRerun(overwrite);
+                }
               }}
             >
               重新执行
             </button>
             <button type="button" onClick={() => setConfirmRepeat(false)}>
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+      {resumeIntent !== null && (
+        <div
+          role="dialog"
+          aria-label="报告 AI 分批续做"
+          className="prototype-inline-note"
+        >
+          <p>
+            上一次 AI 分析未完成，但存在已保存的有效检查点。请选择如何处理：
+          </p>
+          <div className="prototype-actions">
+            <button
+              type="button"
+              onClick={() => {
+                const intent = resumeIntent;
+                setResumeIntent(null);
+                if (intent === "retry") onRetry("continue");
+                else onRerun(resumeOverwrite, "continue");
+              }}
+            >
+              继续进行
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const intent = resumeIntent;
+                setResumeIntent(null);
+                if (intent === "retry") onRetry("restart");
+                else onRerun(resumeOverwrite, "restart");
+              }}
+            >
+              重新运行
+            </button>
+            <button type="button" onClick={() => setResumeIntent(null)}>
               取消
             </button>
           </div>

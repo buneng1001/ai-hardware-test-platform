@@ -11,11 +11,11 @@ from pydantic import ValidationError
 from app.ai_batching import (
     DatabaseCheckpoints,
     batch_config,
-    input_fingerprint,
     preflight_budget,
     run_fingerprint,
     semantic_batches,
 )
+from app.ai_checkpoint_resume import resume_source, save_plan
 from app.ai_config import save_request_logs, selected_snapshot_payload
 from app.ai_global_state import _read_state
 from app.ai_invocation import (
@@ -260,10 +260,11 @@ def _run_batched_analysis(
     adapter,
     config,
     lease: AiInvocationLease,
+    resumed_from: str | None = None,
 ) -> ReportAnalysisOutput:
     """多批分析：按模块/记录切批，截断二分，检查点恢复。"""
     adapter.max_calls = config.call_limit
-    fingerprint = input_fingerprint(analysis_input, str(lease.config_snapshot["fingerprint"]), model)
+    fingerprint = run_fingerprint(analysis_input, dict(lease.config_snapshot), model, "report-analysis-batch-v1")
 
     def call_model(batch: dict[str, object]) -> dict[str, object]:
         if lease.cancel_requested():
@@ -293,7 +294,7 @@ def _run_batched_analysis(
         semantic_batches(analysis_input, config),
         call_model=call_model,
         valid_refs=valid_refs,
-        checkpoints=DatabaseCheckpoints(report_id, fingerprint, lease=lease),
+        checkpoints=DatabaseCheckpoints(report_id, fingerprint, lease=lease, resumed_from=resumed_from),
         config=config,
         cancel_event=ensure_active,
     )
@@ -388,6 +389,7 @@ def _perform_analysis(
     model: str,
     api_key: str,
     is_mock: bool,
+    resumed_from: str | None = None,
 ) -> ReportAnalysis:
     config_snapshot = dict(lease.config_snapshot)
     fingerprint = run_fingerprint(analysis_input, config_snapshot, model, "report-analysis-v1")
@@ -434,6 +436,7 @@ def _perform_analysis(
                 adapter=adapter,
                 config=config,
                 lease=lease,
+                resumed_from=resumed_from,
             )
         else:
             preflight_budget(json.dumps(analysis_input, ensure_ascii=False), config)
@@ -532,12 +535,21 @@ def _perform_analysis(
     return _save(connection, report_id, analysis_input, output=output, error=None, **save_options)
 
 
+def _resume_plan() -> dict[str, int]:
+    config = batch_config()
+    return {
+        "modules_per_batch": config.modules_per_batch,
+        "records_per_batch": config.records_per_batch,
+    }
+
+
 def run_analysis(
     connection: sqlite3.Connection,
     report_id: int,
     *,
     force: bool = False,
     overwrite_previous: bool = False,
+    resume_choice: str | None = None,
 ) -> ReportAnalysis:
     analysis_input, valid_refs, project_id = _report_analysis_input(connection, report_id)
     configuration = _configuration()
@@ -545,12 +557,28 @@ def run_analysis(
         return _not_enabled()
     provider, model, api_key, is_mock = configuration
     proposed = selected_snapshot_payload()
+    model_fingerprint = run_fingerprint(analysis_input, proposed, model, "report-analysis-batch-v1")
+    eligible = resume_source(
+        "report_analysis",
+        report_id,
+        model_fingerprint,
+        str(proposed.get("fingerprint", provider)),
+        expected_plan=_resume_plan(),
+    )
+    if eligible and resume_choice not in ("continue", "restart"):
+        raise HTTPException(status_code=409, detail="存在有效检查点，请选择继续进行、重新运行或取消")
+    if resume_choice not in (None, "continue", "restart"):
+        raise HTTPException(status_code=422, detail="续做选项无效")
+    if resume_choice == "continue" and not eligible:
+        raise HTTPException(status_code=409, detail="没有有效检查点，请从头重试")
+    resumed_from = eligible if resume_choice == "continue" else None
     lease = begin_invocation(
         operation_type="report_analysis",
         project_id=project_id,
         resource_id=report_id,
         execution_mode="checkpointed_batch",
-        input_fingerprint=input_fingerprint(analysis_input, str(proposed.get("fingerprint", provider)), model),
+        input_fingerprint=model_fingerprint,
+        resumed_from_invocation_id=resumed_from,
     )
     config_snapshot = dict(lease.config_snapshot)
     if not is_mock:
@@ -559,10 +587,11 @@ def run_analysis(
         api_key = configured_api_key(provider)
     outcome = "failed"
     try:
+        save_plan(lease.invocation_id, _resume_plan())
         result = _perform_analysis(
             connection,
             report_id,
-            force=force,
+            force=force or resume_choice is not None,
             overwrite_previous=overwrite_previous,
             lease=lease,
             analysis_input=analysis_input,
@@ -571,6 +600,7 @@ def run_analysis(
             model=model,
             api_key=api_key,
             is_mock=is_mock,
+            resumed_from=resumed_from,
         )
         outcome = "completed" if result.status == "completed" else "failed"
         return result
@@ -611,7 +641,15 @@ def report_repeat_info(report_id: int) -> dict[str, object]:
             (report_id,),
         ).fetchone()
         active = get_active_invocation().active
+        candidate = resume_source(
+            "report_analysis",
+            report_id,
+            run_fingerprint(analysis_input, selected_snapshot_payload(), model, "report-analysis-batch-v1"),
+            str(selected_snapshot_payload().get("fingerprint", "")),
+            expected_plan=_resume_plan(),
+        )
         return {
+            **({"resume_available": True} if candidate else {}),
             "same_input": find_reusable_analysis(connection, report_id, fingerprint) is not None,
             "has_previous": previous is not None,
             "occupied_other": bool(
@@ -624,9 +662,13 @@ def report_repeat_info(report_id: int) -> dict[str, object]:
 
 
 @router.post("", response_model=ReportAnalysis, status_code=status.HTTP_201_CREATED)
-def retry_report_analysis(report_id: int, force: bool = False, overwrite_previous: bool = False) -> ReportAnalysis:
+def retry_report_analysis(
+    report_id: int, force: bool = False, overwrite_previous: bool = False, resume_choice: str | None = None
+) -> ReportAnalysis:
     with open_database() as connection:
-        return run_analysis(connection, report_id, force=force, overwrite_previous=overwrite_previous)
+        return run_analysis(
+            connection, report_id, force=force, overwrite_previous=overwrite_previous, resume_choice=resume_choice
+        )
 
 
 @router.post("/cancel")

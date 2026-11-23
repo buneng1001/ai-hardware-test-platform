@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from app.ai_checkpoint_resume import completed_units, save_unit
 from app.ai_invocation import AiInvocationLease
 from app.database import open_database
 from app.siliconflow import ModelErrorKind, SiliconFlowError
@@ -214,20 +215,23 @@ def run_fingerprint(
 class DatabaseCheckpoints:
     """按报告 + 输入指纹 + 语义批次键保存检查点。"""
 
-    def __init__(self, report_id: int, fingerprint: str, lease: AiInvocationLease | None = None) -> None:
+    def __init__(
+        self,
+        report_id: int,
+        fingerprint: str,
+        lease: AiInvocationLease | None = None,
+        resumed_from: str | None = None,
+    ) -> None:
         self.report_id = report_id
         self.fingerprint = fingerprint
         self.lease = lease
+        self.resume_units = completed_units(resumed_from)
+        self.current_units: dict[str, dict[str, Any]] = {}
 
     def get(self, key: str) -> dict[str, Any] | None:
-        with open_database() as connection:
-            row = connection.execute(
-                """SELECT output FROM report_analysis_batches
-                   WHERE report_id = ? AND input_fingerprint = ? AND batch_key = ?
-                     AND status = 'completed'""",
-                (self.report_id, self.fingerprint, key),
-            ).fetchone()
-        return json.loads(row["output"]) if row else None
+        # Do not silently reuse an earlier invocation. Only an explicit resume
+        # source or this invocation's own complete units may be read.
+        return self.current_units.get(key) or self.resume_units.get(key)
 
     def save(
         self,
@@ -242,6 +246,9 @@ class DatabaseCheckpoints:
             if self.lease is not None:
                 connection.execute("BEGIN IMMEDIATE")
                 self.lease.assert_can_commit(connection)
+            if status == "completed" and output is not None and self.lease is not None:
+                save_unit(connection, self.lease.invocation_id, key, 0, output)
+                self.current_units[key] = output
             connection.execute(
                 """INSERT INTO report_analysis_batches
                    (report_id, input_fingerprint, batch_key, status, output, error,
