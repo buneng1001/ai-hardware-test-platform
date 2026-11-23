@@ -1117,7 +1117,6 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             """
         )
 
-
     if current_version < 42:
         # T09: 活动调用在本地收尾完成后原子关闭全局 AI。
         columns = {row[1] for row in connection.execute("PRAGMA table_info(ai_active_invocation)")}

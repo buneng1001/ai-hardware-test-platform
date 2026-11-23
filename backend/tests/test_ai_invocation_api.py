@@ -209,9 +209,7 @@ def test_stop_and_disable_keeps_invocation_lock_until_local_finish(enabled_ai):
     client = enabled_ai
     lease = begin_invocation(operation_type="report_analysis", project_id=7)
 
-    requested = client.post(
-        f"/api/settings/ai/invocations/{lease.invocation_id}/stop-and-disable"
-    )
+    requested = client.post(f"/api/settings/ai/invocations/{lease.invocation_id}/stop-and-disable")
     assert requested.status_code == 200, requested.text
     assert requested.json()["enabled"] is True
     assert requested.json()["active"]["stopping"] is True
@@ -219,10 +217,13 @@ def test_stop_and_disable_keeps_invocation_lock_until_local_finish(enabled_ai):
     # 取消收尾未完成时，AI 仍显示开启且业务/正式配置均持续被锁定。
     assert client.get("/api/settings/ai/state").json()["enabled"] is True
     assert client.get("/api/settings/ai/active-invocation").json()["active"]["invocation_id"] == lease.invocation_id
-    assert client.post(
-        "/api/settings/ai/config",
-        json={"provider": "deepseek", "model": "deepseek-v4-pro", "key_source": "environment"},
-    ).status_code == 409
+    assert (
+        client.post(
+            "/api/settings/ai/config",
+            json={"provider": "deepseek", "model": "deepseek-v4-pro", "key_source": "environment"},
+        ).status_code
+        == 409
+    )
     with pytest.raises(HTTPException, match=OCCUPIED_MESSAGE):
         begin_invocation(operation_type="diagnosis")
 
