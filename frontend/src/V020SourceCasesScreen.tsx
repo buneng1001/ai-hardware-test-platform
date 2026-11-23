@@ -4,6 +4,11 @@ import {
   convertSourceTestCasesWithAi,
   convertSourceTestCasesWithRules,
 } from "./automationTestCasesApi";
+import {
+  cancelAiInvocation,
+  getActiveAiInvocation,
+  type ActiveAiInvocation,
+} from "./diagnosisApi";
 import { V020CaseTemplatePanel } from "./V020CaseTemplatePanel";
 import { V020AddToGroupDialog } from "./V020AddToGroupDialog";
 import {
@@ -55,6 +60,48 @@ export function V020SourceCasesScreen({
   const [groupNotice, setGroupNotice] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generatingWithAi, setGeneratingWithAi] = useState(false);
+  const [activeConversion, setActiveConversion] =
+    useState<ActiveAiInvocation | null>(null);
+  const [stoppingConversion, setStoppingConversion] = useState(false);
+
+  // 从后端恢复正在运行的转换；刷新/重新进入页面不发起第二次模型请求。
+  useEffect(() => {
+    if (versionId === null) return;
+    let mounted = true;
+    const refresh = async () => {
+      try {
+        const active = await getActiveAiInvocation();
+        if (mounted) {
+          const local =
+            active?.operation_type === "automation_conversion" &&
+            active.resource_id === versionId
+              ? active
+              : null;
+          setActiveConversion(local);
+          setStoppingConversion(Boolean(local?.stopping));
+        }
+      } catch {
+        /* 状态获取失败时不可误报已取消 */
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 1000);
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, [versionId]);
+
+  const stopConversion = async () => {
+    if (!activeConversion || stoppingConversion) return;
+    setStoppingConversion(true);
+    try {
+      await cancelAiInvocation(activeConversion.invocation_id);
+    } catch (error) {
+      setStoppingConversion(false);
+      setGenerateError(error instanceof Error ? error.message : "停止转换失败");
+    }
+  };
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generateNotice, setGenerateNotice] = useState<string | null>(null);
@@ -154,7 +201,7 @@ export function V020SourceCasesScreen({
 
   /** AI 转换：把勾选的原始用例交给模型，由模型判定哪些可自动化、哪些转人工。 */
   const generateAutomationCasesWithAi = async (mode: AiGenerateMode) => {
-    if (versionId === null) return;
+    if (versionId === null || activeConversion || generatingWithAi) return;
     setAiDialogOpen(false);
     setGeneratingWithAi(true);
     setGenerateError(null);
@@ -206,6 +253,7 @@ export function V020SourceCasesScreen({
       );
     } finally {
       setGeneratingWithAi(false);
+      await source.retry();
     }
   };
 
@@ -271,12 +319,32 @@ export function V020SourceCasesScreen({
           />
           <button
             className="prototype-primary"
-            disabled={source.busy || generating || generatingWithAi}
+            disabled={
+              source.busy ||
+              generating ||
+              generatingWithAi ||
+              Boolean(activeConversion)
+            }
             onClick={() => setAiDialogOpen(true)}
             type="button"
           >
             {generatingWithAi ? "AI 判定中…" : "AI 生成自动化用例"}
           </button>
+          {(activeConversion || generatingWithAi) && (
+            <span role="status">
+              {stoppingConversion ? "AI 转换正在停止…" : "AI 转换正在运行…"}
+            </span>
+          )}
+          {activeConversion && (
+            <button
+              className="prototype-secondary"
+              disabled={stoppingConversion}
+              onClick={() => void stopConversion()}
+              type="button"
+            >
+              {stoppingConversion ? "正在停止" : "停止当前 AI 转换"}
+            </button>
+          )}
           <button
             aria-pressed={source.onlyMissing}
             className={

@@ -169,3 +169,51 @@ test("导入前核对字段映射并选择可选导入范围", async () => {
 
   expect(await screen.findByText(/导入时间：2026-10-29 10:00/)).toBeVisible();
 });
+
+test("恢复当前 AI 转换并就地停止，不会自动重复启动模型调用", async () => {
+  const baseFetch = stubApi({
+    cases: [sourceCase({ id: 1, case_number: "REC-001" })],
+    records: [],
+  });
+  const traffic: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      traffic.push(url);
+      if (url === "/api/settings/ai/active-invocation")
+        return new Response(
+          JSON.stringify({
+            active: {
+              invocation_id: "conversion-1",
+              operation_type: "automation_conversion",
+              resource_id: 11,
+              status: "running",
+              stopping: false,
+            },
+          }),
+        );
+      if (url === "/api/settings/ai/invocations/conversion-1/cancel")
+        return new Response(JSON.stringify({ stopping: true }), {
+          status: 200,
+        });
+      return baseFetch(input, init);
+    }),
+  );
+  await openSourceView();
+  const stop = await screen.findByRole("button", { name: "停止当前 AI 转换" });
+  expect(stop).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "AI 生成自动化用例" }),
+  ).toBeDisabled();
+  fireEvent.click(stop);
+  await waitFor(() => {
+    expect(traffic).toContain(
+      "/api/settings/ai/invocations/conversion-1/cancel",
+    );
+    expect(stop).toBeDisabled();
+  });
+  expect(
+    traffic.some((url) => url.endsWith("/automation-test-case-conversions/ai")),
+  ).toBe(false);
+});
