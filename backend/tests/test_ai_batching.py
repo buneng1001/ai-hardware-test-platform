@@ -257,7 +257,7 @@ def test_report_batched_analysis_saves_and_resumes_checkpoints(tmp_path, monkeyp
     from app.report_analysis import _run_batched_analysis
 
     store = MemoryCheckpoints()
-    monkeypatch.setattr("app.report_analysis.DatabaseCheckpoints", lambda *_args: store)
+    monkeypatch.setattr("app.report_analysis.DatabaseCheckpoints", lambda *_args, **_kwargs: store)
 
     with open_database():
         pass
@@ -273,6 +273,13 @@ def test_report_batched_analysis_saves_and_resumes_checkpoints(tmp_path, monkeyp
     analysis_input = _analysis_input(7)
     refs = {"stage_progress"} | {f"module:{index}" for index in range(7)}
     adapter = FakeAdapter()
+
+    class FakeLease:
+        config_snapshot = {"fingerprint": "test-fixed-configuration"}
+
+        def cancel_requested(self):
+            return False
+
     first = _run_batched_analysis(
         report_id=123,
         analysis_input=analysis_input,
@@ -282,6 +289,7 @@ def test_report_batched_analysis_saves_and_resumes_checkpoints(tmp_path, monkeyp
         api_key="secret",
         adapter=adapter,
         config=BatchConfig(modules_per_batch=3),
+        lease=FakeLease(),
     )
     assert len(first.risks) == 3
     assert adapter.call_count == 3

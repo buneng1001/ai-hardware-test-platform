@@ -45,6 +45,7 @@ class ReportAnalysis(BaseModel):
     stage: str | None = None
     elapsed_ms: int | None = None
     reused: bool = False
+    stopping: bool = False
 
 
 class FactReport(BaseModel):

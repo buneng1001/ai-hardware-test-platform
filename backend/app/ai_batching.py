@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from app.ai_invocation import AiInvocationLease
 from app.database import open_database
 from app.siliconflow import ModelErrorKind, SiliconFlowError
 
@@ -89,8 +90,10 @@ def _module_batches(module: dict[str, Any], config: BatchConfig) -> list[dict[st
 def semantic_batches(analysis_input: dict[str, Any], config: BatchConfig) -> list[dict[str, Any]]:
     """按模块和记录切批，绝不按字符数切分。"""
     modules = analysis_input.get("modules", [])
+    # 各分批均携带同一份启动上下文；二分时也会继承这些字段。
+    context = {key: analysis_input[key] for key in ("version_ai_context", "product_profile") if key in analysis_input}
     if not isinstance(modules, list) or not modules:
-        return [{"modules": [], "stage_progress": analysis_input.get("stage_progress")}]
+        return [{"modules": [], "stage_progress": analysis_input.get("stage_progress"), **context}]
     batches: list[dict[str, Any]] = []
     current: list[dict[str, Any]] = []
     for module in modules:
@@ -101,11 +104,12 @@ def semantic_batches(analysis_input: dict[str, Any], config: BatchConfig) -> lis
                     {
                         "modules": current,
                         "stage_progress": analysis_input.get("stage_progress"),
+                        **context,
                     }
                 )
                 current = []
     if current:
-        batches.append({"modules": current, "stage_progress": analysis_input.get("stage_progress")})
+        batches.append({"modules": current, "stage_progress": analysis_input.get("stage_progress"), **context})
     for batch in batches:
         refs = ["stage_progress"]
         for module in batch["modules"]:
@@ -210,9 +214,10 @@ def run_fingerprint(
 class DatabaseCheckpoints:
     """按报告 + 输入指纹 + 语义批次键保存检查点。"""
 
-    def __init__(self, report_id: int, fingerprint: str) -> None:
+    def __init__(self, report_id: int, fingerprint: str, lease: AiInvocationLease | None = None) -> None:
         self.report_id = report_id
         self.fingerprint = fingerprint
+        self.lease = lease
 
     def get(self, key: str) -> dict[str, Any] | None:
         with open_database() as connection:
@@ -234,6 +239,9 @@ class DatabaseCheckpoints:
     ) -> None:
         now = datetime.now(UTC).isoformat()
         with open_database() as connection:
+            if self.lease is not None:
+                connection.execute("BEGIN IMMEDIATE")
+                self.lease.assert_can_commit(connection)
             connection.execute(
                 """INSERT INTO report_analysis_batches
                    (report_id, input_fingerprint, batch_key, status, output, error,

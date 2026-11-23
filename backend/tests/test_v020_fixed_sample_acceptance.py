@@ -5,6 +5,7 @@ import time
 
 from fastapi.testclient import TestClient
 
+from app import settings as settings_module
 from app.case_services import RequirementPointAnalysisService, TestCaseGenerationService
 from app.main import app
 
@@ -172,6 +173,37 @@ def test_v020_fixed_sample_covers_migrations_api_fallbacks_reports_and_trends(tm
         monkeypatch.setenv("AI_DIAGNOSIS_MODE", "deepseek")
         monkeypatch.setenv("DEEPSEEK_API_KEY", "ci-only-key")
         monkeypatch.setattr("app.report_analysis.get_provider_adapter", lambda _provider: UnavailableAdapter())
+        # T05 接入全局 AI 门控：未经配置验证不得调用，先断言旧事实仍然可用。
+        assert client.post(f"/api/fact-reports/{report_body['id']}/analysis").status_code == 409
+        assert client.get(f"/api/fact-reports/{report_body['id']}").json()["snapshot"] == report_body["snapshot"]
+
+        class VerifiedAdapter:
+            def check_connection(self, **_kwargs):
+                return None
+
+        monkeypatch.setattr(settings_module, "get_provider_adapter", lambda _provider: VerifiedAdapter())
+        assert (
+            client.post(
+                "/api/settings/ai/config",
+                json={
+                    "provider": "deepseek",
+                    "model": "deepseek-flash",
+                    "key_source": "environment",
+                    "network_mode": "auto",
+                },
+            ).status_code
+            == 200
+        )
+        verified = client.post(
+            "/api/settings/ai/test",
+            json={
+                "provider": "deepseek",
+                "model": "deepseek-flash",
+                "key_source": "environment",
+            },
+        )
+        assert verified.status_code == 200 and verified.json()["ok"], verified.text
+        assert client.put("/api/settings/ai/state", json={"enabled": True}).status_code == 200
         failed_analysis = client.post(f"/api/fact-reports/{report_body['id']}/analysis")
         assert failed_analysis.status_code == 201
         failed_body = failed_analysis.json()

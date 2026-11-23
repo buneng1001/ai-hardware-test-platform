@@ -5,6 +5,7 @@ import {
   type AutomationExecution,
 } from "./automationExecutionsApi";
 import {
+  cancelFactReportAnalysis,
   cleanupReportUsedAttachments,
   createFactReport,
   deleteFactReport,
@@ -136,6 +137,11 @@ export function useV020FactReports(groupId: number | null) {
     if (!report) return false;
     setBusy(true);
     setActionError(null);
+    // POST 仍在模型调用期间也允许就地停止，不能因 busy 禁用取消入口。
+    setReport({
+      ...report,
+      analysis: { status: "pending", message: "AI 分析正在运行", output: null },
+    });
     try {
       const analysis = await retryFactReportAnalysis(report.id, force);
       setReport({ ...report, analysis });
@@ -149,10 +155,38 @@ export function useV020FactReports(groupId: number | null) {
       );
       return true;
     } catch (caught) {
+      setReport(report);
       setActionError(errorMessage(caught, "报告分析重试失败"));
       return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  const cancelAnalysis = async () => {
+    if (!report) return;
+    setActionError(null);
+    try {
+      const result = await cancelFactReportAnalysis(report.id);
+      if (result.stopping) {
+        setReport((current) =>
+          current?.id === report.id
+            ? {
+                ...current,
+                analysis: {
+                  status: "pending",
+                  message: "AI 分析正在停止",
+                  output: null,
+                  stopping: true,
+                },
+              }
+            : current,
+        );
+      } else {
+        setReport(await getFactReport(report.id));
+      }
+    } catch (caught) {
+      setActionError(errorMessage(caught, "取消报告 AI 分析失败"));
     }
   };
 
@@ -243,6 +277,7 @@ export function useV020FactReports(groupId: number | null) {
     generate,
     openReport,
     retryAnalysis,
+    cancelAnalysis,
     refreshAnalysis,
     searchHistory,
     prepareCleanup,

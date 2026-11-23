@@ -165,6 +165,7 @@ export type ReportAnalysis = {
   stage?: string | null;
   elapsed_ms?: number | null;
   reused?: boolean;
+  stopping?: boolean;
 };
 
 export function createFactReport(
@@ -182,6 +183,13 @@ export function retryFactReportAnalysis(reportId: number, force = false) {
   const suffix = force ? "?force=true" : "";
   return request<ReportAnalysis>(
     `/api/fact-reports/${reportId}/analysis${suffix}`,
+    { method: "POST" },
+  );
+}
+
+export function cancelFactReportAnalysis(reportId: number) {
+  return request<{ cancel_requested: boolean; stopping: boolean }>(
+    `/api/fact-reports/${reportId}/analysis/cancel`,
     { method: "POST" },
   );
 }

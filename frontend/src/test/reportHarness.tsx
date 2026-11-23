@@ -169,6 +169,25 @@ export function stubReportApi(state: ReportStubState) {
           ? jsonResponse(report)
           : jsonResponse({ detail: "事实报告不存在" }, 404);
       }
+      const cancelMatch = url.match(
+        /^\/api\/fact-reports\/(\d+)\/analysis\/cancel$/,
+      );
+      if (cancelMatch && method === "POST") {
+        const reportId = Number(cancelMatch[1]);
+        const report = state.reports[reportId];
+        if (report) {
+          state.reports[reportId] = {
+            ...report,
+            analysis: {
+              status: "pending",
+              message: "AI 分析正在停止",
+              output: null,
+              stopping: true,
+            },
+          };
+        }
+        return jsonResponse({ cancel_requested: true, stopping: true });
+      }
       const analysisMatch = url.match(/^\/api\/fact-reports\/(\d+)\/analysis$/);
       if (analysisMatch && method === "POST") {
         const reportId = Number(analysisMatch[1]);

@@ -4,6 +4,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from app import settings as settings_module
 from app.database import open_database
 from app.main import app
 
@@ -253,6 +254,41 @@ def test_report_analysis_is_optional_persisted_and_never_changes_fact_report(cli
     assert client.post(f"/api/fact-reports/{report['id']}/analysis").json()["status"] == "not_enabled"
 
     monkeypatch.setenv("REPORT_ANALYSIS_MODE", "mock")
+    # T05 全局门控：本地 Mock 同样不得绕过未验证的 AI 开关。
+    disabled_mock = client.post(
+        f"/api/test-groups/{group_id}/fact-reports",
+        json={"automation_execution_id": execution["id"]},
+    )
+    assert disabled_mock.status_code == 201
+    assert disabled_mock.json()["analysis"]["status"] == "not_enabled"
+
+    class VerifiedAdapter:
+        def check_connection(self, **_kwargs):
+            return None
+
+    monkeypatch.setattr(settings_module, "get_provider_adapter", lambda _: VerifiedAdapter())
+    assert (
+        client.post(
+            "/api/settings/ai/config",
+            json={
+                "provider": "deepseek",
+                "model": "deepseek-flash",
+                "key_source": "environment",
+                "network_mode": "auto",
+            },
+        ).status_code
+        == 200
+    )
+    verified = client.post(
+        "/api/settings/ai/test",
+        json={
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "key_source": "environment",
+        },
+    )
+    assert verified.status_code == 200 and verified.json()["ok"], verified.text
+    assert client.put("/api/settings/ai/state", json={"enabled": True}).status_code == 200
     automatically_analyzed = client.post(
         f"/api/test-groups/{group_id}/fact-reports", json={"automation_execution_id": execution["id"]}
     ).json()
