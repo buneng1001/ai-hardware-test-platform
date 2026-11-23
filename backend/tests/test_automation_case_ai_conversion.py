@@ -432,6 +432,7 @@ def test_t07_failed_second_conversion_batch_keeps_prior_results(client, monkeypa
             == 1
         )
 
+
 def test_t07_cancelled_repeated_conversion_preserves_prior_results(client, monkeypatch):
     from app.ai_invocation import get_active_invocation, request_invocation_cancel
     from app.database import open_database
@@ -455,10 +456,13 @@ def test_t07_cancelled_repeated_conversion_preserves_prior_results(client, monke
     assert stopped.status_code == 409 and "取消" in stopped.json()["detail"]
     assert client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"] == prior
     with open_database() as connection:
-        assert connection.execute(
-            "SELECT COUNT(*) FROM ai_conversion_runs WHERE product_version_id = ? AND is_visible = 1",
-            (version_id,),
-        ).fetchone()[0] == 1
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM ai_conversion_runs WHERE product_version_id = ? AND is_visible = 1",
+                (version_id,),
+            ).fetchone()[0]
+            == 1
+        )
 
 
 def test_t07_failed_database_save_rolls_back_candidate_overwrite(client, monkeypatch):

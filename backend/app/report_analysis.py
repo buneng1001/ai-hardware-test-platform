@@ -533,7 +533,10 @@ def _perform_analysis(
 
 
 def run_analysis(
-    connection: sqlite3.Connection, report_id: int, *, force: bool = False,
+    connection: sqlite3.Connection,
+    report_id: int,
+    *,
+    force: bool = False,
     overwrite_previous: bool = False,
 ) -> ReportAnalysis:
     analysis_input, valid_refs, project_id = _report_analysis_input(connection, report_id)
@@ -596,8 +599,10 @@ def report_repeat_info(report_id: int) -> dict[str, object]:
         configuration = _configuration()
         if configuration is None:
             return {
-                "same_input": False, "has_previous": False,
-                "running_same_operation": False, "occupied_other": False,
+                "same_input": False,
+                "has_previous": False,
+                "running_same_operation": False,
+                "occupied_other": False,
             }
         _, model, _, _ = configuration
         fingerprint = run_fingerprint(analysis_input, selected_snapshot_payload(), model, "report-analysis-v1")

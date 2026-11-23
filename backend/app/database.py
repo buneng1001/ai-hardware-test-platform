@@ -1048,7 +1048,6 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             """
         )
 
-
     if current_version < 38:
         # T07: replaced analyses stay internally auditable, not visible to users.
         columns = {row[1] for row in connection.execute("PRAGMA table_info(report_analysis_runs)")}
