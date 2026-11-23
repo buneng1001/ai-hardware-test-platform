@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 41
+LATEST_SCHEMA_VERSION = 42
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -1116,6 +1116,19 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             PRAGMA user_version = 41;
             """
         )
+
+
+    if current_version < 42:
+        # T09: 活动调用在本地收尾完成后原子关闭全局 AI。
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(ai_active_invocation)")}
+        if columns and "disable_global_after_finish" not in columns:
+            connection.execute(
+                "ALTER TABLE ai_active_invocation ADD COLUMN disable_global_after_finish INTEGER NOT NULL DEFAULT 0"
+            )
+        connection.executescript(
+            "INSERT OR IGNORE INTO schema_migrations (version) VALUES (42); PRAGMA user_version = 42;"
+        )
+        current_version = 42
 
 
 def get_data_dir() -> Path:

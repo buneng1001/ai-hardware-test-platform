@@ -203,3 +203,42 @@ def test_business_commit_and_cancel_are_serialized(enabled_ai):
             assert pending.result(timeout=10).status_code == 200
     assert lease.cancel_requested()
     assert lease.finish("completed") == "cancelled"
+
+
+def test_stop_and_disable_keeps_invocation_lock_until_local_finish(enabled_ai):
+    client = enabled_ai
+    lease = begin_invocation(operation_type="report_analysis", project_id=7)
+
+    requested = client.post(
+        f"/api/settings/ai/invocations/{lease.invocation_id}/stop-and-disable"
+    )
+    assert requested.status_code == 200, requested.text
+    assert requested.json()["enabled"] is True
+    assert requested.json()["active"]["stopping"] is True
+
+    # 取消收尾未完成时，AI 仍显示开启且业务/正式配置均持续被锁定。
+    assert client.get("/api/settings/ai/state").json()["enabled"] is True
+    assert client.get("/api/settings/ai/active-invocation").json()["active"]["invocation_id"] == lease.invocation_id
+    assert client.post(
+        "/api/settings/ai/config",
+        json={"provider": "deepseek", "model": "deepseek-v4-pro", "key_source": "environment"},
+    ).status_code == 409
+    with pytest.raises(HTTPException, match=OCCUPIED_MESSAGE):
+        begin_invocation(operation_type="diagnosis")
+
+    assert lease.cancel_requested()
+    assert lease.finish("completed") == "cancelled"
+    assert client.get("/api/settings/ai/active-invocation").json()["active"] is None
+    assert client.get("/api/settings/ai/state").json()["enabled"] is False
+    with pytest.raises(HTTPException, match="全局 AI 已关闭"):
+        begin_invocation(operation_type="diagnosis")
+
+
+def test_stop_and_disable_is_idempotent_for_same_invocation(enabled_ai):
+    client = enabled_ai
+    lease = begin_invocation(operation_type="diagnosis")
+    first = client.post(f"/api/settings/ai/invocations/{lease.invocation_id}/stop-and-disable")
+    second = client.post(f"/api/settings/ai/invocations/{lease.invocation_id}/stop-and-disable")
+    assert first.status_code == second.status_code == 200
+    assert lease.finish("failed") == "cancelled"
+    assert client.get("/api/settings/ai/state").json()["enabled"] is False

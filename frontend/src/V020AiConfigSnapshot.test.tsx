@@ -134,6 +134,60 @@ test("恢复已保存 AI 配置，变更即失效并可保存和确认目录缺�
   );
 });
 
+test("正式配置保存遇到活动 AI 调用时显示双选项且取消不触发停止或保存", async () => {
+  const active = {
+    invocation_id: "config-lock-1",
+    operation_type: "diagnosis",
+    display_name: "运行后诊断",
+    project_id: 4,
+    project_name: "配置锁测试项目",
+    resource_id: 21,
+    status: "running",
+    stopping: false,
+    started_at: "2026-11-23T10:00:00Z",
+    cancel_requested_at: null,
+    config_fingerprint: "fingerprint-1",
+    execution_mode: "single_request",
+    input_fingerprint: null,
+  };
+  const fetchMock = vi.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/settings/ai/config" && !init?.method)
+        return jsonResponse(configState());
+      if (url === "/api/settings/ai/config" && init?.method === "POST")
+        return new Response(
+          JSON.stringify({
+            detail: "当前 AI 运行仍在进行，暂不能保存正式配置",
+          }),
+          { status: 409 },
+        );
+      if (url === "/api/settings/ai/active-invocation")
+        return jsonResponse({ active });
+      return jsonResponse({ detail: "未模拟" }, 404);
+    },
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  render(<FrontendRoot />);
+  expect(await screen.findByText(/验证状态：已验证/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "保存 AI 配置" }));
+  expect(await screen.findByRole("dialog")).toBeVisible();
+  expect(screen.getByText(/运行后诊断/)).toBeVisible();
+  expect(screen.getByText(/配置锁测试项目/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "取消本次配置修改" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(
+    fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        String(url) === "/api/settings/ai/config" && init?.method === "POST",
+    ),
+  ).toHaveLength(1);
+  expect(fetchMock).not.toHaveBeenCalledWith(
+    expect.stringContaining("stop-and-disable"),
+    expect.anything(),
+  );
+});
+
 test("独立测试不同模型不能让未保存表单显示正式验证通过", async () => {
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {

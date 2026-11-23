@@ -19,7 +19,10 @@ test("全局开关由后端决定；跨组件读取同一状态且错误不误�
   let enabled = false;
   let verified = false;
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    if (url !== "/api/settings/ai/state") throw new Error("unexpected request");
+    if (url.includes("/api/settings/ai/active-invocation"))
+      return new Response(JSON.stringify({ active: null }));
+    if (!url.includes("/api/settings/ai/state"))
+      throw new Error(`unexpected request ${url}`);
     if (init?.method === "PUT") {
       const body = JSON.parse(String(init.body)) as { enabled: boolean };
       if (body.enabled && !verified)
@@ -57,6 +60,83 @@ test("全局开关由后端决定；跨组件读取同一状态且错误不误�
   expect(await screen.findByText(/AI 已开启 · deepseek/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "关闭 AI" }));
   await waitFor(() => expect(enabled).toBe(false));
+});
+
+test("关闭时存在活动调用只显示双选项；确认停止后等待活动调用结束", async () => {
+  let enabled = true;
+  let active: {
+    invocation_id: string;
+    operation_type: string;
+    display_name: string;
+    project_id: number | null;
+    project_name: string | null;
+    resource_id: number | null;
+    status: "running";
+    stopping: boolean;
+    started_at: string;
+    cancel_requested_at: string | null;
+    config_fingerprint: string;
+    execution_mode: "single_request";
+    input_fingerprint: string | null;
+  } | null = {
+    invocation_id: "invoke-1",
+    operation_type: "report_analysis",
+    display_name: "最终报告 AI 总体分析",
+    project_id: 9,
+    project_name: "项目九",
+    resource_id: 12,
+    status: "running",
+    stopping: false,
+    started_at: "2026-11-23T10:00:00Z",
+    cancel_requested_at: null,
+    config_fingerprint: "fingerprint",
+    execution_mode: "single_request",
+    input_fingerprint: null,
+  };
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/settings/ai/state")
+      return new Response(
+        JSON.stringify({
+          enabled,
+          can_enable: true,
+          reason: null,
+          provider: "deepseek",
+          model: "deepseek-flash",
+        }),
+      );
+    if (url === "/api/settings/ai/active-invocation")
+      return new Response(JSON.stringify({ active }));
+    if (url.endsWith("/stop-and-disable") && init?.method === "POST") {
+      if (active)
+        active = { ...active, stopping: true, cancel_requested_at: "now" };
+      return new Response(JSON.stringify({ active, enabled: true }));
+    }
+    throw new Error(`unexpected request ${url}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<AiGlobalSwitch />);
+  await screen.findByText(/AI 已开启/);
+  fireEvent.click(screen.getByRole("button", { name: "关闭 AI" }));
+  expect(await screen.findByRole("dialog")).toBeVisible();
+  expect(screen.getByText(/最终报告 AI 总体分析/)).toBeVisible();
+  expect(screen.getByText(/项目九/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "取消这次关闭操作" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(enabled).toBe(true);
+
+  fireEvent.click(screen.getByRole("button", { name: "关闭 AI" }));
+  await screen.findByRole("dialog");
+  fireEvent.click(screen.getByRole("button", { name: "停止当前的AI运行" }));
+  expect(await screen.findByText(/正在停止当前 AI 运行/)).toBeVisible();
+  expect(enabled).toBe(true);
+  active = null;
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), {
+    timeout: 3000,
+  });
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/settings/ai/invocations/invoke-1/stop-and-disable",
+    expect.objectContaining({ method: "POST" }),
+  );
 });
 
 test("首页进入不依赖 AI 准入；后端仍拒绝未验证的开启", async () => {

@@ -9,6 +9,12 @@ import {
 } from "./aiConfigPersist";
 import { applyRestoredAiConfig } from "./aiConfigRestore";
 import {
+  getActiveAiInvocation,
+  stopAiInvocationAndDisable,
+  waitForAiInvocationFinish,
+  type ActiveAiInvocation,
+} from "./aiGlobalState";
+import {
   prototypeAiProviders as providers,
   type PrototypeAiModelOption,
   type PrototypeAiProviderKey as ProviderKey,
@@ -81,6 +87,10 @@ export function usePrototypeAiConfiguration() {
   const [loadingAction, setLoadingAction] = useState<"catalog" | "test" | null>(
     null,
   );
+  const [saveConflict, setSaveConflict] = useState<ActiveAiInvocation | null>(
+    null,
+  );
+  const [stoppingForSave, setStoppingForSave] = useState(false);
   const providerConfig = providers[provider];
   const modelLabel =
     availableModels.find((item) => item.id === model)?.label ?? model;
@@ -232,22 +242,63 @@ export function usePrototypeAiConfiguration() {
       setSavedMessage("本地服务配置暂不支持保存到后端。");
       return;
     }
-    await persistAiConfiguration(
-      {
-        provider,
-        model,
-        key_source: accessMode === "temporary" ? "temporary" : "environment",
-        network_mode: networkMode,
-      },
-      {
-        setLoadingAction,
-        setVerificationStatus,
-        setVerificationMessage,
-        setSavedMessage,
-      },
-    );
+    try {
+      await persistAiConfiguration(
+        {
+          provider,
+          model,
+          key_source: accessMode === "temporary" ? "temporary" : "environment",
+          network_mode: networkMode,
+        },
+        {
+          setLoadingAction,
+          setVerificationStatus,
+          setVerificationMessage,
+          setSavedMessage,
+        },
+      );
+    } finally {
+      // 409 只用于发现运行锁；不得在冲突时自动重试保存。
+      try {
+        const active = await getActiveAiInvocation();
+        if (active) setSaveConflict(active);
+      } catch {
+        /* 保留原始保存错误 */
+      }
+    }
   };
 
+  const stopForConfigurationSave = async () => {
+    if (!saveConflict || stoppingForSave) return;
+    setStoppingForSave(true);
+    try {
+      await stopAiInvocationAndDisable(saveConflict.invocation_id);
+      const finished = await waitForAiInvocationFinish(
+        saveConflict.invocation_id,
+        (next) => {
+          if (next) setSaveConflict(next);
+        },
+      );
+      if (!finished) {
+        setSavedMessage(
+          "停止请求仍在等待中，AI 仍被占用。请稍后查看状态；配置尚未保存。",
+        );
+        return;
+      }
+      setSaveConflict(null);
+      setSavedMessage(
+        "当前 AI 运行已停止，全局 AI 已关闭。请再次点击「保存 AI 配置」完成保存。",
+      );
+    } catch (error) {
+      setSavedMessage(
+        `停止 AI 运行失败：${error instanceof Error ? error.message : "请求失败"}`,
+      );
+    } finally {
+      setStoppingForSave(false);
+    }
+  };
+
+  const cancelConfigurationSave = () => setSaveConflict(null);
   return {
     provider,
     model,
@@ -276,6 +327,10 @@ export function usePrototypeAiConfiguration() {
     clearTemporaryKey,
     chooseAccessMode,
     saveConfiguration,
+    saveConflict,
+    stoppingForSave,
+    stopForConfigurationSave,
+    cancelConfigurationSave,
     validateConnectionConfiguration,
     refreshModelCatalog,
   };
