@@ -236,6 +236,7 @@ export function V020ReportPanel({
           groupName={groupName}
           onBack={() => setView("history")}
           onCancelCleanup={reports.cancelCleanup}
+          onCancelAnalysis={() => void reports.cancelAnalysis()}
           onClose={() => setView("closed")}
           onConfirmCleanup={() => void reports.confirmCleanup()}
           onPrepareCleanup={() => void reports.prepareCleanup()}

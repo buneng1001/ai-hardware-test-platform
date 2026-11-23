@@ -32,6 +32,7 @@ export function V020ReportPreviewDialog({
   onRetryAnalysis,
   onRerunAnalysis,
   onRefreshAnalysis,
+  onCancelAnalysis,
   cleanupImpact,
   onPrepareCleanup,
   onCancelCleanup,
@@ -45,6 +46,7 @@ export function V020ReportPreviewDialog({
   onRetryAnalysis: () => void;
   onRerunAnalysis: () => void;
   onRefreshAnalysis: () => void;
+  onCancelAnalysis: () => void;
   cleanupImpact: ReportAttachmentCleanupImpact | null;
   onPrepareCleanup: () => void;
   onCancelCleanup: () => void;
@@ -430,6 +432,7 @@ export function V020ReportPreviewDialog({
           <V020ReportAnalysisSection
             busy={busy}
             onRefresh={onRefreshAnalysis}
+            onCancel={onCancelAnalysis}
             onRerun={onRerunAnalysis}
             onRetry={onRetryAnalysis}
             report={report}

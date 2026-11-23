@@ -330,7 +330,7 @@ def create_fact_report(group_id: int, command: FactReportCreate, background_task
             ),
         ).lastrowid
         record_attachment_usage(connection, report_id, command.manual_batch_ids)
-        if analysis_is_enabled():
+        if analysis_is_enabled(connection):
             enqueue_analysis(connection, report_id)
             background_tasks.add_task(run_analysis_in_background, report_id)
         return _get_report(connection, report_id)

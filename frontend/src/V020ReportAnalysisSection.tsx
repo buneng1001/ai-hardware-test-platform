@@ -6,6 +6,7 @@ import type { FactReport } from "./factReportsApi";
 const statusLabels: Record<string, string> = {
   not_enabled: "AI 分析未启用",
   pending: "分析中",
+  cancelled: "分析已取消",
   completed: "分析已完成",
   failed: "分析未完成",
 };
@@ -17,12 +18,14 @@ export function V020ReportAnalysisSection({
   onRetry,
   onRerun,
   onRefresh,
+  onCancel,
 }: {
   report: FactReport;
   busy: boolean;
   onRetry: () => void;
   onRerun: () => void;
   onRefresh: () => void;
+  onCancel: () => void;
 }) {
   const analysis = report.analysis;
   const failed = analysis.status === "failed";
@@ -67,7 +70,8 @@ export function V020ReportAnalysisSection({
           <p className="prototype-muted">
             已等待 {waited} 秒，系统每 3 秒自动检查一次，最多等 5 分钟；
             可以关闭弹窗，稍后重新打开也能看到结果。
-            {waited > 300 && " 已超过 5 分钟，可点“重试报告分析”。"}
+            {waited > 300 &&
+              " 已超过 5 分钟，请确认当前 AI 运行状态；停止完成后可重试。"}
           </p>
         )}
         {failed && analysis.error?.action && (
@@ -92,14 +96,24 @@ export function V020ReportAnalysisSection({
       )}
       <div className="prototype-actions">
         {analysis.status === "pending" && (
-          <button
-            className="prototype-secondary"
-            disabled={busy}
-            onClick={onRefresh}
-            type="button"
-          >
-            立即刷新状态
-          </button>
+          <>
+            <button
+              className="prototype-secondary"
+              disabled={busy}
+              onClick={onRefresh}
+              type="button"
+            >
+              立即刷新状态
+            </button>
+            <button
+              className="prototype-secondary"
+              disabled={Boolean(analysis.stopping)}
+              onClick={onCancel}
+              type="button"
+            >
+              {analysis.stopping ? "正在停止" : "取消本次 AI 分析"}
+            </button>
+          </>
         )}
         <button
           className="prototype-secondary"

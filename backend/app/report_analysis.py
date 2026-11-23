@@ -17,14 +17,17 @@ from app.ai_batching import (
     semantic_batches,
 )
 from app.ai_config import save_request_logs, selected_snapshot_payload
+from app.ai_global_state import _read_state
+from app.ai_invocation import (
+    AiInvocationCancelled,
+    AiInvocationLease,
+    begin_invocation,
+    get_active_invocation,
+    request_invocation_cancel,
+)
 from app.database import open_database
 from app.fact_report_models import ReportAnalysis, ReportAnalysisOutput
-from app.report_analysis_batching import (
-    cancel_requested,
-    request_cancel,
-    run_batches,
-    validate_report_output,
-)
+from app.report_analysis_batching import run_batches, validate_report_output
 from app.report_analysis_inputs import (
     analysis_input as _analysis_input,
 )
@@ -63,8 +66,10 @@ def _configuration() -> tuple[str, str, str, bool] | None:
     return settings.provider, settings.model, api_key, False
 
 
-def analysis_is_enabled() -> bool:
-    return _configuration() is not None
+def analysis_is_enabled(connection: sqlite3.Connection) -> bool:
+    """事实报告在 AI 关闭时独立生成，既不排队也不留下假 pending。"""
+    state = _read_state(connection)
+    return state.enabled and state.can_enable and _configuration() is not None
 
 
 def _from_row(row: sqlite3.Row) -> ReportAnalysis:
@@ -98,6 +103,26 @@ def _from_row(row: sqlite3.Row) -> ReportAnalysis:
 
 
 def latest_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalysis:
+    active = connection.execute(
+        """SELECT cancel_requested_at FROM ai_active_invocation
+           WHERE status = 'running' AND operation_type = 'report_analysis' AND resource_id = ?""",
+        (report_id,),
+    ).fetchone()
+    if active is not None:
+        stopping = active["cancel_requested_at"] is not None
+        return ReportAnalysis(
+            status="pending",
+            message="AI 分析正在停止" if stopping else "AI 分析正在运行",
+            output=None,
+            stopping=stopping,
+        )
+    # 初次报告创建期间 pending 可能先于全局租约入库，应优先展示待运行状态。
+    pending = connection.execute(
+        "SELECT * FROM report_analysis_runs WHERE report_id = ? AND status = 'pending' ORDER BY id DESC LIMIT 1",
+        (report_id,),
+    ).fetchone()
+    if pending is not None:
+        return _from_row(pending)
     row = connection.execute(
         """SELECT * FROM report_analysis_runs WHERE report_id = ?
            ORDER BY is_active DESC, id DESC LIMIT 1""",
@@ -162,8 +187,13 @@ def _save(
     stage: str = "report_analysis",
     elapsed_ms: int | None = None,
     reused_from_id: int | None = None,
+    lease: AiInvocationLease | None = None,
+    config_snapshot: dict[str, object] | None = None,
 ) -> ReportAnalysis:
-    snapshot = selected_snapshot_payload()
+    snapshot = config_snapshot if config_snapshot is not None else selected_snapshot_payload()
+    if lease is not None:
+        connection.execute("BEGIN IMMEDIATE")
+        lease.assert_can_commit(connection)
     fingerprint = run_fingerprint(analysis_input, snapshot, model, "report-analysis-v1")
     connection.execute(
         "UPDATE report_analysis_runs SET is_active = 0 WHERE report_id = ?",
@@ -194,7 +224,19 @@ def _save(
             reused_from_id,
         ),
     )
-    return latest_analysis(connection, report_id)
+    if lease is not None:
+        # 已完成本次运行，清除自动生成阶段的占位记录，避免永久 pending。
+        connection.execute(
+            "DELETE FROM report_analysis_runs WHERE report_id = ? AND status = 'pending' AND is_active = 0",
+            (report_id,),
+        )
+        # 必须在释放全局租约前提交结果，防止取消/下一调用抢先进入。
+        connection.commit()
+    saved = connection.execute(
+        "SELECT * FROM report_analysis_runs WHERE report_id = ? ORDER BY id DESC LIMIT 1",
+        (report_id,),
+    ).fetchone()
+    return _from_row(saved)
 
 
 def _run_batched_analysis(
@@ -207,13 +249,16 @@ def _run_batched_analysis(
     api_key: str,
     adapter,
     config,
+    lease: AiInvocationLease,
 ) -> ReportAnalysisOutput:
     """多批分析：按模块/记录切批，截断二分，检查点恢复。"""
     adapter.max_calls = config.call_limit
-    fingerprint = input_fingerprint(analysis_input, provider, model)
+    fingerprint = input_fingerprint(analysis_input, str(lease.config_snapshot["fingerprint"]), model)
 
     def call_model(batch: dict[str, object]) -> dict[str, object]:
-        return adapter.generate_json(
+        if lease.cancel_requested():
+            raise AiInvocationCancelled("报告 AI 分析已取消")
+        response = adapter.generate_json(
             api_key=api_key,
             model=model,
             evidence_json=json.dumps(batch, ensure_ascii=False),
@@ -225,58 +270,149 @@ def _run_batched_analysis(
             prompt_version="report-analysis-batch-v1",
             stage="report_analysis_batch",
         )
+        if lease.cancel_requested():
+            raise AiInvocationCancelled("报告 AI 分析已取消；迟到输出已丢弃")
+        return response
+
+    def ensure_active() -> bool:
+        if lease.cancel_requested():
+            raise AiInvocationCancelled("报告 AI 分析已取消")
+        return False
 
     return run_batches(
         semantic_batches(analysis_input, config),
         call_model=call_model,
         valid_refs=valid_refs,
-        checkpoints=DatabaseCheckpoints(report_id, fingerprint),
+        checkpoints=DatabaseCheckpoints(report_id, fingerprint, lease=lease),
         config=config,
-        cancel_event=lambda: cancel_requested(report_id),
+        cancel_event=ensure_active,
     )
 
 
-def run_analysis(connection: sqlite3.Connection, report_id: int, *, force: bool = False) -> ReportAnalysis:
-    row = connection.execute("SELECT snapshot FROM online_reports WHERE id = ?", (report_id,)).fetchone()
+def _report_analysis_input(connection: sqlite3.Connection, report_id: int) -> tuple[dict[str, object], set[str], int]:
+    """仅在启动时读取画像/版本说明，绝不回写事实报告快照。"""
+    row = connection.execute(
+        """SELECT report.snapshot, version.project_id, version.ai_context, project.product_profile
+           FROM online_reports report
+           JOIN product_versions version ON version.id = report.product_version_id
+           JOIN projects project ON project.id = version.project_id
+           WHERE report.id = ?""",
+        (report_id,),
+    ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="事实报告不存在")
-    configuration = _configuration()
-    if configuration is None:
-        return _not_enabled()
     analysis_input, valid_refs = _analysis_input(json.loads(row["snapshot"]))
-    provider, model, api_key, is_mock = configuration
-    config_snapshot = selected_snapshot_payload()
+    try:
+        profile = json.loads(row["product_profile"]) if row["product_profile"] else None
+    except (ValueError, TypeError):
+        profile = None
+    analysis_input["product_profile"] = profile
+    analysis_input["version_ai_context"] = row["ai_context"] or ""
+    return analysis_input, valid_refs, int(row["project_id"])
+
+
+def _record_cancelled(
+    report_id: int,
+    *,
+    provider: str,
+    model: str,
+    is_mock: bool,
+    analysis_input: dict[str, object],
+    config_snapshot: dict[str, object],
+) -> None:
+    """取消只记运行状态；已有有效输出和检查点保持原样。"""
+    with open_database() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        prior = connection.execute(
+            """SELECT id FROM report_analysis_runs
+               WHERE report_id = ? AND is_active = 1 AND status = 'completed'
+               LIMIT 1""",
+            (report_id,),
+        ).fetchone()
+        active = 0 if prior else 1
+        pending = connection.execute(
+            """SELECT id FROM report_analysis_runs
+               WHERE report_id = ? AND status = 'pending'
+               ORDER BY id DESC LIMIT 1""",
+            (report_id,),
+        ).fetchone()
+        if pending:
+            connection.execute(
+                """UPDATE report_analysis_runs
+                   SET status = 'cancelled', error = '用户已取消 AI 分析',
+                       completed_at = ?, is_active = ?
+                   WHERE id = ?""",
+                (_now(), active, pending["id"]),
+            )
+        else:
+            connection.execute(
+                """INSERT INTO report_analysis_runs
+                   (report_id, status, provider, model, is_mock, input_snapshot,
+                    output, error, created_at, completed_at, config_snapshot, is_active)
+                   VALUES (?, 'cancelled', ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)""",
+                (
+                    report_id,
+                    provider,
+                    model,
+                    int(is_mock),
+                    json.dumps(analysis_input, ensure_ascii=False, sort_keys=True),
+                    "用户已取消 AI 分析",
+                    _now(),
+                    _now(),
+                    json.dumps(config_snapshot, ensure_ascii=False),
+                    active,
+                ),
+            )
+
+
+def _perform_analysis(
+    connection: sqlite3.Connection,
+    report_id: int,
+    *,
+    force: bool,
+    lease: AiInvocationLease,
+    analysis_input: dict[str, object],
+    valid_refs: set[str],
+    provider: str,
+    model: str,
+    api_key: str,
+    is_mock: bool,
+) -> ReportAnalysis:
+    config_snapshot = dict(lease.config_snapshot)
     fingerprint = run_fingerprint(analysis_input, config_snapshot, model, "report-analysis-v1")
     if not force:
         reusable = find_reusable_analysis(connection, report_id, fingerprint)
         if reusable is not None:
-            reused = _from_row(reusable)
-            return reused.model_copy(
-                update={
-                    "reused": True,
-                    "message": f"复用运行 #{reusable['id']}，未重复调用模型",
-                }
+            return _from_row(reusable).model_copy(
+                update={"reused": True, "message": f"复用运行 #{reusable['id']}，未重复调用模型"}
             )
+    save_options = {
+        "provider": provider,
+        "model": model,
+        "is_mock": is_mock,
+        "lease": lease,
+        "config_snapshot": config_snapshot,
+    }
     if is_mock:
         return _save(
             connection,
             report_id,
             analysis_input,
-            provider=provider,
-            model=model,
-            is_mock=True,
             output=build_mock_analysis(analysis_input),
             error=None,
+            **save_options,
         )
-    adapter = get_provider_adapter(provider)
-    if hasattr(adapter, "network_mode"):
-        adapter.network_mode = str(config_snapshot.get("network_mode", "auto"))
-    config = batch_config()
-    adapter.max_calls = config.call_limit
-    batches = semantic_batches(analysis_input, config)
-    if len(batches) > 1:
-        try:
-            batched_output = _run_batched_analysis(
+
+    adapter = None
+    try:
+        adapter = get_provider_adapter(provider)
+        if hasattr(adapter, "network_mode"):
+            adapter.network_mode = str(config_snapshot.get("network_mode", "auto"))
+        config = batch_config()
+        adapter.max_calls = config.call_limit
+        batches = semantic_batches(analysis_input, config)
+        if len(batches) > 1:
+            output = _run_batched_analysis(
                 report_id=report_id,
                 analysis_input=analysis_input,
                 valid_refs=valid_refs,
@@ -285,90 +421,64 @@ def run_analysis(connection: sqlite3.Connection, report_id: int, *, force: bool 
                 api_key=api_key,
                 adapter=adapter,
                 config=config,
+                lease=lease,
             )
-        except (SiliconFlowError, ValidationError, ValueError) as error:
-            detail = (
-                error.to_dict()
-                if isinstance(error, SiliconFlowError)
-                else SiliconFlowError(
-                    ModelErrorKind.SCHEMA_VALIDATION,
-                    "模型分析结构无效",
-                    False,
-                    stage="report_analysis",
-                    provider=provider,
-                    model=model,
-                ).to_dict()
-            )
-            save_request_logs(getattr(adapter, "request_logs", []))
-            return _save(
-                connection,
-                report_id,
-                analysis_input,
-                provider=provider,
-                model=model,
-                is_mock=False,
-                output=None,
-                error=("模型分析结构无效" if detail.get("kind") == ModelErrorKind.SCHEMA_VALIDATION else str(error)),
-                error_detail=detail,
-            )
-        save_request_logs(getattr(adapter, "request_logs", []))
-        return _save(
-            connection,
-            report_id,
-            analysis_input,
-            provider=provider,
-            model=model,
-            is_mock=False,
-            output=batched_output,
-            error=None,
-        )
-    preflight_budget(json.dumps(analysis_input, ensure_ascii=False), config)
-    try:
-        raw_output = adapter.generate_json(
-            api_key=api_key,
-            model=model,
-            evidence_json=json.dumps(analysis_input, ensure_ascii=False),
-            system_prompt=(
-                "只返回报告分析 JSON：risks、additional_verifications、regression_recommendations 和 "
-                "stage_recommendation。"
-                "每项都必须附现有 evidence_refs；只能给建议，不能补充阈值、修改事实或实施质量门禁。"
-            ),
-            prompt_version="report-analysis-v1",
-            stage="report_analysis",
-        )
-
-        def repair(prompt: str) -> str:
-            repaired = adapter.generate_json(
+        else:
+            preflight_budget(json.dumps(analysis_input, ensure_ascii=False), config)
+            if lease.cancel_requested():
+                raise AiInvocationCancelled("报告 AI 分析已取消")
+            raw_output = adapter.generate_json(
                 api_key=api_key,
                 model=model,
-                evidence_json=json.dumps(
-                    {
-                        "repair_instruction": prompt,
-                        "report_input": analysis_input,
-                    },
-                    ensure_ascii=False,
+                evidence_json=json.dumps(analysis_input, ensure_ascii=False),
+                system_prompt=(
+                    "只返回报告分析 JSON：risks、additional_verifications、regression_recommendations 和 "
+                    "stage_recommendation。"
+                    "每项都必须附现有 evidence_refs；只能给建议，不能补充阈值、修改事实或实施质量门禁。"
                 ),
-                system_prompt=("按修复指令只返回报告分析 JSON；不得新增、删除或改写业务事实。"),
-                prompt_version="report-analysis-repair-v1",
-                stage="report_analysis_repair",
+                prompt_version="report-analysis-v1",
+                stage="report_analysis",
             )
-            return json.dumps(repaired, ensure_ascii=False)
+            if lease.cancel_requested():
+                raise AiInvocationCancelled("报告 AI 分析已取消；迟到输出已丢弃")
 
-        output, _steps = run_repair_ladder(
-            raw_output,
-            validate=lambda data: validate_report_output(data, valid_refs),
-            normalize=lambda data: normalize_refs(data, "stage_progress"),
-            repair=repair,
-            budget=RepairBudget(getattr(adapter, "max_calls", 40) - getattr(adapter, "call_count", 0)),
-            fallback_ref="stage_progress",
-            fields=[
-                "risks",
-                "additional_verifications",
-                "regression_recommendations",
-                "stage_recommendation",
-            ],
-            allowed_refs=sorted(valid_refs),
-        )
+            def repair(prompt: str) -> str:
+                if lease.cancel_requested():
+                    raise AiInvocationCancelled("报告 AI 分析已取消")
+                repaired = adapter.generate_json(
+                    api_key=api_key,
+                    model=model,
+                    evidence_json=json.dumps(
+                        {"repair_instruction": prompt, "report_input": analysis_input},
+                        ensure_ascii=False,
+                    ),
+                    system_prompt="按修复指令只返回报告分析 JSON；不得新增、删除或改写业务事实。",
+                    prompt_version="report-analysis-repair-v1",
+                    stage="report_analysis_repair",
+                )
+                if lease.cancel_requested():
+                    raise AiInvocationCancelled("报告 AI 分析已取消；修复输出已丢弃")
+                return json.dumps(repaired, ensure_ascii=False)
+
+            output, _steps = run_repair_ladder(
+                raw_output,
+                validate=lambda data: validate_report_output(data, valid_refs),
+                normalize=lambda data: normalize_refs(data, "stage_progress"),
+                repair=repair,
+                budget=RepairBudget(getattr(adapter, "max_calls", 40) - getattr(adapter, "call_count", 0)),
+                fallback_ref="stage_progress",
+                fields=[
+                    "risks",
+                    "additional_verifications",
+                    "regression_recommendations",
+                    "stage_recommendation",
+                ],
+                allowed_refs=sorted(valid_refs),
+            )
+        if lease.cancel_requested():
+            raise AiInvocationCancelled("报告 AI 分析已取消")
+    except AiInvocationCancelled:
+        raise
     except (SiliconFlowError, ValidationError, ValueError) as error:
         if isinstance(error, SiliconFlowError):
             detail = error.to_dict()
@@ -383,17 +493,8 @@ def run_analysis(connection: sqlite3.Connection, report_id: int, *, force: bool 
                 model=model,
             ).to_dict()
             message = "模型分析结构无效"
-        save_request_logs(getattr(adapter, "request_logs", []))
         return _save(
-            connection,
-            report_id,
-            analysis_input,
-            provider=provider,
-            model=model,
-            is_mock=False,
-            output=None,
-            error=message,
-            error_detail=detail,
+            connection, report_id, analysis_input, output=None, error=message, error_detail=detail, **save_options
         )
     except Exception:
         detail = SiliconFlowError(
@@ -404,29 +505,71 @@ def run_analysis(connection: sqlite3.Connection, report_id: int, *, force: bool 
             provider=provider,
             model=model,
         ).to_dict()
-        save_request_logs(getattr(adapter, "request_logs", []))
         return _save(
             connection,
             report_id,
             analysis_input,
-            provider=provider,
-            model=model,
-            is_mock=False,
             output=None,
             error="模型服务不可用",
             error_detail=detail,
+            **save_options,
         )
-    save_request_logs(getattr(adapter, "request_logs", []))
-    return _save(
-        connection,
-        report_id,
-        analysis_input,
-        provider=provider,
-        model=model,
-        is_mock=False,
-        output=output,
-        error=None,
+    finally:
+        if adapter is not None:
+            save_request_logs(getattr(adapter, "request_logs", []))
+    return _save(connection, report_id, analysis_input, output=output, error=None, **save_options)
+
+
+def run_analysis(connection: sqlite3.Connection, report_id: int, *, force: bool = False) -> ReportAnalysis:
+    analysis_input, valid_refs, project_id = _report_analysis_input(connection, report_id)
+    configuration = _configuration()
+    if configuration is None:
+        return _not_enabled()
+    provider, model, api_key, is_mock = configuration
+    proposed = selected_snapshot_payload()
+    lease = begin_invocation(
+        operation_type="report_analysis",
+        project_id=project_id,
+        resource_id=report_id,
+        execution_mode="checkpointed_batch",
+        input_fingerprint=input_fingerprint(analysis_input, str(proposed.get("fingerprint", provider)), model),
     )
+    config_snapshot = dict(lease.config_snapshot)
+    if not is_mock:
+        provider = str(config_snapshot["provider"])
+        model = str(config_snapshot["model"])
+        api_key = configured_api_key(provider)
+    outcome = "failed"
+    try:
+        result = _perform_analysis(
+            connection,
+            report_id,
+            force=force,
+            lease=lease,
+            analysis_input=analysis_input,
+            valid_refs=valid_refs,
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            is_mock=is_mock,
+        )
+        outcome = "completed" if result.status == "completed" else "failed"
+        return result
+    except AiInvocationCancelled:
+        connection.rollback()
+        _record_cancelled(
+            report_id,
+            provider=provider,
+            model=model,
+            is_mock=is_mock,
+            analysis_input=analysis_input,
+            config_snapshot=config_snapshot,
+        )
+        outcome = "cancelled"
+        return ReportAnalysis(status="cancelled", message="AI 分析已取消", output=None)
+    finally:
+        # 只有模型已返回/超时且结果提交或取消收尾完成，才释放全局占用。
+        lease.finish(outcome)
 
 
 @router.post("", response_model=ReportAnalysis, status_code=status.HTTP_201_CREATED)
@@ -437,9 +580,32 @@ def retry_report_analysis(report_id: int, force: bool = False) -> ReportAnalysis
 
 @router.post("/cancel")
 def cancel_report_analysis(report_id: int) -> dict[str, bool]:
-    """在下一批次边界取消；已完成批次检查点保留。"""
-    request_cancel(report_id)
-    return {"cancel_requested": True}
+    """只取消指定报告的 AI 调用；真正收尾由执行线程完成。"""
+    with open_database() as connection:
+        if connection.execute("SELECT id FROM online_reports WHERE id = ?", (report_id,)).fetchone() is None:
+            raise HTTPException(status_code=404, detail="事实报告不存在")
+    active = get_active_invocation().active
+    if active and active.operation_type == "report_analysis" and active.resource_id == report_id:
+        request_invocation_cancel(active.invocation_id)
+        return {"cancel_requested": True, "stopping": True}
+    # 自动生成后的背景启动空隙：还未取得租约时允许取消尚未开始的任务。
+    with open_database() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        pending = connection.execute(
+            """SELECT id FROM report_analysis_runs
+               WHERE report_id = ? AND status = 'pending'
+               ORDER BY id DESC LIMIT 1""",
+            (report_id,),
+        ).fetchone()
+        if pending is None:
+            raise HTTPException(status_code=404, detail="当前报告没有正在运行的 AI 分析")
+        connection.execute(
+            """UPDATE report_analysis_runs
+               SET status = 'cancelled', error = '用户已取消 AI 分析', completed_at = ?
+               WHERE id = ? AND status = 'pending'""",
+            (_now(), pending["id"]),
+        )
+    return {"cancel_requested": True, "stopping": False}
 
 
 @router.get("/runs")
@@ -449,7 +615,30 @@ def get_analysis_history(report_id: int) -> list[dict[str, object]]:
         return analysis_history(connection, report_id)
 
 
-def run_analysis_in_background(report_id: int) -> None:
-    """报告已提交后才开始 AI 调用，模型故障不能影响事实报告接口。"""
+def _background_failure(report_id: int, message: str) -> None:
+    """拒绝准入或后台失败不能留下永久 pending，更不触碰报告事实。"""
     with open_database() as connection:
-        run_analysis(connection, report_id)
+        connection.execute(
+            """UPDATE report_analysis_runs SET status = 'failed', error = ?,
+               completed_at = ? WHERE report_id = ? AND status = 'pending'""",
+            (message, _now(), report_id),
+        )
+
+
+def run_analysis_in_background(report_id: int) -> None:
+    """事实报告先独立提交，后台任务仅在仍需运行时调用 AI。"""
+    with open_database() as connection:
+        pending = connection.execute(
+            "SELECT id FROM report_analysis_runs WHERE report_id = ? AND status = 'pending'",
+            (report_id,),
+        ).fetchone()
+        if pending is None:
+            return  # 在获得租约前已被用户取消
+        try:
+            result = run_analysis(connection, report_id)
+            if result.status == "not_enabled":
+                _background_failure(report_id, result.message)
+        except HTTPException as error:
+            _background_failure(report_id, str(error.detail))
+        except Exception:
+            _background_failure(report_id, "报告 AI 后台分析失败")

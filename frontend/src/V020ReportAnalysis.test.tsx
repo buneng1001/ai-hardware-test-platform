@@ -150,6 +150,47 @@ test("AI 分析失败时展示接口原因，并支持单独重试成功", async
   ).toHaveLength(0);
 });
 
+test("报告 AI 正在执行时允许就地取消，并显示正在停止状态", async () => {
+  const fetchMock = stubReportApi({
+    ...baseState(),
+    history: [reportHistoryItem(5)],
+    reports: {
+      5: factReport({
+        analysis: {
+          status: "pending",
+          message: "AI 分析正在运行",
+          output: null,
+        },
+      }),
+    },
+  });
+  await openReportView();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "预览最新报告（HTML）" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "报告 #5 HTML 预览",
+  });
+  const cancelButton = within(dialog).getByRole("button", {
+    name: "取消本次 AI 分析",
+  });
+  expect(cancelButton).toBeEnabled();
+  fireEvent.click(cancelButton);
+  expect(
+    await within(dialog).findByRole("button", { name: "正在停止" }),
+  ).toBeDisabled();
+  expect(
+    callsOf(fetchMock).filter(
+      ([input, init]) =>
+        String(input) === "/api/fact-reports/5/analysis/cancel" &&
+        init?.method === "POST",
+    ),
+  ).toHaveLength(1);
+  expect(
+    within(dialog).getByRole("heading", { name: "总体结论与通过率" }),
+  ).toBeVisible();
+});
+
 test("AI 分析完成后只展示建议区域且事实结论保持不变", async () => {
   stubReportApi({
     ...baseState(),
