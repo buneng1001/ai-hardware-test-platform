@@ -80,6 +80,8 @@ class AutomationCaseConversionAiCommand(BaseModel):
     # 生成范围：missing=只处理还没生成过自动化的用例；all=全部重新判定；selected=只处理勾选的用例。
     mode: Literal["missing", "all", "selected"] = "missing"
     source_case_ids: list[int] = Field(default_factory=list)
+    repeat_confirmed: bool = False
+    overwrite_previous: bool = False
 
 
 def _resolve_target(command: AutomationCaseConversionAiCommand, snapshot: dict[str, str]) -> tuple[str, str, str]:
@@ -198,6 +200,29 @@ def _update_candidate(
     )
 
 
+@router.get("/api/product-versions/{version_id}/automation-test-case-conversions/ai/runs")
+def list_ai_conversion_runs(version_id: int) -> dict[str, object]:
+    """Visible decisions stay retrievable across page refreshes, including independent reruns."""
+    with open_database() as connection:
+        _ensure_version(connection, version_id)
+        rows = connection.execute(
+            """SELECT id, fingerprint, decisions_json, created_at FROM ai_conversion_runs
+               WHERE product_version_id = ? AND is_visible = 1 ORDER BY id DESC LIMIT 40""",
+            (version_id,),
+        ).fetchall()
+        return {
+            "items": [
+                {
+                    "id": row["id"],
+                    "fingerprint": row["fingerprint"],
+                    "created_at": row["created_at"],
+                    "decisions": json.loads(row["decisions_json"]),
+                }
+                for row in rows
+            ]
+        }
+
+
 @router.post(
     "/api/product-versions/{version_id}/automation-test-case-conversions/ai",
     response_model=AutomationCaseAiConversionBatch,
@@ -271,25 +296,42 @@ def convert_source_cases_with_ai(
         selected_config = selected_snapshot_payload()
         fingerprint_input = {
             "config_fingerprint": selected_config.get("fingerprint"),
-            "source_cases": frozen_cases,
+            "source_cases": [
+                {key: value for key, value in row.items() if key not in {"ai_decision", "updated_at"}}
+                for row in frozen_cases
+            ],
             "product_profile": product_profile,
             "ai_context": ai_context,
             "mode": mode,
             "prompt_version": PROMPT_VERSION,
         }
+        fingerprint = hashlib.sha256(
+            json.dumps(fingerprint_input, ensure_ascii=False, sort_keys=True, default=str).encode()
+        ).hexdigest()
         lease = begin_invocation(
             operation_type="automation_conversion",
             project_id=project_id,
             resource_id=version_id,
             execution_mode="checkpointed_batch",
-            input_fingerprint=hashlib.sha256(
-                json.dumps(fingerprint_input, ensure_ascii=False, sort_keys=True, default=str).encode()
-            ).hexdigest(),
+            input_fingerprint=fingerprint,
         )
         outcome = "failed"
         try:
             if lease.config_snapshot["fingerprint"] != selected_config.get("fingerprint"):
                 raise HTTPException(status_code=409, detail="正式 AI 配置已变更，请重新发起转换")
+            old_run = connection.execute(
+                """SELECT id FROM ai_conversion_runs WHERE product_version_id = ?
+                   AND fingerprint = ? AND status = 'completed' AND is_visible = 1
+                   ORDER BY id DESC LIMIT 1""",
+                (version_id, fingerprint),
+            ).fetchone()
+            is_repeat = old_run is not None
+            if is_repeat and not command.repeat_confirmed:
+                raise HTTPException(
+                    status_code=409,
+                    detail="当前输入内容及分析条件与上一次执行完全一致，重新执行可能得到相同或相似的结果。",
+                )
+            planned_batches: list[tuple[dict[int, dict], dict[int, AutomationCaseAiDecision], dict]] = []
             provider, model, api_key = _resolve_target(command, dict(lease.config_snapshot))
             adapter = get_provider_adapter(provider)
             adapter.max_calls = batch_config().call_limit
@@ -329,6 +371,9 @@ def convert_source_cases_with_ai(
                     if lease.cancel_requested():
                         raise AiInvocationCancelled("丢弃取消后的模型响应")
                     batch_decisions = _parse_decisions(payload, set(rows_by_id))
+                    # T07 replacement cannot silently turn missing model items into manual decisions.
+                    if is_repeat and set(batch_decisions) != set(rows_by_id):
+                        raise HTTPException(status_code=422, detail="模型判定缺少用例，新结果不完整，原结果未覆盖")
                 except SiliconFlowError as error:
                     save_request_logs(getattr(adapter, "request_logs", []))
                     stage = getattr(error, "stage", "") or "unknown"
@@ -343,6 +388,24 @@ def convert_source_cases_with_ai(
                         status_code=status.HTTP_502_BAD_GATEWAY,
                         detail=f"AI 输出无法解析：{error}",
                     ) from error
+
+                if is_repeat:
+                    planned_batches.append((rows_by_id, batch_decisions, payload))
+                    for source_id, source_case in rows_by_id.items():
+                        decision = batch_decisions.get(source_id)
+                        if decision is None:
+                            decision = AutomationCaseAiDecision(
+                                source_case_id=source_id,
+                                case_number=str(source_case["case_number"]),
+                                title=str(source_case["title"]),
+                                decision="manual",
+                                reason="模型未给出判定，按人工用例处理",
+                                confidence="low",
+                            )
+                        elif decision.case_number == "":
+                            decision = decision.model_copy(update={"case_number": str(source_case["case_number"])})
+                        decisions.append(decision)
+                    continue
 
                 connection.execute("BEGIN IMMEDIATE")
                 lease.assert_can_commit(connection)
@@ -392,7 +455,66 @@ def convert_source_cases_with_ai(
                 connection.commit()
             if lease.cancel_requested():
                 raise AiInvocationCancelled("转换已停止")
+            # Repeated inputs are staged across all model batches. Publish candidates
+            # only after every batch succeeds, inside one SQLite transaction.
+            connection.execute("BEGIN IMMEDIATE")
+            lease.assert_can_commit(connection)
+            if is_repeat and command.overwrite_previous:
+                for rows_by_id, batch_decisions, payload in planned_batches:
+                    for source_id, source_case in rows_by_id.items():
+                        decision = batch_decisions.get(source_id)
+                        if decision is None:
+                            decision = AutomationCaseAiDecision(
+                                source_case_id=source_id,
+                                case_number=str(source_case["case_number"]),
+                                title=str(source_case["title"]),
+                                decision="manual",
+                                reason="模型未给出判定，按人工用例处理",
+                                confidence="low",
+                            )
+                        elif decision.case_number == "":
+                            decision = decision.model_copy(update={"case_number": str(source_case["case_number"])})
+                        connection.execute(
+                            "UPDATE source_test_cases SET ai_decision = ? WHERE id = ?",
+                            (decision.decision, source_id),
+                        )
+                        existing = connection.execute(
+                            """SELECT id FROM automation_test_cases
+                               WHERE product_version_id = ? AND source_test_case_id = ?""",
+                            (version_id, source_id),
+                        ).fetchone()
+                        raw_entry = _raw_entry(payload, source_id)
+                        if decision.decision == "automation":
+                            if existing is not None:
+                                _update_candidate(connection, int(existing["id"]), source_case, raw_entry, decision)
+                                updated_count += 1
+                            else:
+                                _save_candidate(connection, version_id, source_case, raw_entry, decision)
+                                created_count += 1
+                        elif existing is not None:
+                            connection.execute("DELETE FROM automation_test_cases WHERE id = ?", (int(existing["id"]),))
+                            removed_count += 1
+                _touch_project(connection, version_id)
+                connection.execute(
+                    """UPDATE ai_conversion_runs SET is_visible = 0
+                       WHERE product_version_id = ? AND fingerprint = ?
+                         AND status = 'completed' AND is_visible = 1""",
+                    (version_id, fingerprint),
+                )
+            connection.execute(
+                """INSERT INTO ai_conversion_runs
+                   (product_version_id, fingerprint, status, decisions_json, is_visible, created_at)
+                   VALUES (?, ?, 'completed', ?, 1, ?)""",
+                (
+                    version_id,
+                    fingerprint,
+                    json.dumps([item.model_dump() for item in decisions], ensure_ascii=False),
+                    _now(),
+                ),
+            )
+            lease.assert_can_commit(connection)
             items = _list_cases(connection, version_id)
+            connection.commit()
             automation_count = sum(1 for item in decisions if item.decision == "automation")
             outcome = "completed"
             return AutomationCaseAiConversionBatch(

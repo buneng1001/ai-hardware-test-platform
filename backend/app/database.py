@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 37
+LATEST_SCHEMA_VERSION = 40
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -1045,6 +1045,43 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             );
             INSERT OR IGNORE INTO schema_migrations (version) VALUES (37);
             PRAGMA user_version = 37;
+            """
+        )
+
+
+    if current_version < 38:
+        # T07: replaced analyses stay internally auditable, not visible to users.
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(report_analysis_runs)")}
+        if columns and "is_visible" not in columns:
+            connection.execute("ALTER TABLE report_analysis_runs ADD COLUMN is_visible INTEGER NOT NULL DEFAULT 1")
+        connection.executescript(
+            "INSERT OR IGNORE INTO schema_migrations (version) VALUES (38); PRAGMA user_version = 38;"
+        )
+
+    if current_version < 39:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(diagnosis_runs)")}
+        if columns and "is_visible" not in columns:
+            connection.execute("ALTER TABLE diagnosis_runs ADD COLUMN is_visible INTEGER NOT NULL DEFAULT 1")
+        connection.executescript(
+            "INSERT OR IGNORE INTO schema_migrations (version) VALUES (39); PRAGMA user_version = 39;"
+        )
+
+    if current_version < 40:
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS ai_conversion_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_version_id INTEGER NOT NULL REFERENCES product_versions(id) ON DELETE CASCADE,
+                fingerprint TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('completed')),
+                decisions_json TEXT NOT NULL,
+                is_visible INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_conversion_runs_fingerprint
+                ON ai_conversion_runs(product_version_id, fingerprint, status, is_visible);
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (40);
+            PRAGMA user_version = 40;
             """
         )
 

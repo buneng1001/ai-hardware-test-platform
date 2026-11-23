@@ -10,6 +10,7 @@ import {
   createFactReport,
   deleteFactReport,
   getFactReport,
+  getFactReportRepeatInfo,
   getReportAttachmentCleanupImpact,
   getReportHistory,
   retryFactReportAnalysis,
@@ -17,6 +18,7 @@ import {
   type ReportAttachmentCleanupImpact,
   type ReportHistoryItem,
 } from "./factReportsApi";
+import { cancelAiInvocation, getActiveAiInvocation } from "./diagnosisApi";
 import {
   getManualTestResultPage,
   type ManualTestResultBatch,
@@ -133,7 +135,10 @@ export function useV020FactReports(groupId: number | null) {
   };
 
   /** 只重试报告分析，不重新生成事实报告或重新执行自动化。 */
-  const retryAnalysis = async (force = false): Promise<boolean> => {
+  const retryAnalysis = async (
+    force = false,
+    overwrite = false,
+  ): Promise<boolean> => {
     if (!report) return false;
     setBusy(true);
     setActionError(null);
@@ -143,7 +148,31 @@ export function useV020FactReports(groupId: number | null) {
       analysis: { status: "pending", message: "AI 分析正在运行", output: null },
     });
     try {
-      const analysis = await retryFactReportAnalysis(report.id, force);
+      if (force) {
+        const current = await getActiveAiInvocation();
+        if (
+          current?.operation_type === "report_analysis" &&
+          current.resource_id === report.id
+        ) {
+          await cancelAiInvocation(current.invocation_id);
+          let settled = false;
+          for (let attempt = 0; attempt < 60; attempt += 1) {
+            await new Promise((resolve) => window.setTimeout(resolve, 500));
+            const latest = await getActiveAiInvocation();
+            if (!latest || latest.invocation_id !== current.invocation_id) {
+              settled = true;
+              break;
+            }
+          }
+          if (!settled)
+            throw new Error("原报告 AI 分析仍在停止，请稍后主动重新执行");
+        }
+      }
+      const analysis = await retryFactReportAnalysis(
+        report.id,
+        force,
+        overwrite,
+      );
       setReport({ ...report, analysis });
       setHistoryQuery("");
       setMessage(
@@ -276,6 +305,15 @@ export function useV020FactReports(groupId: number | null) {
     message,
     generate,
     openReport,
+    getRepeatInfo: () =>
+      report
+        ? getFactReportRepeatInfo(report.id)
+        : Promise.resolve({
+            same_input: false,
+            has_previous: false,
+            running_same_operation: false,
+            occupied_other: false,
+          }),
     retryAnalysis,
     cancelAnalysis,
     refreshAnalysis,

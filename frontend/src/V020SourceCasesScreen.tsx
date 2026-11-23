@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   convertSourceTestCasesWithAi,
   convertSourceTestCasesWithRules,
+  listAiConversionRuns,
+  type AutomationAiConversionRun,
 } from "./automationTestCasesApi";
 import {
   cancelAiInvocation,
@@ -63,6 +65,33 @@ export function V020SourceCasesScreen({
   const [activeConversion, setActiveConversion] =
     useState<ActiveAiInvocation | null>(null);
   const [stoppingConversion, setStoppingConversion] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<AiGenerateMode | null>(null);
+  const [overwriteConversion, setOverwriteConversion] = useState(false);
+  const [repeatHasPrevious, setRepeatHasPrevious] = useState(false);
+  const [conversionHistory, setConversionHistory] = useState<
+    AutomationAiConversionRun[] | null
+  >(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const showConversionHistory = async () => {
+    if (versionId === null) return;
+    if (conversionHistory !== null) {
+      setConversionHistory(null);
+      return;
+    }
+    setHistoryError(null);
+    try {
+      setConversionHistory((await listAiConversionRuns(versionId)).items);
+    } catch (error) {
+      setHistoryError(
+        error instanceof Error ? error.message : "AI 判定历史读取失败",
+      );
+    }
+  };
+
+  useEffect(() => {
+    setConversionHistory(null);
+    setHistoryError(null);
+  }, [versionId]);
 
   // 从后端恢复正在运行的转换；刷新/重新进入页面不发起第二次模型请求。
   useEffect(() => {
@@ -200,19 +229,52 @@ export function V020SourceCasesScreen({
   };
 
   /** AI 转换：把勾选的原始用例交给模型，由模型判定哪些可自动化、哪些转人工。 */
-  const generateAutomationCasesWithAi = async (mode: AiGenerateMode) => {
-    if (versionId === null || activeConversion || generatingWithAi) return;
+  const generateAutomationCasesWithAi = async (
+    mode: AiGenerateMode,
+    confirmed = false,
+    overwrite = false,
+  ) => {
+    if (versionId === null || (generatingWithAi && !activeConversion)) return;
+    if (activeConversion && !confirmed) {
+      setRepeatMode(mode);
+      setRepeatHasPrevious(false);
+      setOverwriteConversion(false);
+      setAiDialogOpen(false);
+      return;
+    }
     setAiDialogOpen(false);
     setGeneratingWithAi(true);
     setGenerateError(null);
     setGenerateNotice(null);
     try {
+      if (confirmed) {
+        const current = await getActiveAiInvocation();
+        if (
+          current?.operation_type === "automation_conversion" &&
+          current.resource_id === versionId
+        ) {
+          await cancelAiInvocation(current.invocation_id);
+          let settled = false;
+          for (let attempt = 0; attempt < 60; attempt += 1) {
+            await new Promise((resolve) => window.setTimeout(resolve, 500));
+            const latest = await getActiveAiInvocation();
+            if (!latest || latest.invocation_id !== current.invocation_id) {
+              settled = true;
+              break;
+            }
+          }
+          if (!settled)
+            throw new Error("原 AI 转换仍在停止，请稍后手动重新执行");
+        }
+      }
       // 按用户选的范围判定；selected 模式只带勾选的用例。
       const result = await convertSourceTestCasesWithAi(
         versionId,
         readTemporaryKey(),
         mode === "selected" ? source.selectedIds : [],
         mode,
+        confirmed,
+        overwrite,
       );
       const manual = result.decisions.filter(
         (item) => item.decision === "manual",
@@ -244,13 +306,25 @@ export function V020SourceCasesScreen({
           })),
       });
       // 判定后重新拉一次原始用例，让“自动化/人工”标签立即更新。
+      if (confirmed && !overwrite) {
+        setGenerateNotice("新转换判定已独立保存，原有自动化候选没有被覆盖。");
+      }
       await source.retry();
     } catch (caught) {
-      setGenerateError(
+      const message =
         caught instanceof Error && caught.message
           ? caught.message
-          : "AI 转换失败",
-      );
+          : "AI 转换失败";
+      if (
+        !confirmed &&
+        message.includes("当前输入内容及分析条件与上一次执行完全一致")
+      ) {
+        setRepeatMode(mode);
+        setOverwriteConversion(false);
+        setRepeatHasPrevious(true);
+      } else {
+        setGenerateError(message);
+      }
     } finally {
       setGeneratingWithAi(false);
       await source.retry();
@@ -322,13 +396,22 @@ export function V020SourceCasesScreen({
             disabled={
               source.busy ||
               generating ||
-              generatingWithAi ||
-              Boolean(activeConversion)
+              (generatingWithAi && !activeConversion) ||
+              Boolean(activeConversion?.stopping)
             }
             onClick={() => setAiDialogOpen(true)}
             type="button"
           >
             {generatingWithAi ? "AI 判定中…" : "AI 生成自动化用例"}
+          </button>
+          <button
+            type="button"
+            className="prototype-secondary"
+            onClick={() => void showConversionHistory()}
+          >
+            {conversionHistory === null
+              ? "查看 AI 判定历史"
+              : "收起 AI 判定历史"}
           </button>
           {(activeConversion || generatingWithAi) && (
             <span role="status">
@@ -533,8 +616,77 @@ export function V020SourceCasesScreen({
         重新导入同一份用例表时，在导入面板勾选“覆盖已有用例”，就不会堆成两份。
       </div>
 
+      {historyError && <p role="alert">{historyError}</p>}
+      {conversionHistory !== null && (
+        <section aria-label="AI 判定历史" className="prototype-inline-note">
+          <h3>已保存的 AI 判定</h3>
+          {conversionHistory.length === 0 && <p>暂无已完成的判定记录。</p>}
+          {conversionHistory.map((entry) => (
+            <details key={entry.id}>
+              <summary>
+                判定 #{entry.id} · {entry.created_at} · {entry.decisions.length}{" "}
+                条
+              </summary>
+              <ul>
+                {entry.decisions.map((decision) => (
+                  <li key={decision.source_case_id}>
+                    {decision.case_number} ·{" "}
+                    {decision.decision === "automation" ? "自动化" : "人工"} ·{" "}
+                    {decision.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ))}
+        </section>
+      )}
+      {repeatMode !== null && (
+        <div
+          className="prototype-inline-note"
+          role="dialog"
+          aria-label="确认重复 AI 转换"
+        >
+          <p>
+            当前输入内容及分析条件与上一次执行完全一致，重新执行可能得到相同或相似的结果。
+          </p>
+          {activeConversion && (
+            <p>重新执行将先停止当前 AI 转换，然后再启动新的调用。</p>
+          )}
+          {repeatHasPrevious && (
+            <label>
+              <input
+                type="checkbox"
+                checked={overwriteConversion}
+                onChange={(event) =>
+                  setOverwriteConversion(event.target.checked)
+                }
+              />
+              覆盖上一次结果
+            </label>
+          )}
+          <div className="prototype-actions">
+            <button
+              type="button"
+              onClick={() => {
+                const mode = repeatMode;
+                setRepeatMode(null);
+                void generateAutomationCasesWithAi(
+                  mode,
+                  true,
+                  overwriteConversion,
+                );
+              }}
+            >
+              重新执行
+            </button>
+            <button type="button" onClick={() => setRepeatMode(null)}>
+              取消
+            </button>
+          </div>
+        </div>
+      )}
       <V020AiGenerateDialog
-        busy={generatingWithAi}
+        busy={generatingWithAi && !activeConversion}
         missingCount={source.missingAutomationCount}
         onCancel={() => setAiDialogOpen(false)}
         onConfirm={(mode) => void generateAutomationCasesWithAi(mode)}

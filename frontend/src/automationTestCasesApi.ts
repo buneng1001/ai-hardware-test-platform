@@ -157,12 +157,27 @@ export type AutomationCaseAiConversionBatch = {
   items: AutomationTestCase[];
 };
 
+export type AutomationAiConversionRun = {
+  id: number;
+  fingerprint: string;
+  created_at: string;
+  decisions: AutomationCaseAiDecision[];
+};
+
+export function listAiConversionRuns(versionId: number) {
+  return request<{ items: AutomationAiConversionRun[] }>(
+    `/api/product-versions/${versionId}/automation-test-case-conversions/ai/runs`,
+  );
+}
+
 /** 让 AI 读取勾选的原始用例并判定自动化/人工；临时密钥随请求发送，不落库。 */
 export function convertSourceTestCasesWithAi(
   versionId: number,
   apiKey = "",
   sourceCaseIds: number[] = [],
   mode: "missing" | "all" | "selected" = "missing",
+  repeatConfirmed = false,
+  overwritePrevious = false,
 ) {
   return request<AutomationCaseAiConversionBatch>(
     `/api/product-versions/${versionId}/automation-test-case-conversions/ai`,
@@ -173,6 +188,8 @@ export function convertSourceTestCasesWithAi(
         api_key: apiKey,
         mode,
         source_case_ids: sourceCaseIds,
+        repeat_confirmed: repeatConfirmed,
+        overwrite_previous: overwritePrevious,
       }),
     },
   );

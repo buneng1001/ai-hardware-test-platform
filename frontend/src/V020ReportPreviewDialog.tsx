@@ -31,6 +31,7 @@ export function V020ReportPreviewDialog({
   onClose,
   onRetryAnalysis,
   onRerunAnalysis,
+  onCheckRepeat,
   onRefreshAnalysis,
   onCancelAnalysis,
   cleanupImpact,
@@ -44,7 +45,13 @@ export function V020ReportPreviewDialog({
   onBack: () => void;
   onClose: () => void;
   onRetryAnalysis: () => void;
-  onRerunAnalysis: () => void;
+  onRerunAnalysis: (overwrite: boolean) => void;
+  onCheckRepeat: () => Promise<{
+    same_input: boolean;
+    has_previous: boolean;
+    running_same_operation: boolean;
+    occupied_other: boolean;
+  }>;
   onRefreshAnalysis: () => void;
   onCancelAnalysis: () => void;
   cleanupImpact: ReportAttachmentCleanupImpact | null;
@@ -434,6 +441,7 @@ export function V020ReportPreviewDialog({
             onRefresh={onRefreshAnalysis}
             onCancel={onCancelAnalysis}
             onRerun={onRerunAnalysis}
+            onCheckRepeat={onCheckRepeat}
             onRetry={onRetryAnalysis}
             report={report}
           />

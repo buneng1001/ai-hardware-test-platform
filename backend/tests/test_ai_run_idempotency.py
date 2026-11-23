@@ -72,8 +72,9 @@ def test_new_run_activates_and_keeps_history_separate(monkeypatch):
         error_detail={"kind": "timeout", "action": "稍后重试"},
     )
     current = latest_analysis(connection, 1)
-    assert current.run_id == failed.run_id
-    assert current.status == "failed"
+    # T07: an unsuccessful rerun is retained for audit, but never hides the last valid result.
+    assert current.run_id == first.run_id
+    assert current.status == "completed"
     # 失败运行不参与幂等复用，但同一指纹的成功结果仍可复用。
     reusable = find_reusable_analysis(connection, 1, failed.fingerprint or "")
     assert reusable is not None
@@ -82,6 +83,7 @@ def test_new_run_activates_and_keeps_history_separate(monkeypatch):
     history = analysis_history(connection, 1)
     assert len(history) == 2
     assert sum(int(item["is_active"]) for item in history) == 1
-    assert history[0]["is_active"] == 1
+    assert history[0]["is_active"] == 0
+    assert history[1]["is_active"] == 1
     # 上一次成功结果仍可按指纹找到，历史与当前视图分开。
     assert find_reusable_analysis(connection, 1, first.fingerprint or "") is not None

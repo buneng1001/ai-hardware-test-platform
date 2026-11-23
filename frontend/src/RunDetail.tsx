@@ -113,6 +113,8 @@ export function RunDetail({
   const [activeDiagnosis, setActiveDiagnosis] =
     useState<ActiveAiInvocation | null>(null);
   const [diagnosisStopping, setDiagnosisStopping] = useState(false);
+  const [repeatConfirmOpen, setRepeatConfirmOpen] = useState(false);
+  const [overwriteDiagnosis, setOverwriteDiagnosis] = useState(false);
   const previousRunId = useRef<number | null>(null);
   // Prevent a response started for a previous run from painting the new run.
   const displayedRunId = useRef(run.id);
@@ -134,17 +136,48 @@ export function RunDetail({
     );
   }, [run.id, run.alignment_result?.review_revision]);
 
-  const generateDiagnosis = async () => {
+  const generateDiagnosis = async (confirmed = false, overwrite = false) => {
+    if (
+      !confirmed &&
+      diagnosisMode !== "mock" &&
+      activeDiagnosis?.resource_id === run.id
+    ) {
+      setOverwriteDiagnosis(false);
+      setRepeatConfirmOpen(true);
+      return;
+    }
     const requestedRunId = run.id;
     setDiagnosisError(null);
     setDiagnosisSubmitting(true);
     try {
+      if (confirmed && diagnosisMode !== "mock") {
+        const active = await getActiveAiInvocation();
+        if (
+          active?.operation_type === "diagnosis" &&
+          active.resource_id === requestedRunId
+        ) {
+          await cancelAiInvocation(active.invocation_id);
+          let settled = false;
+          for (let attempt = 0; attempt < 60; attempt += 1) {
+            await new Promise((resolve) => window.setTimeout(resolve, 500));
+            const latest = await getActiveAiInvocation();
+            if (!latest || latest.invocation_id !== active.invocation_id) {
+              settled = true;
+              break;
+            }
+          }
+          if (!settled)
+            throw new Error("原 AI 调用仍在停止，请稍后主动重新执行");
+        }
+      }
       const result = await createDiagnosis(
         run.id,
         diagnosisMode,
         diagnosisModel,
         temporaryApiKey,
         diagnosisMode === "mock" ? undefined : diagnosisProvider,
+        confirmed,
+        overwrite,
       );
       if (displayedRunId.current !== requestedRunId) return;
       if (result.status === "cancelled") {
@@ -155,9 +188,17 @@ export function RunDetail({
       }
     } catch (error) {
       if (displayedRunId.current === requestedRunId) {
-        setDiagnosisError(
-          error instanceof Error ? error.message : "结构化诊断生成失败",
-        );
+        const message =
+          error instanceof Error ? error.message : "结构化诊断生成失败";
+        if (
+          !confirmed &&
+          message.includes("当前输入内容及分析条件与上一次执行完全一致")
+        ) {
+          setOverwriteDiagnosis(false);
+          setRepeatConfirmOpen(true);
+        } else {
+          setDiagnosisError(message);
+        }
       }
     } finally {
       if (displayedRunId.current === requestedRunId) {
@@ -173,9 +214,7 @@ export function RunDetail({
       if (displayedRunId.current !== requestedRunId) return;
       const latest = history.at(-1);
       setDiagnosis(
-        latest?.status === "cancelled"
-          ? ([...history].reverse().find((item) => item.output) ?? latest)
-          : (latest ?? null),
+        [...history].reverse().find((item) => item.output) ?? latest ?? null,
       );
     } catch {
       if (displayedRunId.current === requestedRunId) {
@@ -199,6 +238,8 @@ export function RunDetail({
     setActiveDiagnosis(null);
     setDiagnosisStopping(false);
     void loadDiagnosisHistory();
+    setRepeatConfirmOpen(false);
+    setOverwriteDiagnosis(false);
   }, [run.id]);
 
   // The backend owns the call lifecycle; re-entering this page only reads status.
@@ -376,7 +417,9 @@ export function RunDetail({
             </h4>
             <button
               type="button"
-              disabled={diagnosisSubmitting || Boolean(currentDiagnosis)}
+              disabled={
+                diagnosisSubmitting || Boolean(currentDiagnosis?.stopping)
+              }
               onClick={() => void generateDiagnosis()}
             >
               生成 {diagnosisMode === "mock" ? "Mock" : "真实模型"} 诊断
@@ -400,6 +443,43 @@ export function RunDetail({
             <button type="button" onClick={() => void loadDiagnosisHistory()}>
               刷新诊断状态
             </button>
+            {repeatConfirmOpen && (
+              <div role="dialog" aria-label="确认重复诊断">
+                <p>
+                  当前输入内容及分析条件与上一次执行完全一致，重新执行可能得到相同或相似的结果。
+                </p>
+                {currentDiagnosis && (
+                  <p>重新执行将先停止当前 AI 调用，再开始新的诊断。</p>
+                )}
+                {diagnosis?.status === "completed" && diagnosis.output && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={overwriteDiagnosis}
+                      onChange={(event) =>
+                        setOverwriteDiagnosis(event.target.checked)
+                      }
+                    />
+                    覆盖上一次结果
+                  </label>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRepeatConfirmOpen(false);
+                    void generateDiagnosis(true, overwriteDiagnosis);
+                  }}
+                >
+                  重新执行
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRepeatConfirmOpen(false)}
+                >
+                  取消
+                </button>
+              </div>
+            )}
             {diagnosisError && <p role="alert">{diagnosisError}</p>}
             {(diagnosis?.status === "failed" ||
               diagnosis?.status === "retryable") && (

@@ -179,8 +179,21 @@ export function createFactReport(
   });
 }
 
-export function retryFactReportAnalysis(reportId: number, force = false) {
-  const suffix = force ? "?force=true" : "";
+export function getFactReportRepeatInfo(reportId: number) {
+  return request<{
+    same_input: boolean;
+    has_previous: boolean;
+    running_same_operation: boolean;
+    occupied_other: boolean;
+  }>(`/api/fact-reports/${reportId}/analysis/repeat-info`);
+}
+
+export function retryFactReportAnalysis(
+  reportId: number,
+  force = false,
+  overwrite = false,
+) {
+  const suffix = force ? `?force=true&overwrite_previous=${overwrite}` : "";
   return request<ReportAnalysis>(
     `/api/fact-reports/${reportId}/analysis${suffix}`,
     { method: "POST" },

@@ -1,5 +1,6 @@
 """结构化诊断业务：Mock 与硅基流动均只消费限量证据，不进入测试关键路径。"""
 
+import hashlib
 import json
 import logging
 import os
@@ -54,6 +55,37 @@ class DiagnosisRequest(BaseModel):
     provider: str | None = None
     model: str | None = Field(default=None, min_length=1, max_length=200)
     api_key: str = ""
+    repeat_confirmed: bool = False
+    overwrite_previous: bool = False
+
+
+def _effective_fingerprint(package: DiagnosisEvidencePackage, snapshot: dict, model: str) -> str:
+    safe = {
+        "evidence": package.model_dump(mode="json"),
+        "config_fingerprint": snapshot.get("fingerprint"),
+        "model": model,
+        "prompt_version": snapshot.get("prompt_version"),
+    }
+    return hashlib.sha256(json.dumps(safe, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
+def _matching_completed(run_id: int, fingerprint: str):
+    """Legacy rows without fingerprint are compared using their frozen evidence and config."""
+    with open_database() as connection:
+        rows = connection.execute(
+            """SELECT * FROM diagnosis_runs WHERE run_id = ? AND status = 'completed'
+               AND is_visible = 1 ORDER BY id DESC""",
+            (run_id,),
+        ).fetchall()
+    for row in rows:
+        try:
+            package = DiagnosisEvidencePackage.model_validate_json(row["evidence_package"])
+            snapshot = json.loads(row["config_snapshot"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        if _effective_fingerprint(package, snapshot, row["model"]) == fingerprint:
+            return row
+    return None
 
 
 def _json(value: object) -> str:
@@ -209,7 +241,9 @@ def _diagnosis_from_row(row) -> DiagnosisRun:
 
 def list_diagnoses(run_id: int) -> list[DiagnosisRun]:
     with open_database() as connection:
-        rows = connection.execute("SELECT * FROM diagnosis_runs WHERE run_id = ? ORDER BY id", (run_id,)).fetchall()
+        rows = connection.execute(
+            "SELECT * FROM diagnosis_runs WHERE run_id = ? AND is_visible = 1 ORDER BY id", (run_id,)
+        ).fetchall()
     return [_diagnosis_from_row(row) for row in rows]
 
 
@@ -218,8 +252,9 @@ def latest_diagnosis(run_id: int) -> DiagnosisRun | None:
     # A cancelled attempt is not a replacement for the last published result.
     # Keep the cancelled attempt available in history, but preserve the report's
     # last prior diagnosis (if any) instead of masking it with an empty output.
-    return next((item for item in reversed(diagnoses) if item.status != "cancelled"), None) or (
-        diagnoses[-1] if diagnoses else None
+    return next((item for item in reversed(diagnoses) if item.status == "completed" and item.output), None) or (
+        next((item for item in reversed(diagnoses) if item.status != "cancelled"), None)
+        or (diagnoses[-1] if diagnoses else None)
     )
 
 
@@ -237,6 +272,7 @@ def _save_diagnosis(
     config_snapshot: dict[str, object] | None = None,
     error_detail: dict[str, object] | None = None,
     lease: AiInvocationLease | None = None,
+    overwrite_previous: bool = False,
 ) -> DiagnosisRun:
     created_at = datetime.now(UTC)
     diagnosis_status = status_override or ("completed" if output else "failed")
@@ -291,6 +327,11 @@ def _save_diagnosis(
         )
         if cursor.lastrowid is None:
             raise HTTPException(status_code=500, detail="诊断运行保存失败")
+        if output is not None and overwrite_previous:
+            connection.execute(
+                "UPDATE diagnosis_runs SET is_visible = 0 WHERE run_id = ? AND id != ? AND status = 'completed'",
+                (run_id, cursor.lastrowid),
+            )
         row = connection.execute("SELECT * FROM diagnosis_runs WHERE id = ?", (cursor.lastrowid,)).fetchone()
     if row is None:
         raise HTTPException(status_code=500, detail="诊断运行保存失败")
@@ -337,6 +378,12 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
             raise HTTPException(status_code=409, detail="诊断服务商与当前正式 AI 配置不一致")
         if request.model is not None and request.model != model:
             raise HTTPException(status_code=409, detail="诊断模型与当前正式 AI 配置不一致")
+        fingerprint = _effective_fingerprint(package, config_snapshot, model)
+        if _matching_completed(run_id, fingerprint) is not None and not request.repeat_confirmed:
+            raise HTTPException(
+                status_code=409,
+                detail="当前输入内容及分析条件与上一次执行完全一致，重新执行可能得到相同或相似的结果。",
+            )
         validate_model(provider, model)
         # Only the selected, validated formal configuration is used for this invocation.
         api_key = configured_api_key(provider)
@@ -413,6 +460,7 @@ def create_diagnosis(run_id: int, request: DiagnosisRequest | None = None) -> Di
                 error=None,
                 config_snapshot=config_snapshot,
                 lease=lease,
+                overwrite_previous=request.overwrite_previous and request.repeat_confirmed,
             )
         outcome = "completed" if result.status == "completed" else "failed"
         return result

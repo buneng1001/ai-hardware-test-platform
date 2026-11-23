@@ -233,6 +233,77 @@ def test_cancel_while_model_waits_preserves_old_success_and_global_lock(prepared
     assert client.put("/api/settings/ai/state", json={"enabled": False}).status_code == 200
 
 
+def test_t07_failed_rerun_preserves_active_output_and_fact_snapshot(prepared, monkeypatch):
+    client, _, _, _, report = prepared
+    enable_ai(client, monkeypatch)
+    report_id = report["id"]
+    calls = 0
+
+    class Adapter:
+        request_logs = []
+
+        def generate_json(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError("simulated provider failure")
+            return model_output()
+
+    monkeypatch.setattr(report_analysis, "get_provider_adapter", lambda _: Adapter())
+    first = client.post(f"/api/fact-reports/{report_id}/analysis")
+    assert first.status_code == 201 and first.json()["status"] == "completed"
+    rerun = client.post(f"/api/fact-reports/{report_id}/analysis?force=true")
+    assert rerun.status_code == 201 and rerun.json()["status"] == "failed"
+    visible = client.get(f"/api/fact-reports/{report_id}").json()
+    assert visible["analysis"]["run_id"] == first.json()["run_id"]
+    assert visible["analysis"]["output"] == first.json()["output"]
+    assert visible["snapshot"] == report["snapshot"]
+    with open_database() as connection:
+        rows = connection.execute(
+            "SELECT status, is_active FROM report_analysis_runs WHERE report_id = ? ORDER BY id",
+            (report_id,),
+        ).fetchall()
+    assert [(row["status"], row["is_active"]) for row in rows] == [("completed", 1), ("failed", 0)]
+
+
+def test_t07_report_repeat_info_and_successful_atomic_overwrite(prepared, monkeypatch):
+    client, _, _, _, report = prepared
+    enable_ai(client, monkeypatch)
+    report_id = report["id"]
+    monkeypatch.setattr(
+        report_analysis,
+        "get_provider_adapter",
+        lambda _: type("Adapter", (), {"request_logs": [], "generate_json": lambda self, **kwargs: model_output()})(),
+    )
+    url = f"/api/fact-reports/{report_id}/analysis"
+    first = client.post(url)
+    assert first.status_code == 201 and first.json()["status"] == "completed"
+    repeat = client.get(f"{url}/repeat-info")
+    assert repeat.status_code == 200
+    assert repeat.json() == {
+        "same_input": True,
+        "has_previous": True,
+        "running_same_operation": False,
+        "occupied_other": False,
+    }
+    separate = client.post(f"{url}?force=true&overwrite_previous=false")
+    assert separate.status_code == 201 and separate.json()["status"] == "completed"
+    assert len(client.get(f"{url}/runs").json()) == 2
+    replace = client.post(f"{url}?force=true&overwrite_previous=true")
+    assert replace.status_code == 201 and replace.json()["status"] == "completed"
+    history = client.get(f"{url}/runs").json()
+    assert len(history) == 1 and history[0]["id"] == replace.json()["run_id"]
+    assert client.get(f"/api/fact-reports/{report_id}").json()["snapshot"] == report["snapshot"]
+    with open_database() as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM report_analysis_runs WHERE report_id = ? AND is_visible = 0",
+                (report_id,),
+            ).fetchone()[0]
+            == 2
+        )
+
+
 def test_background_pending_is_published_then_finally_cleared(prepared, monkeypatch):
     client, _, _, _, report = prepared
     enable_ai(client, monkeypatch)
