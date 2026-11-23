@@ -66,6 +66,10 @@ export function V020SourceCasesScreen({
     useState<ActiveAiInvocation | null>(null);
   const [stoppingConversion, setStoppingConversion] = useState(false);
   const [repeatMode, setRepeatMode] = useState<AiGenerateMode | null>(null);
+  const [repeatResumeChoice, setRepeatResumeChoice] = useState<
+    "continue" | "restart" | null
+  >(null);
+  const [resumeMode, setResumeMode] = useState<AiGenerateMode | null>(null);
   const [overwriteConversion, setOverwriteConversion] = useState(false);
   const [repeatHasPrevious, setRepeatHasPrevious] = useState(false);
   const [conversionHistory, setConversionHistory] = useState<
@@ -233,6 +237,7 @@ export function V020SourceCasesScreen({
     mode: AiGenerateMode,
     confirmed = false,
     overwrite = false,
+    resumeChoice: "continue" | "restart" | null = null,
   ) => {
     if (versionId === null || (generatingWithAi && !activeConversion)) return;
     if (activeConversion && !confirmed) {
@@ -275,6 +280,7 @@ export function V020SourceCasesScreen({
         mode,
         confirmed,
         overwrite,
+        resumeChoice,
       );
       const manual = result.decisions.filter(
         (item) => item.decision === "manual",
@@ -315,13 +321,16 @@ export function V020SourceCasesScreen({
         caught instanceof Error && caught.message
           ? caught.message
           : "AI 转换失败";
-      if (
+      if (message.includes("存在有效检查点，请选择继续进行")) {
+        setResumeMode(mode);
+      } else if (
         !confirmed &&
         message.includes("当前输入内容及分析条件与上一次执行完全一致")
       ) {
         setRepeatMode(mode);
         setOverwriteConversion(false);
         setRepeatHasPrevious(true);
+        setRepeatResumeChoice(resumeChoice);
       } else {
         setGenerateError(message);
       }
@@ -640,6 +649,50 @@ export function V020SourceCasesScreen({
           ))}
         </section>
       )}
+      {resumeMode !== null && (
+        <div
+          className="prototype-inline-note"
+          role="dialog"
+          aria-label="AI 转换中断续做"
+        >
+          <p>上一次 AI 转换未完成，但存在已保存的有效批次。请选择如何处理：</p>
+          <div className="prototype-actions">
+            <button
+              type="button"
+              onClick={() => {
+                const mode = resumeMode;
+                setResumeMode(null);
+                void generateAutomationCasesWithAi(
+                  mode,
+                  false,
+                  false,
+                  "continue",
+                );
+              }}
+            >
+              继续进行
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const mode = resumeMode;
+                setResumeMode(null);
+                void generateAutomationCasesWithAi(
+                  mode,
+                  false,
+                  false,
+                  "restart",
+                );
+              }}
+            >
+              重新运行
+            </button>
+            <button type="button" onClick={() => setResumeMode(null)}>
+              取消
+            </button>
+          </div>
+        </div>
+      )}
       {repeatMode !== null && (
         <div
           className="prototype-inline-note"
@@ -669,11 +722,14 @@ export function V020SourceCasesScreen({
               type="button"
               onClick={() => {
                 const mode = repeatMode;
+                const choice = repeatResumeChoice;
                 setRepeatMode(null);
+                setRepeatResumeChoice(null);
                 void generateAutomationCasesWithAi(
                   mode,
                   true,
                   overwriteConversion,
+                  choice,
                 );
               }}
             >

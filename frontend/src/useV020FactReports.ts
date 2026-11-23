@@ -138,6 +138,7 @@ export function useV020FactReports(groupId: number | null) {
   const retryAnalysis = async (
     force = false,
     overwrite = false,
+    resumeChoice?: "continue" | "restart",
   ): Promise<boolean> => {
     if (!report) return false;
     setBusy(true);
@@ -172,6 +173,7 @@ export function useV020FactReports(groupId: number | null) {
         report.id,
         force,
         overwrite,
+        resumeChoice,
       );
       setReport({ ...report, analysis });
       setHistoryQuery("");
@@ -309,6 +311,7 @@ export function useV020FactReports(groupId: number | null) {
       report
         ? getFactReportRepeatInfo(report.id)
         : Promise.resolve({
+            resume_available: false,
             same_input: false,
             has_previous: false,
             running_same_operation: false,

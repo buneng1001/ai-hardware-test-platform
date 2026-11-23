@@ -82,7 +82,13 @@ def run_batches(
             )
         cached = checkpoints.get(batch["key"])
         if cached is not None:
-            return cached
+            # A checkpoint must remain structurally valid; a corrupt or partial
+            # persisted output is not evidence of a completed semantic unit.
+            try:
+                validate_report_output(cached, set(batch["refs"]))
+                return cached
+            except (ValueError, TypeError, KeyError):
+                pass
         preflight_budget(json.dumps(batch, ensure_ascii=False), config)
         if calls >= config.call_limit:
             raise SiliconFlowError(

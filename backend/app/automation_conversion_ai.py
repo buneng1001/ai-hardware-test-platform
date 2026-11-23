@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.ai_batching import batch_config
+from app.ai_checkpoint_resume import completed_units, resume_source, save_plan, save_unit
 from app.ai_config import save_request_logs, selected_snapshot_payload
 from app.ai_invocation import AiInvocationCancelled, begin_invocation
 from app.automation_case_history import record_automation_case_history
@@ -82,6 +83,7 @@ class AutomationCaseConversionAiCommand(BaseModel):
     source_case_ids: list[int] = Field(default_factory=list)
     repeat_confirmed: bool = False
     overwrite_previous: bool = False
+    resume_choice: Literal["continue", "restart"] | None = None
 
 
 def _resolve_target(command: AutomationCaseConversionAiCommand, snapshot: dict[str, str]) -> tuple[str, str, str]:
@@ -292,6 +294,49 @@ def convert_source_cases_with_ai(
                 """,
                 (version_id,),
             ).fetchall()
+        # "missing" changes as each batch is committed. Recover the original
+        # cohort only when every original case is unchanged (apart from its
+        # AI decision) and no new unprocessed case has appeared.
+        if mode == "missing":
+            prior = connection.execute(
+                """SELECT plan_json, input_fingerprint FROM ai_batch_runs
+                   WHERE operation_type = 'automation_conversion' AND resource_id = ?
+                     AND status IN ('interrupted', 'failed', 'cancelled')
+                   ORDER BY created_at DESC, rowid DESC LIMIT 1""",
+                (version_id,),
+            ).fetchone()
+            if prior:
+                plan = json.loads(prior["plan_json"])
+                original_ids = plan.get("case_ids", []) if plan.get("mode") == "missing" else []
+                pending_ids = {int(row["id"]) for row in source_cases}
+                if original_ids and pending_ids.issubset(set(original_ids)):
+                    placeholders = ",".join("?" for _ in original_ids)
+                    original_rows = connection.execute(
+                        f"""SELECT * FROM source_test_cases
+                            WHERE product_version_id = ? AND id IN ({placeholders}) ORDER BY id""",
+                        (version_id, *original_ids),
+                    ).fetchall()
+                    if len(original_rows) == len(original_ids):
+                        original_input = {
+                            "config_fingerprint": selected_snapshot_payload().get("fingerprint"),
+                            "source_cases": [
+                                {
+                                    key: value
+                                    for key, value in dict(row).items()
+                                    if key not in {"ai_decision", "updated_at"}
+                                }
+                                for row in original_rows
+                            ],
+                            "product_profile": product_profile,
+                            "ai_context": ai_context,
+                            "mode": mode,
+                            "prompt_version": PROMPT_VERSION,
+                        }
+                        original_fingerprint = hashlib.sha256(
+                            json.dumps(original_input, ensure_ascii=False, sort_keys=True, default=str).encode()
+                        ).hexdigest()
+                        if original_fingerprint == prior["input_fingerprint"]:
+                            source_cases = original_rows
         frozen_cases = [dict(row) for row in source_cases]
         selected_config = selected_snapshot_payload()
         fingerprint_input = {
@@ -308,29 +353,51 @@ def convert_source_cases_with_ai(
         fingerprint = hashlib.sha256(
             json.dumps(fingerprint_input, ensure_ascii=False, sort_keys=True, default=str).encode()
         ).hexdigest()
+        old_run = connection.execute(
+            """SELECT id FROM ai_conversion_runs WHERE product_version_id = ?
+               AND fingerprint = ? AND status = 'completed' AND is_visible = 1
+               ORDER BY id DESC LIMIT 1""",
+            (version_id, fingerprint),
+        ).fetchone()
+        is_repeat = old_run is not None
+        if is_repeat and not command.repeat_confirmed:
+            raise HTTPException(
+                status_code=409,
+                detail="当前输入内容及分析条件与上一次执行完全一致，重新执行可能得到相同或相似的结果。",
+            )
+        resume_id = resume_source(
+            "automation_conversion",
+            version_id,
+            fingerprint,
+            str(selected_config.get("fingerprint", "")),
+            expected_plan={"batch_size": batch_config().cases_per_batch},
+        )
+        if resume_id and command.resume_choice is None:
+            raise HTTPException(status_code=409, detail="存在有效检查点，请选择继续进行、重新运行或取消")
+        if command.resume_choice == "continue" and not resume_id:
+            raise HTTPException(status_code=409, detail="没有有效检查点，请重新运行")
+        resumed_from = resume_id if command.resume_choice == "continue" else None
         lease = begin_invocation(
             operation_type="automation_conversion",
             project_id=project_id,
             resource_id=version_id,
             execution_mode="checkpointed_batch",
             input_fingerprint=fingerprint,
+            resumed_from_invocation_id=resumed_from,
         )
         outcome = "failed"
         try:
             if lease.config_snapshot["fingerprint"] != selected_config.get("fingerprint"):
                 raise HTTPException(status_code=409, detail="正式 AI 配置已变更，请重新发起转换")
-            old_run = connection.execute(
-                """SELECT id FROM ai_conversion_runs WHERE product_version_id = ?
-                   AND fingerprint = ? AND status = 'completed' AND is_visible = 1
-                   ORDER BY id DESC LIMIT 1""",
-                (version_id, fingerprint),
-            ).fetchone()
-            is_repeat = old_run is not None
-            if is_repeat and not command.repeat_confirmed:
-                raise HTTPException(
-                    status_code=409,
-                    detail="当前输入内容及分析条件与上一次执行完全一致，重新执行可能得到相同或相似的结果。",
-                )
+            save_plan(
+                lease.invocation_id,
+                {
+                    "mode": mode,
+                    "case_ids": [int(row["id"]) for row in source_cases],
+                    "batch_size": batch_config().cases_per_batch,
+                },
+            )
+            cached_units = completed_units(resumed_from)
             planned_batches: list[tuple[dict[int, dict], dict[int, AutomationCaseAiDecision], dict]] = []
             provider, model, api_key = _resolve_target(command, dict(lease.config_snapshot))
             adapter = get_provider_adapter(provider)
@@ -359,18 +426,26 @@ def convert_source_cases_with_ai(
                         for row in batch
                     ],
                 }
+                key = ",".join(str(item) for item in rows_by_id)
+                cached = cached_units.get(key)
                 try:
-                    payload = adapter.generate_json(
-                        api_key=api_key,
-                        model=model,
-                        evidence_json=json.dumps(evidence, ensure_ascii=False),
-                        system_prompt=SYSTEM_PROMPT,
-                        prompt_version=PROMPT_VERSION,
-                        stage="automation_conversion",
+                    payload = (
+                        cached
+                        if cached is not None
+                        else adapter.generate_json(
+                            api_key=api_key,
+                            model=model,
+                            evidence_json=json.dumps(evidence, ensure_ascii=False),
+                            system_prompt=SYSTEM_PROMPT,
+                            prompt_version=PROMPT_VERSION,
+                            stage="automation_conversion",
+                        )
                     )
                     if lease.cancel_requested():
                         raise AiInvocationCancelled("丢弃取消后的模型响应")
                     batch_decisions = _parse_decisions(payload, set(rows_by_id))
+                    if cached is not None and set(batch_decisions) != set(rows_by_id):
+                        raise ValueError("已保存的检查点不完整，不能续做")
                     # T07 replacement cannot silently turn missing model items into manual decisions.
                     if is_repeat and set(batch_decisions) != set(rows_by_id):
                         raise HTTPException(status_code=422, detail="模型判定缺少用例，新结果不完整，原结果未覆盖")
@@ -390,6 +465,11 @@ def convert_source_cases_with_ai(
                     ) from error
 
                 if is_repeat:
+                    if cached is None:
+                        with open_database() as checkpoint_connection:
+                            checkpoint_connection.execute("BEGIN IMMEDIATE")
+                            lease.assert_can_commit(checkpoint_connection)
+                            save_unit(checkpoint_connection, lease.invocation_id, key, batch_start, payload)
                     planned_batches.append((rows_by_id, batch_decisions, payload))
                     for source_id, source_case in rows_by_id.items():
                         decision = batch_decisions.get(source_id)
@@ -407,6 +487,15 @@ def convert_source_cases_with_ai(
                         decisions.append(decision)
                     continue
 
+                if cached is not None:
+                    # This unit's business effects were already committed in the
+                    # interrupted invocation; do not insert/update them again.
+                    for source_id, source_case in rows_by_id.items():
+                        decision = batch_decisions[source_id]
+                        if not decision.case_number:
+                            decision = decision.model_copy(update={"case_number": str(source_case["case_number"])})
+                        decisions.append(decision)
+                    continue
                 connection.execute("BEGIN IMMEDIATE")
                 lease.assert_can_commit(connection)
                 for source_id, source_case in rows_by_id.items():
@@ -450,6 +539,8 @@ def convert_source_cases_with_ai(
                         removed_count += 1
                 # 每批写完立刻提交，避免模型调用期间长时间占着写事务，
                 # 否则用户同时勾选用例会直接报 database is locked。
+                if set(batch_decisions) == set(rows_by_id):
+                    save_unit(connection, lease.invocation_id, key, batch_start, payload)
                 lease.assert_can_commit(connection)
                 _touch_project(connection, version_id)
                 connection.commit()

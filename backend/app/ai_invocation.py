@@ -128,6 +128,7 @@ def begin_invocation(
     resource_id: int | None = None,
     execution_mode: ExecutionMode = "single_request",
     input_fingerprint: str | None = None,
+    resumed_from_invocation_id: str | None = None,
 ) -> AiInvocationLease:
     """唯一调用原子准入；无等待队列，冲突立即返回 409。"""
     if operation_type not in DISPLAY_NAMES or execution_mode not in ("single_request", "checkpointed_batch"):
@@ -179,6 +180,49 @@ def begin_invocation(
                 input_fingerprint,
             ),
         )
+        if execution_mode == "checkpointed_batch" and resource_id is not None and input_fingerprint is not None:
+            if resumed_from_invocation_id is not None:
+                source = connection.execute(
+                    """SELECT 1 FROM ai_batch_runs WHERE invocation_id = ?
+                       AND operation_type = ? AND resource_id = ? AND input_fingerprint = ?
+                       AND config_fingerprint = ? AND status IN ('interrupted', 'failed', 'cancelled')
+                       AND EXISTS (
+                           WITH RECURSIVE source_chain(id, parent) AS (
+                               SELECT invocation_id, resumed_from_invocation_id
+                               FROM ai_batch_runs WHERE invocation_id = ?
+                               UNION ALL
+                               SELECT run.invocation_id, run.resumed_from_invocation_id
+                               FROM ai_batch_runs run JOIN source_chain chain ON run.invocation_id = chain.parent
+                           )
+                           SELECT 1 FROM ai_batch_units unit
+                           WHERE unit.invocation_id IN (SELECT id FROM source_chain)
+                       )""",
+                    (
+                        resumed_from_invocation_id,
+                        operation_type,
+                        resource_id,
+                        input_fingerprint,
+                        selected["fingerprint"],
+                        resumed_from_invocation_id,
+                    ),
+                ).fetchone()
+                if source is None:
+                    raise HTTPException(status_code=409, detail="旧检查点已失效，请重新运行")
+            connection.execute(
+                """INSERT INTO ai_batch_runs
+                   (invocation_id, operation_type, resource_id, input_fingerprint, config_fingerprint,
+                    status, resumed_from_invocation_id, created_at)
+                   VALUES (?, ?, ?, ?, ?, 'running', ?, ?)""",
+                (
+                    invocation_id,
+                    operation_type,
+                    resource_id,
+                    input_fingerprint,
+                    selected["fingerprint"],
+                    resumed_from_invocation_id,
+                    _now(),
+                ),
+            )
         config_snapshot = MappingProxyType(
             {
                 field: str(selected[field])
@@ -226,6 +270,11 @@ def finish_invocation(invocation_id: str, *, status: Literal["completed", "faile
             "UPDATE ai_active_invocation SET status = ?, finished_at = ? WHERE id = 1",
             (final_status, _now()),
         )
+        connection.execute(
+            """UPDATE ai_batch_runs SET status = ?, finished_at = ?
+               WHERE invocation_id = ? AND status = 'running'""",
+            (final_status, _now(), invocation_id),
+        )
         return final_status
 
 
@@ -236,6 +285,11 @@ def recover_interrupted_invocations() -> int:
         cursor = connection.execute(
             """UPDATE ai_active_invocation SET status = 'interrupted', finished_at = ?
                WHERE id = 1 AND status = 'running'""",
+            (_now(),),
+        )
+        connection.execute(
+            """UPDATE ai_batch_runs SET status = 'interrupted', finished_at = ?
+               WHERE status = 'running'""",
             (_now(),),
         )
         return cursor.rowcount

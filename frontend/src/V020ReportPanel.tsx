@@ -241,11 +241,13 @@ export function V020ReportPanel({
           onConfirmCleanup={() => void reports.confirmCleanup()}
           onPrepareCleanup={() => void reports.prepareCleanup()}
           onRefreshAnalysis={() => void reports.refreshAnalysis()}
-          onRerunAnalysis={(overwrite) =>
-            void reports.retryAnalysis(true, overwrite)
+          onRerunAnalysis={(overwrite, resumeChoice) =>
+            void reports.retryAnalysis(true, overwrite, resumeChoice)
           }
           onCheckRepeat={reports.getRepeatInfo}
-          onRetryAnalysis={() => void reports.retryAnalysis()}
+          onRetryAnalysis={(resumeChoice) =>
+            void reports.retryAnalysis(false, false, resumeChoice)
+          }
           report={report}
         />
       )}
