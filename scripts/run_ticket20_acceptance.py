@@ -73,6 +73,7 @@ def main() -> int:
 
     from fastapi.testclient import TestClient
     from app import diagnosis as diagnosis_module
+    from app import settings as settings_module
     from app.main import app
     from app.siliconflow import ModelErrorKind, SiliconFlowError
     class OfflineFailingAdapter:
@@ -237,11 +238,48 @@ def main() -> int:
             raise AssertionError("报告覆盖了自动化检查事实")
         if report_json["manual_check_results"] != [manual]:
             raise AssertionError("报告未独立汇总人工结果")
-        diagnosis_module.SiliconFlowAdapter = OfflineFailingAdapter
-        degraded = client.post(
+        # T02/T03 require a validated formal configuration and an enabled global
+        # AI state before a real-model business call. Keep this offline using a
+        # deterministic verification stub followed by a failing diagnosis stub.
+        class OfflineConnectionAdapter:
+            def check_connection(self, **_kwargs):
+                return None
+
+        formal = client.post(
+            "/api/settings/ai/config",
+            json={
+                "provider": "siliconflow",
+                "model": "demo-model",
+                "key_source": "temporary",
+                "network_mode": "auto",
+            },
+        )
+        if formal.status_code != 200:
+            raise AssertionError(f"离线正式配置保存失败：{formal.text}")
+        settings_module.get_provider_adapter = lambda _provider: OfflineConnectionAdapter()
+        verified = client.post(
+            "/api/settings/ai/test",
+            json={
+                "provider": "siliconflow",
+                "model": "demo-model",
+                "key_source": "temporary",
+                "api_key": "test-only-key",
+            },
+        )
+        if verified.status_code != 200 or not verified.json()["ok"]:
+            raise AssertionError(f"离线正式配置验证失败：{verified.text}")
+        enabled = client.put("/api/settings/ai/state", json={"enabled": True})
+        if enabled.status_code != 200 or not enabled.json()["enabled"]:
+            raise AssertionError(f"离线全局 AI 开启失败：{enabled.text}")
+
+        diagnosis_module.get_provider_adapter = lambda _provider: OfflineFailingAdapter()
+        degraded_response = client.post(
             f"/api/runs/{normal['run_id']}/diagnoses",
-            json={"mode": "siliconflow", "api_key": ""},
-        ).json()
+            json={"mode": "siliconflow", "api_key": "test-only-key"},
+        )
+        if degraded_response.status_code != 201:
+            raise AssertionError(f"离线降级诊断未成功入库：{degraded_response.text}")
+        degraded = degraded_response.json()
         after_degradation = client.get(f"/api/runs/{normal['run_id']}").json()
         if degraded["status"] != "failed" or after_degradation["status"] != "completed":
             raise AssertionError("模型降级改变了原始运行结果")
