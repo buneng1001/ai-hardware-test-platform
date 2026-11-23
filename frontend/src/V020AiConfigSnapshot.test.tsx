@@ -164,7 +164,9 @@ test("正式配置保存遇到活动 AI 调用时显示双选项且取消不触�
         );
       if (url === "/api/settings/ai/active-invocation")
         return jsonResponse({ active });
-      return jsonResponse({ detail: "未模拟" }, 404);
+      return new Response(JSON.stringify({ detail: "未模拟" }), {
+        status: 404,
+      });
     },
   );
   vi.stubGlobal("fetch", fetchMock);
@@ -182,10 +184,11 @@ test("正式配置保存遇到活动 AI 调用时显示双选项且取消不触�
         String(url) === "/api/settings/ai/config" && init?.method === "POST",
     ),
   ).toHaveLength(1);
-  expect(fetchMock).not.toHaveBeenCalledWith(
-    expect.stringContaining("stop-and-disable"),
-    expect.anything(),
-  );
+  expect(
+    fetchMock.mock.calls.some(([url]) =>
+      String(url).includes("stop-and-disable"),
+    ),
+  ).toBe(false);
 });
 
 test("独立测试不同模型不能让未保存表单显示正式验证通过", async () => {
