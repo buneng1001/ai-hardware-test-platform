@@ -205,7 +205,7 @@ test("恢复当前 AI 转换并就地停止，不会自动重复启动模型调�
   expect(stop).toBeVisible();
   expect(
     screen.getByRole("button", { name: "AI 生成自动化用例" }),
-  ).toBeDisabled();
+  ).toBeEnabled();
   fireEvent.click(stop);
   await waitFor(() => {
     expect(traffic).toContain(

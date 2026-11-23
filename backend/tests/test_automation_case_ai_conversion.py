@@ -354,3 +354,133 @@ def test_ai_conversion_cross_project_occupancy(client, monkeypatch):
         assert adapter.calls == 0
     finally:
         lease.finish("completed")
+
+
+def test_t07_repeat_conversion_requires_confirmation_and_preserves_or_replaces(client, monkeypatch):
+    from app.database import open_database
+
+    adapter = DecisionAdapter()
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: adapter)
+    version_id = create_version_with_source_cases(client)
+    url = f"/api/product-versions/{version_id}/automation-test-case-conversions/ai"
+    first = client.post(url, json={"mode": "all"})
+    assert first.status_code == 201, first.text
+    before = client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"]
+    assert adapter.calls == 1
+    denied = client.post(url, json={"mode": "all"})
+    assert denied.status_code == 409 and "完全一致" in denied.json()["detail"]
+    assert adapter.calls == 1
+    independent = client.post(url, json={"mode": "all", "repeat_confirmed": True})
+    assert independent.status_code == 201, independent.text
+    assert independent.json()["updated_count"] == 0
+    assert client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"] == before
+    history = client.get(f"{url}/runs")
+    assert history.status_code == 200, history.text
+    assert len(history.json()["items"]) == 2
+    assert history.json()["items"][0]["decisions"][0]["source_case_id"] > 0
+    with open_database() as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM ai_conversion_runs WHERE product_version_id = ? AND is_visible = 1",
+                (version_id,),
+            ).fetchone()[0]
+            == 2
+        )
+    replaced = client.post(url, json={"mode": "all", "repeat_confirmed": True, "overwrite_previous": True})
+    assert replaced.status_code == 201, replaced.text
+    assert replaced.json()["updated_count"] == 1
+    visible_history = client.get(f"{url}/runs")
+    assert visible_history.status_code == 200
+    assert len(visible_history.json()["items"]) == 1
+    with open_database() as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM ai_conversion_runs WHERE product_version_id = ? AND is_visible = 1",
+                (version_id,),
+            ).fetchone()[0]
+            == 1
+        )
+
+
+def test_t07_failed_second_conversion_batch_keeps_prior_results(client, monkeypatch):
+    from app.ai_batching import BatchConfig
+    from app.database import open_database
+
+    version_id = create_version_with_source_cases(client)
+    url = f"/api/product-versions/{version_id}/automation-test-case-conversions/ai"
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: DecisionAdapter())
+    assert client.post(url, json={"mode": "all"}).status_code == 201
+    before = client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"]
+    monkeypatch.setattr("app.automation_conversion_ai.batch_config", lambda: BatchConfig(cases_per_batch=1))
+
+    class BrokenSecond(DecisionAdapter):
+        def generate_json(self, **kwargs):
+            if self.calls == 1:
+                raise RuntimeError("simulated second batch outage")
+            return super().generate_json(**kwargs)
+
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: BrokenSecond())
+    with pytest.raises(RuntimeError, match="second batch"):
+        client.post(url, json={"mode": "all", "repeat_confirmed": True, "overwrite_previous": True})
+    assert client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"] == before
+    with open_database() as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM ai_conversion_runs WHERE product_version_id = ? AND is_visible = 1",
+                (version_id,),
+            ).fetchone()[0]
+            == 1
+        )
+
+
+def test_t07_cancelled_repeated_conversion_preserves_prior_results(client, monkeypatch):
+    from app.ai_invocation import get_active_invocation, request_invocation_cancel
+    from app.database import open_database
+
+    version_id = create_version_with_source_cases(client)
+    url = f"/api/product-versions/{version_id}/automation-test-case-conversions/ai"
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: DecisionAdapter())
+    assert client.post(url, json={"mode": "all"}).status_code == 201
+    prior = client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"]
+
+    class CancelOnResponse(DecisionAdapter):
+        def generate_json(self, **kwargs):
+            active = get_active_invocation().active
+            assert active is not None
+            result = super().generate_json(**kwargs)
+            request_invocation_cancel(active.invocation_id)
+            return result
+
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: CancelOnResponse())
+    stopped = client.post(url, json={"mode": "all", "repeat_confirmed": True, "overwrite_previous": True})
+    assert stopped.status_code == 409 and "取消" in stopped.json()["detail"]
+    assert client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"] == prior
+    with open_database() as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM ai_conversion_runs WHERE product_version_id = ? AND is_visible = 1",
+                (version_id,),
+            ).fetchone()[0]
+            == 1
+        )
+
+
+def test_t07_failed_database_save_rolls_back_candidate_overwrite(client, monkeypatch):
+    import sqlite3
+
+    from app.database import open_database
+
+    version_id = create_version_with_source_cases(client)
+    url = f"/api/product-versions/{version_id}/automation-test-case-conversions/ai"
+    monkeypatch.setattr("app.automation_conversion_ai.get_provider_adapter", lambda _: DecisionAdapter())
+    assert client.post(url, json={"mode": "all"}).status_code == 201
+    prior = client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"]
+    with open_database() as connection:
+        connection.execute(
+            """CREATE TRIGGER t07_deny_candidate_update BEFORE UPDATE ON automation_test_cases
+               BEGIN SELECT RAISE(ABORT, 'injected database failure'); END"""
+        )
+    with pytest.raises(sqlite3.DatabaseError, match="injected database failure"):
+        client.post(url, json={"mode": "all", "repeat_confirmed": True, "overwrite_previous": True})
+    assert client.get(f"/api/product-versions/{version_id}/automation-test-cases").json()["items"] == prior
+    assert len(client.get(f"{url}/runs").json()["items"]) == 1

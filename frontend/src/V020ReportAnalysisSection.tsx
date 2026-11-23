@@ -17,19 +17,57 @@ export function V020ReportAnalysisSection({
   busy,
   onRetry,
   onRerun,
+  onCheckRepeat,
   onRefresh,
   onCancel,
 }: {
   report: FactReport;
   busy: boolean;
   onRetry: () => void;
-  onRerun: () => void;
+  onRerun: (overwrite: boolean) => void;
+  onCheckRepeat: () => Promise<{
+    same_input: boolean;
+    has_previous: boolean;
+    running_same_operation: boolean;
+    occupied_other: boolean;
+  }>;
   onRefresh: () => void;
   onCancel: () => void;
 }) {
   const analysis = report.analysis;
   const failed = analysis.status === "failed";
   const [waited, setWaited] = useState(0);
+  const [confirmRepeat, setConfirmRepeat] = useState(false);
+  const [overwrite, setOverwrite] = useState(false);
+  const [hasPriorResult, setHasPriorResult] = useState(false);
+  const [rerunStopsCurrent, setRerunStopsCurrent] = useState(false);
+  const [checkingRepeat, setCheckingRepeat] = useState(false);
+  const [repeatError, setRepeatError] = useState<string | null>(null);
+  const beginRerun = async () => {
+    setRepeatError(null);
+    setCheckingRepeat(true);
+    try {
+      const info = await onCheckRepeat();
+      if (info.occupied_other) {
+        setRepeatError("当前有功能正在占用 AI，请稍后再试。");
+        return;
+      }
+      if (info.same_input || info.running_same_operation) {
+        setOverwrite(false);
+        setHasPriorResult(info.has_previous);
+        setRerunStopsCurrent(info.running_same_operation);
+        setConfirmRepeat(true);
+      } else {
+        onRerun(false);
+      }
+    } catch (error) {
+      setRepeatError(
+        error instanceof Error ? error.message : "重试条件检查失败",
+      );
+    } finally {
+      setCheckingRepeat(false);
+    }
+  };
   const refreshRef = useRef(onRefresh);
   refreshRef.current = onRefresh;
 
@@ -125,13 +163,56 @@ export function V020ReportAnalysisSection({
         </button>
         <button
           className="prototype-secondary"
-          disabled={busy || analysis.status === "pending"}
-          onClick={onRerun}
+          disabled={
+            checkingRepeat ||
+            Boolean(analysis.stopping) ||
+            (busy && analysis.status !== "pending")
+          }
+          onClick={() => void beginRerun()}
           type="button"
         >
           重新运行分析
         </button>
       </div>
+      {repeatError && <p role="alert">{repeatError}</p>}
+      {confirmRepeat && (
+        <div
+          role="dialog"
+          aria-label="确认重复报告分析"
+          className="prototype-inline-note"
+        >
+          <p>
+            当前输入内容及分析条件与上一次执行完全一致，重新执行可能得到相同或相似的结果。
+          </p>{" "}
+          {rerunStopsCurrent && (
+            <p>重新执行会先停止当前 AI 调用，停止完成后再开始新分析。</p>
+          )}
+          {hasPriorResult && (
+            <label>
+              <input
+                type="checkbox"
+                checked={overwrite}
+                onChange={(event) => setOverwrite(event.target.checked)}
+              />
+              覆盖上一次结果
+            </label>
+          )}
+          <div className="prototype-actions">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmRepeat(false);
+                onRerun(overwrite);
+              }}
+            >
+              重新执行
+            </button>
+            <button type="button" onClick={() => setConfirmRepeat(false)}>
+              取消
+            </button>
+          </div>
+        </div>
+      )}
       <p className="prototype-muted">
         AI 建议只作为参考，不改变事实结论，也不构成强制质量门禁。
       </p>

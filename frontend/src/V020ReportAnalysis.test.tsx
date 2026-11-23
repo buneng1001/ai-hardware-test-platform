@@ -1,6 +1,14 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
+import { V020ReportAnalysisSection } from "./V020ReportAnalysisSection";
 import {
   callsOf,
   completedAnalysis,
@@ -224,4 +232,34 @@ test("AI 分析完成后只展示建议区域且事实结论保持不变", async
   expect(
     within(dialog).getAllByText("建议暂缓并补充验证").length,
   ).toBeGreaterThan(0);
+});
+
+test("T07 同输入报告再运行先确认，默认保留旧结果", async () => {
+  const onRerun = vi.fn();
+  render(
+    <V020ReportAnalysisSection
+      report={factReport({ analysis: completedAnalysis() })}
+      busy={false}
+      onRetry={() => {}}
+      onRerun={onRerun}
+      onCheckRepeat={async () => ({
+        same_input: true,
+        has_previous: true,
+        running_same_operation: false,
+        occupied_other: false,
+      })}
+      onRefresh={() => {}}
+      onCancel={() => {}}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "重新运行分析" }));
+  const confirm = await screen.findByRole("dialog", {
+    name: "确认重复报告分析",
+  });
+  expect(
+    within(confirm).getByRole("checkbox", { name: "覆盖上一次结果" }),
+  ).not.toBeChecked();
+  expect(onRerun).not.toHaveBeenCalled();
+  fireEvent.click(within(confirm).getByRole("button", { name: "重新执行" }));
+  await waitFor(() => expect(onRerun).toHaveBeenCalledWith(false));
 });

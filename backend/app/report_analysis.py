@@ -124,7 +124,7 @@ def latest_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAna
     if pending is not None:
         return _from_row(pending)
     row = connection.execute(
-        """SELECT * FROM report_analysis_runs WHERE report_id = ?
+        """SELECT * FROM report_analysis_runs WHERE report_id = ? AND is_visible = 1
            ORDER BY is_active DESC, id DESC LIMIT 1""",
         (report_id,),
     ).fetchone()
@@ -135,7 +135,7 @@ def find_reusable_analysis(connection: sqlite3.Connection, report_id: int, finge
     """相同指纹已有成功结果时才允许复用；失败运行不参与。"""
     return connection.execute(
         """SELECT * FROM report_analysis_runs
-           WHERE report_id = ? AND fingerprint = ? AND status = 'completed'
+           WHERE report_id = ? AND fingerprint = ? AND status = 'completed' AND is_visible = 1
            ORDER BY id DESC LIMIT 1""",
         (report_id, fingerprint),
     ).fetchone()
@@ -145,7 +145,7 @@ def analysis_history(connection: sqlite3.Connection, report_id: int) -> list[dic
     """历史运行与当前活动视图分开；按时间倒序返回摘要。"""
     rows = connection.execute(
         """SELECT id, status, fingerprint, stage, elapsed_ms, is_active, created_at
-           FROM report_analysis_runs WHERE report_id = ? ORDER BY id DESC""",
+           FROM report_analysis_runs WHERE report_id = ? AND is_visible = 1 ORDER BY id DESC""",
         (report_id,),
     ).fetchall()
     return [dict(row) for row in rows]
@@ -189,22 +189,31 @@ def _save(
     reused_from_id: int | None = None,
     lease: AiInvocationLease | None = None,
     config_snapshot: dict[str, object] | None = None,
+    overwrite_previous: bool = False,
 ) -> ReportAnalysis:
     snapshot = config_snapshot if config_snapshot is not None else selected_snapshot_payload()
     if lease is not None:
         connection.execute("BEGIN IMMEDIATE")
         lease.assert_can_commit(connection)
     fingerprint = run_fingerprint(analysis_input, snapshot, model, "report-analysis-v1")
-    connection.execute(
-        "UPDATE report_analysis_runs SET is_active = 0 WHERE report_id = ?",
-        (report_id,),
-    )
+    # Only a fully validated output may replace the effective result.
+    # A failed/partial retry remains auditable without masking the previous success.
+    if output is not None:
+        connection.execute(
+            "UPDATE report_analysis_runs SET is_active = 0 WHERE report_id = ?",
+            (report_id,),
+        )
+    if output is not None and overwrite_previous:
+        connection.execute(
+            "UPDATE report_analysis_runs SET is_visible = 0 WHERE report_id = ? AND status = 'completed'",
+            (report_id,),
+        )
     connection.execute(
         """INSERT INTO report_analysis_runs
            (report_id, status, provider, model, is_mock, input_snapshot, output, error,
             created_at, completed_at, config_snapshot, error_detail, fingerprint,
             stage, elapsed_ms, reused_from_id, is_active)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             report_id,
             "completed" if output else "failed",
@@ -222,6 +231,7 @@ def _save(
             stage,
             elapsed_ms,
             reused_from_id,
+            int(output is not None),
         ),
     )
     if lease is not None:
@@ -370,6 +380,7 @@ def _perform_analysis(
     report_id: int,
     *,
     force: bool,
+    overwrite_previous: bool,
     lease: AiInvocationLease,
     analysis_input: dict[str, object],
     valid_refs: set[str],
@@ -392,6 +403,7 @@ def _perform_analysis(
         "is_mock": is_mock,
         "lease": lease,
         "config_snapshot": config_snapshot,
+        "overwrite_previous": overwrite_previous,
     }
     if is_mock:
         return _save(
@@ -520,7 +532,13 @@ def _perform_analysis(
     return _save(connection, report_id, analysis_input, output=output, error=None, **save_options)
 
 
-def run_analysis(connection: sqlite3.Connection, report_id: int, *, force: bool = False) -> ReportAnalysis:
+def run_analysis(
+    connection: sqlite3.Connection,
+    report_id: int,
+    *,
+    force: bool = False,
+    overwrite_previous: bool = False,
+) -> ReportAnalysis:
     analysis_input, valid_refs, project_id = _report_analysis_input(connection, report_id)
     configuration = _configuration()
     if configuration is None:
@@ -545,6 +563,7 @@ def run_analysis(connection: sqlite3.Connection, report_id: int, *, force: bool 
             connection,
             report_id,
             force=force,
+            overwrite_previous=overwrite_previous,
             lease=lease,
             analysis_input=analysis_input,
             valid_refs=valid_refs,
@@ -572,10 +591,42 @@ def run_analysis(connection: sqlite3.Connection, report_id: int, *, force: bool 
         lease.finish(outcome)
 
 
-@router.post("", response_model=ReportAnalysis, status_code=status.HTTP_201_CREATED)
-def retry_report_analysis(report_id: int, force: bool = False) -> ReportAnalysis:
+@router.get("/repeat-info")
+def report_repeat_info(report_id: int) -> dict[str, object]:
+    """Read-only comparison; execution still goes through the global AI lease."""
     with open_database() as connection:
-        return run_analysis(connection, report_id, force=force)
+        analysis_input, _, _ = _report_analysis_input(connection, report_id)
+        configuration = _configuration()
+        if configuration is None:
+            return {
+                "same_input": False,
+                "has_previous": False,
+                "running_same_operation": False,
+                "occupied_other": False,
+            }
+        _, model, _, _ = configuration
+        fingerprint = run_fingerprint(analysis_input, selected_snapshot_payload(), model, "report-analysis-v1")
+        previous = connection.execute(
+            "SELECT 1 FROM report_analysis_runs WHERE report_id = ? AND status = 'completed' AND is_visible = 1",
+            (report_id,),
+        ).fetchone()
+        active = get_active_invocation().active
+        return {
+            "same_input": find_reusable_analysis(connection, report_id, fingerprint) is not None,
+            "has_previous": previous is not None,
+            "occupied_other": bool(
+                active and not (active.operation_type == "report_analysis" and active.resource_id == report_id)
+            ),
+            "running_same_operation": bool(
+                active and active.operation_type == "report_analysis" and active.resource_id == report_id
+            ),
+        }
+
+
+@router.post("", response_model=ReportAnalysis, status_code=status.HTTP_201_CREATED)
+def retry_report_analysis(report_id: int, force: bool = False, overwrite_previous: bool = False) -> ReportAnalysis:
+    with open_database() as connection:
+        return run_analysis(connection, report_id, force=force, overwrite_previous=overwrite_previous)
 
 
 @router.post("/cancel")

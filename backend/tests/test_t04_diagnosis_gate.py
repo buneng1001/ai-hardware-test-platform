@@ -4,6 +4,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import diagnosis as diagnosis_module
@@ -179,3 +180,56 @@ def test_unbound_collection_run_does_not_borrow_another_versions_context(tmp_pat
         assert len(captured) == 1
         assert "DO_NOT_BORROW_OTHER_VERSION_CONTEXT" not in captured[0]
         assert "ai_context" not in result.json()["config_snapshot"]
+
+
+def test_t07_diagnosis_repeat_confirmation_and_atomic_overwrite(tmp_path, monkeypatch):
+    from app.database import open_database
+
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-t07-key")
+    with TestClient(app) as client:
+        run_id = prepare(client, monkeypatch)
+        calls = 0
+
+        class Adapter:
+            request_logs = []
+
+            def generate(self, **_kwargs):
+                nonlocal calls
+                calls += 1
+                if calls == 3:
+                    raise RuntimeError("model failure")
+                return {
+                    "diagnosis_status": "completed",
+                    "phenomena": [],
+                    "possible_causes": [],
+                    "impact_scope": [],
+                    "retest_recommendations": [],
+                    "missing_evidence": [],
+                    "uncertainties": [],
+                    "limitations": [],
+                }
+
+        monkeypatch.setattr(diagnosis_module, "get_provider_adapter", lambda _: Adapter())
+        path = f"/api/runs/{run_id}/diagnoses"
+        first = client.post(path, json=payload())
+        assert first.status_code == 201, first.text
+        repeated = client.post(path, json=payload())
+        assert repeated.status_code == 409 and "完全一致" in repeated.json()["detail"]
+        assert calls == 1
+        independent = client.post(path, json={**payload(), "repeat_confirmed": True})
+        assert independent.status_code == 201, independent.text
+        assert len(client.get(path).json()) == 2
+        with pytest.raises(RuntimeError, match="model failure"):
+            client.post(path, json={**payload(), "repeat_confirmed": True, "overwrite_previous": True})
+        assert len(client.get(path).json()) == 2
+        replaced = client.post(path, json={**payload(), "repeat_confirmed": True, "overwrite_previous": True})
+        assert replaced.status_code == 201, replaced.text
+        assert [row["id"] for row in client.get(path).json()] == [replaced.json()["id"]]
+        with open_database() as connection:
+            assert (
+                connection.execute(
+                    "SELECT COUNT(*) FROM diagnosis_runs WHERE run_id = ? AND is_visible = 0", (run_id,)
+                ).fetchone()[0]
+                == 2
+            )

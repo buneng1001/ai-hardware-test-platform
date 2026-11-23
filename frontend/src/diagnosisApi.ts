@@ -80,6 +80,8 @@ export async function createDiagnosis(
   model: string,
   apiKey: string,
   provider?: DiagnosisProvider,
+  repeatConfirmed = false,
+  overwritePrevious = false,
 ): Promise<DiagnosisRun> {
   const response = await fetch(`/api/runs/${runId}/diagnoses`, {
     method: "POST",
@@ -88,6 +90,8 @@ export async function createDiagnosis(
       mode,
       model,
       api_key: apiKey,
+      repeat_confirmed: repeatConfirmed,
+      overwrite_previous: overwritePrevious,
       ...(provider && { provider }),
     }),
   });

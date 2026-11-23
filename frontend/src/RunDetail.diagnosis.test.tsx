@@ -81,9 +81,17 @@ test("returning to a running diagnosis shows scoped activity and local stop with
   );
   view();
   expect(await screen.findByText("AI 诊断正在运行")).toBeInTheDocument();
+  const restart = screen.getByRole("button", { name: "生成 真实模型 诊断" });
+  expect(restart).toBeEnabled();
+  fireEvent.click(restart);
+  expect(screen.getByRole("dialog", { name: "确认重复诊断" })).toBeVisible();
   expect(
-    screen.getByRole("button", { name: "生成 真实模型 诊断" }),
-  ).toBeDisabled();
+    screen.queryByRole("checkbox", { name: "覆盖上一次结果" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "取消" }));
+  expect(
+    screen.queryByRole("dialog", { name: "确认重复诊断" }),
+  ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "停止当前诊断" }));
   await waitFor(() =>
     expect(requests).toContain("/api/settings/ai/invocations/inv42/cancel"),
