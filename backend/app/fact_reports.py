@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app.automation_executions import _record_from_row
 from app.database import open_database
-from app.fact_report_models import FactReport, FactReportCreate
+from app.fact_report_models import FactReport, FactReportCreate, HistoricalReportOption, HistoricalReportOptions
 from app.fact_report_rendering import STATUS_LABELS, render_html, render_text
 from app.manual_test_results import _batch_from_row
 from app.report_analysis import analysis_is_enabled, enqueue_analysis, latest_analysis, run_analysis_in_background
@@ -112,6 +112,85 @@ def _automation_snapshot_is_historical(connection: sqlite3.Connection, group_id:
     return False
 
 
+def _valid_report_snapshot(snapshot: object) -> bool:
+    """只允许已保存、包含实际事实的最终报告充当历史来源。"""
+    if not isinstance(snapshot, dict):
+        return False
+    required = {
+        "basic_information": dict,
+        "scope_overview": dict,
+        "pass_rate": dict,
+        "stage_progress": dict,
+        "issues": dict,
+        "module_summary": list,
+        "modules": list,
+    }
+    if any(not isinstance(snapshot.get(key), expected) for key, expected in required.items()):
+        return False
+    overall = snapshot["pass_rate"].get("overall")
+    counts = snapshot["scope_overview"].get("counts")
+    if not isinstance(overall, dict) or not isinstance(counts, dict):
+        return False
+    total = overall.get("total")
+    if not isinstance(total, int) or isinstance(total, bool):
+        return False
+    # 有真实记录，或基于真实报告创建并保存的历史比较；不能把空对象作为事实来源。
+    historical = snapshot.get("historical_reports", [])
+    return total > 0 or (
+        isinstance(historical, list)
+        and bool(historical)
+        and all(isinstance(item, dict) and isinstance(item.get("report_id"), int) for item in historical)
+    )
+
+
+def _historical_candidates(connection: sqlite3.Connection, group_id: int) -> list[sqlite3.Row]:
+    group = get_group_row(connection, group_id)
+    return connection.execute(
+        """SELECT report.id, report.snapshot, report.created_at,
+                  version.version AS product_version, grp.name AS test_group
+           FROM online_reports report
+           JOIN product_versions version ON version.id = report.product_version_id
+           JOIN test_groups grp ON grp.id = report.test_group_id
+           WHERE version.project_id = (SELECT project_id FROM product_versions WHERE id = ?)
+           ORDER BY report.created_at DESC, report.id DESC""",
+        (group["product_version_id"],),
+    ).fetchall()
+
+
+def _load_historical_sources(
+    connection: sqlite3.Connection, group_id: int, report_ids: list[int]
+) -> list[dict[str, object]]:
+    if not report_ids:
+        return []
+    candidates = {row["id"]: row for row in _historical_candidates(connection, group_id)}
+    result = []
+    for report_id in report_ids:
+        row = candidates.get(report_id)
+        if row is None:
+            raise HTTPException(status_code=422, detail=f"历史最终报告 #{report_id} 不存在或不属于当前项目")
+        try:
+            source = json.loads(row["snapshot"])
+        except (ValueError, TypeError):
+            source = None
+        if not _valid_report_snapshot(source):
+            raise HTTPException(status_code=422, detail=f"历史最终报告 #{report_id} 缺少有效事实快照")
+        result.append(
+            {
+                "report_id": report_id,
+                "product_version": row["product_version"],
+                "test_group": source["basic_information"].get("test_group") or row["test_group"],
+                "generated_at": row["created_at"],
+                # 历史统计独立冻结；不参与当前版本的聚合、通过率和阶段判定。
+                "statistics_snapshot": {
+                    key: source[key]
+                    for key in ("scope_overview", "pass_rate", "stage_progress", "module_summary")
+                    if key in source
+                },
+            }
+        )
+    return result
+
+
 def _build_snapshot(connection: sqlite3.Connection, group_id: int, command: FactReportCreate) -> dict[str, object]:
     group = get_group_row(connection, group_id)
     version = connection.execute(
@@ -186,6 +265,9 @@ def _build_snapshot(connection: sqlite3.Connection, group_id: int, command: Fact
             )
 
     all_records = automation_records + manual_records
+    historical_reports = _load_historical_sources(connection, group_id, command.historical_report_ids)
+    if not all_records and not historical_reports:
+        raise HTTPException(status_code=422, detail="所选来源没有可报告的事实结果，不能生成空报告")
     by_case: dict[str, list[dict[str, object]]] = defaultdict(list)
     for item in all_records:
         by_case[str(item["case_number"])].append(item)
@@ -252,10 +334,13 @@ def _build_snapshot(connection: sqlite3.Connection, group_id: int, command: Fact
             if automation_records and manual_records
             else "自动化结果"
             if automation_records
-            else "人工结果",
+            else "人工结果"
+            if manual_records
+            else "历史最终报告（仅供独立对照）",
             "automation_execution": automation_info,
             "manual_batches": manual_info,
         },
+        "historical_reports": historical_reports,
         "warnings": warnings,
         "stage_progress": _stage_progress(_status_counts(all_records)),
         "ai_analysis": {"status": "not_configured", "message": "AI 未配置；事实报告已按确定性记录生成。"},
@@ -294,6 +379,7 @@ def _from_row(connection: sqlite3.Connection, row: sqlite3.Row) -> FactReport:
     values = dict(row)
     values["manual_batch_ids"] = json.loads(values["manual_batch_ids"])
     values["snapshot"] = json.loads(values["snapshot"])
+    values["historical_report_ids"] = [item["report_id"] for item in values["snapshot"].get("historical_reports", [])]
     values["analysis"] = latest_analysis(connection, values["id"])
     values["attachment_summary"] = attachment_summary(connection, values["id"])
     return FactReport.model_validate(values)
@@ -304,6 +390,29 @@ def _get_report(connection: sqlite3.Connection, report_id: int) -> FactReport:
     if row is None:
         raise HTTPException(status_code=404, detail="事实报告不存在")
     return _from_row(connection, row)
+
+
+@router.get("/api/test-groups/{group_id}/historical-fact-reports", response_model=HistoricalReportOptions)
+def list_historical_fact_reports(group_id: int) -> HistoricalReportOptions:
+    with open_database() as connection:
+        items = []
+        for row in _historical_candidates(connection, group_id):
+            try:
+                snapshot = json.loads(row["snapshot"])
+            except (ValueError, TypeError):
+                continue
+            if not _valid_report_snapshot(snapshot):
+                continue
+            items.append(
+                HistoricalReportOption(
+                    id=row["id"],
+                    product_version=row["product_version"],
+                    test_group=snapshot["basic_information"].get("test_group") or row["test_group"],
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                    overall=snapshot["pass_rate"]["overall"],
+                )
+            )
+        return HistoricalReportOptions(items=items)
 
 
 @router.post("/api/test-groups/{group_id}/fact-reports", response_model=FactReport, status_code=status.HTTP_201_CREATED)

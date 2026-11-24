@@ -130,6 +130,15 @@ def render_text(report: FactReport) -> str:
         lines.append("无")
     lines.append("跨模块问题")
     lines.extend([f"- {item['case_number']}：{item['message']}" for item in data["cross_module_issues"]] or ["无"])
+    lines.append("历史最终报告对照（不计入当前版本统计）")
+    for source in data.get("historical_reports", []):
+        overall = source["statistics_snapshot"]["pass_rate"]["overall"]
+        lines.append(
+            f"- 报告 #{source['report_id']}｜{source['product_version']}｜{source['test_group']}｜"
+            f"{source['generated_at']}｜通过率 {_rate_text(overall)}"
+        )
+    if not data.get("historical_reports"):
+        lines.append("无")
     return "\n".join(lines)
 
 
@@ -268,6 +277,25 @@ def render_html(report: FactReport) -> str:
         ),
     ]
 
+    historical_rows = []
+    for source in data.get("historical_reports", []):
+        historical_overall = source["statistics_snapshot"]["pass_rate"]["overall"]
+        historical_rows.append(
+            "<tr>"
+            f"<td>#{_escape(source['report_id'])}</td>"
+            f"<td>{_escape(source['product_version'])}</td>"
+            f"<td>{_escape(source['test_group'])}</td>"
+            f"<td>{_escape(source['generated_at'])}</td>"
+            f"<td>{_escape(_rate_text(historical_overall))}</td></tr>"
+        )
+
+    historical_table = (
+        "<table><tr><th>报告</th><th>版本</th><th>测试组</th>"
+        "<th>生成时间</th><th>独立通过率</th></tr>" + "".join(historical_rows) + "</table>"
+        if historical_rows
+        else "<p>无</p>"
+    )
+
     module_toc = "".join(
         f"<li><a href='#module-{index}'>{_escape(module['name'])}</a></li>"
         for index, module in enumerate(data.get("modules", []), start=1)
@@ -327,4 +355,6 @@ def render_html(report: FactReport) -> str:
 
 <h2 id="appendix">九、附录</h2>
 {"".join(appendix)}
+<h3>历史最终报告对照（不计入当前版本统计）</h3>
+{historical_table}
 </body></html>"""

@@ -48,6 +48,12 @@ export function V020ExecutionResultsScreen({
       );
   }, [versionId, reloadToken]);
 
+  useEffect(() => {
+    // 不把前一个测试组的来源选择带入新的测试组。
+    setReportExecutionId(null);
+    setReportBatchId(null);
+  }, [groupId]);
+
   const groupName =
     groups?.find((item) => item.id === groupId)?.name ?? "未选择测试组";
 
@@ -121,6 +127,7 @@ export function V020ExecutionResultsScreen({
       )}
       {groupId !== null && (
         <V020ReportPanel
+          key={groupId}
           batchId={reportBatchId}
           executionId={reportExecutionId}
           groupId={groupId}
