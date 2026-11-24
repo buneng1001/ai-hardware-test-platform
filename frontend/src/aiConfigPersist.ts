@@ -6,7 +6,6 @@ import {
 } from "./aiSettingsApi";
 
 type PersistSetters = {
-  setLoadingAction: (action: "catalog" | "test" | null) => void;
   setVerificationStatus: (
     status: "verified" | "failed" | "invalidated" | "untested",
   ) => void;
@@ -41,17 +40,16 @@ export async function persistAiConfiguration(
   },
   setters: PersistSetters,
 ) {
-  setters.setLoadingAction("test");
   setters.setSavedMessage("");
   try {
     const state: AiConfigState = await saveAiConfig(command);
     setters.setVerificationStatus(state.verification.status);
     setters.setVerificationMessage(state.verification.message);
     setters.setSavedMessage("AI 配置已保存，应用重启后可恢复。");
+    return state;
   } catch (error) {
     const message = error instanceof Error ? error.message : "请求失败";
     setters.setSavedMessage(`配置保存失败：${message}`);
-  } finally {
-    setters.setLoadingAction(null);
+    return null;
   }
 }

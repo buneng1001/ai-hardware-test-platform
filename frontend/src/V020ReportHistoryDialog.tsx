@@ -19,7 +19,7 @@ const typeLabels: Record<string, string> = {
   fact_report: "最终报告",
 };
 
-/** 冻结版报告与历史记录：可查找自动化、人工记录和最终报告。 */
+/** 最终报告列表；原始执行/人工批次由结果卡片查看。 */
 const HISTORY_PAGE_SIZE = 8;
 
 export function V020ReportHistoryDialog({
@@ -57,7 +57,7 @@ export function V020ReportHistoryDialog({
         <header className="prototype-report-dialog-head">
           <div>
             <span className="prototype-kicker">REPORT ARCHIVE</span>
-            <h2>报告与历史记录</h2>
+            <h2>最终报告列表</h2>
             <p>{groupName} · 按发生时间倒序排列</p>
           </div>
           <button
@@ -73,10 +73,13 @@ export function V020ReportHistoryDialog({
           <label>
             查找
             <input
-              aria-label="查找报告与历史记录"
+              aria-label="查找最终报告"
               disabled={busy}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="自动化执行、人工记录或最终报告"
+              onChange={(event) => {
+                setHistoryPage(1);
+                onQueryChange(event.target.value);
+              }}
+              placeholder="搜索最终报告"
               value={query}
             />
           </label>
@@ -89,8 +92,8 @@ export function V020ReportHistoryDialog({
             查找
           </button>
         </div>
-        {items.length === 0 ? (
-          <p className="prototype-muted">没有符合条件的记录。</p>
+        {finalReportCount === 0 ? (
+          <p className="prototype-muted">没有符合条件的最终报告。</p>
         ) : (
           <div className="prototype-report-history-list">
             {items

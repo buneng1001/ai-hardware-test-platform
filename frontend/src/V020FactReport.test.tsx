@@ -71,7 +71,7 @@ test("生成最终报告后按固定顺序预览并下载 HTML 与纯文字", as
   await openReportView();
 
   // 选择在两张卡片里，默认就是最新一条。
-  fireEvent.change(await screen.findByLabelText("用于报告的自动化执行记录"), {
+  fireEvent.change(await screen.findByLabelText("最终报告自动化来源"), {
     target: { value: "3" },
   });
   fireEvent.click(await screen.findByRole("button", { name: "生成最终报告" }));

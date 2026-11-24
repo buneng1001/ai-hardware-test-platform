@@ -1,6 +1,6 @@
 import { importOptionFields } from "./SourceTestCaseImportForm";
 import {
-  sourceCaseFields,
+  sourceCaseMappingFields,
   type ImportOptions,
   type SourceTestCaseImportDraft,
 } from "./sourceTestCasesApi";
@@ -35,7 +35,7 @@ export function V020SourceCaseImportPanel({
   const options = importOptionsOrDefault(draft);
   const columns = Object.keys(draft.rows[0] ?? {});
   // 软件版本不再让用户随意挑列，改为在下面二选一。
-  const mappingFields = sourceCaseFields.filter(
+  const mappingFields = sourceCaseMappingFields.filter(
     ([field]) => field !== "software_version",
   );
   const versionSource = draft.software_version_source ?? "imported";
@@ -143,6 +143,9 @@ export function V020SourceCaseImportPanel({
             {label}
           </label>
         ))}
+        <p className="prototype-muted prototype-import-range-note">
+          自动识别文件中的历史字段，仅导入已识别且勾选的内容。
+        </p>
       </fieldset>
       <div className="prototype-actions">
         <button

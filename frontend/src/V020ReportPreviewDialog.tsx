@@ -56,8 +56,8 @@ export function V020ReportPreviewDialog({
     running_same_operation: boolean;
     occupied_other: boolean;
   }>;
-  onRefreshAnalysis: () => void;
-  onCancelAnalysis: () => void;
+  onRefreshAnalysis: () => Promise<void>;
+  onCancelAnalysis: () => Promise<string>;
   cleanupImpact: ReportAttachmentCleanupImpact | null;
   onPrepareCleanup: () => void;
   onCancelCleanup: () => void;

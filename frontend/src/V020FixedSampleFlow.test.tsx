@@ -79,8 +79,12 @@ test("冻结版固定样例贯通用例、数据、测试组、执行、人工�
   ).toBeVisible();
 
   fireEvent.click(screen.getByRole("button", { name: "执行与结果" }));
-  expect(await screen.findByText("自动化执行 #3")).toBeVisible();
-  expect(screen.getByText("通过 8 · 失败 2 · 阻塞 1 · 未执行 1")).toBeVisible();
+  expect(
+    await screen.findByRole("group", { name: /^自动化执行 #3$/ }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("group", { name: "通过 8 · 失败 2 · 阻塞 1 · 未执行 1" }),
+  ).toBeVisible();
 
   fireEvent.click(
     await screen.findByRole("button", { name: "进入人工结果录入" }),

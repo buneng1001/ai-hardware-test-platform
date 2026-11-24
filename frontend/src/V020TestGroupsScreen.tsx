@@ -39,6 +39,7 @@ export function V020TestGroupsScreen({
   const [showRunnerDialog, setShowRunnerDialog] = useState(false);
   const [runMessages, setRunMessages] = useState<Record<number, string>>({});
   const [flowGroup, setFlowGroup] = useState<ExecuteFlowGroup | null>(null);
+  const [executionRevision, setExecutionRevision] = useState(0);
   const [setupError, setSetupError] = useState<string | null>(null);
 
   const runnerNameOf = (groupId: number) => {
@@ -100,6 +101,7 @@ export function V020TestGroupsScreen({
         <V020TestGroupDetail
           busy={groups.busy}
           detail={groups.detail}
+          executionRevision={executionRevision}
           onApply={groups.applyDetail}
           onBack={groups.closeDetail}
           onDelete={() => void groups.previewDeletion(groups.detail!.id)}
@@ -128,7 +130,9 @@ export function V020TestGroupsScreen({
         <V020ExecuteFlowDialog
           group={flowGroup}
           onClose={() => setFlowGroup(null)}
-          onFinished={(message) => {
+          onFinished={(message, recordId) => {
+            if (recordId !== undefined)
+              setExecutionRevision((current) => current + 1);
             if (!flowGroup) return;
             setRunMessages((current) => ({
               ...current,
@@ -320,12 +324,16 @@ export function V020TestGroupsScreen({
       <V020ExecuteFlowDialog
         group={flowGroup}
         onClose={() => setFlowGroup(null)}
-        onFinished={(message) => {
+        onFinished={(message, recordId) => {
           if (!flowGroup) return;
           setRunMessages((current) => ({
             ...current,
             [flowGroup.id]: message,
           }));
+          if (recordId !== undefined) {
+            setExecutionRevision((current) => current + 1);
+            void groups.openDetail(flowGroup.id);
+          }
         }}
         runnerName={flowGroup ? runnerNameOf(flowGroup.id) : null}
       />

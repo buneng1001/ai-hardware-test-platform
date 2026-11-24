@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { getAiConfig, type AiNetworkMode } from "./aiSettingsApi";
+import {
+  getAiConfig,
+  verifyAiConnection,
+  type AiNetworkMode,
+} from "./aiSettingsApi";
 import { refreshCatalog, testConnection } from "./aiConfigActions";
 import { readCachedCatalog, writeCachedCatalog } from "./aiModelCatalogCache";
 import {
@@ -10,6 +14,7 @@ import {
 import { applyRestoredAiConfig } from "./aiConfigRestore";
 import {
   getActiveAiInvocation,
+  setAiGlobalState,
   stopAiInvocationAndDisable,
   waitForAiInvocationFinish,
   type ActiveAiInvocation,
@@ -60,7 +65,9 @@ function isRemoteProvider(
   return provider !== "local";
 }
 
-export function usePrototypeAiConfiguration() {
+export function usePrototypeAiConfiguration(
+  onStateChanged?: () => Promise<void>,
+) {
   const [provider, setProvider] = useState<ProviderKey>("deepseek");
   const [model, setModel] = useState<string>(providers.deepseek.models[0].id);
   const [availableModels, setAvailableModels] = useState(() =>
@@ -84,9 +91,9 @@ export function usePrototypeAiConfiguration() {
   const [verificationMessage, setVerificationMessage] = useState("");
   const [modelWarning, setModelWarning] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
-  const [loadingAction, setLoadingAction] = useState<"catalog" | "test" | null>(
-    null,
-  );
+  const [loadingAction, setLoadingAction] = useState<
+    "catalog" | "test" | "save" | null
+  >(null);
   const [saveConflict, setSaveConflict] = useState<ActiveAiInvocation | null>(
     null,
   );
@@ -130,6 +137,9 @@ export function usePrototypeAiConfiguration() {
   }, []);
 
   const invalidateVerification = () => {
+    setConnectionSucceeded(null);
+    setConnectionMessage("");
+    setConnectionAction("");
     markVerificationInvalid({
       setSavedMessage,
       setVerificationStatus,
@@ -242,29 +252,80 @@ export function usePrototypeAiConfiguration() {
       setSavedMessage("本地服务配置暂不支持保存到后端。");
       return;
     }
+    if (loadingAction !== null) return;
+    setLoadingAction("save");
     try {
-      await persistAiConfiguration(
-        {
+      const keySource =
+        accessMode === "temporary" ? "temporary" : "environment";
+      let saved = await persistAiConfiguration(
+        { provider, model, key_source: keySource, network_mode: networkMode },
+        { setVerificationStatus, setVerificationMessage, setSavedMessage },
+      );
+      if (!saved) {
+        // 保存失败后检查运行锁，不在冲突时自动重试。
+        try {
+          const active = await getActiveAiInvocation();
+          if (active) setSaveConflict(active);
+        } catch {
+          /* 保留原始保存错误 */
+        }
+        return;
+      }
+      const fingerprint = saved.snapshot?.fingerprint;
+      if (verificationStatus !== "verified" && connectionSucceeded !== true) {
+        if (saved.verification.status === "verified") {
+          setVerificationStatus("invalidated");
+          setVerificationMessage("请先验证当前表单配置");
+        }
+        setSavedMessage("AI 配置已保存，请先连接测试，再保存配置开启 AI。");
+        return;
+      }
+      // 独立测试不可提升为正式验证。新配置保存后自动补做正式验证。
+      if (
+        saved.verification.status !== "verified" &&
+        connectionSucceeded === true
+      ) {
+        setSavedMessage("AI 配置已保存，正在验证正式配置…");
+        const result = await verifyAiConnection(
           provider,
           model,
-          key_source: accessMode === "temporary" ? "temporary" : "environment",
-          network_mode: networkMode,
-        },
-        {
-          setLoadingAction,
-          setVerificationStatus,
-          setVerificationMessage,
-          setSavedMessage,
-        },
+          accessMode === "temporary" ? temporaryKey.trim() : "",
+          { keySource, networkMode },
+        );
+        saved = await getAiConfig();
+        setVerificationStatus(saved.verification.status);
+        setVerificationMessage(saved.verification.message);
+        if (!result.ok) {
+          setSavedMessage(
+            `AI 配置已保存，但正式连接验证失败：${result.message}`,
+          );
+          return;
+        }
+      }
+      if (
+        !fingerprint ||
+        saved.snapshot?.fingerprint !== fingerprint ||
+        saved.verification.status !== "verified" ||
+        saved.verification.fingerprint !== fingerprint
+      ) {
+        setSavedMessage(
+          "AI 配置已保存，尚未通过正式连接验证。请先连接测试，再保存配置开启 AI。",
+        );
+        return;
+      }
+      const enabled = await setAiGlobalState(true);
+      setSavedMessage(
+        enabled.enabled === true
+          ? "AI 配置已保存，AI 已开启。"
+          : "AI 配置已保存，但 AI 尚未开启。",
+      );
+    } catch (error) {
+      setSavedMessage(
+        `AI 配置已保存，但开启 AI 失败：${error instanceof Error ? error.message : "请求失败"}`,
       );
     } finally {
-      // 409 只用于发现运行锁；不得在冲突时自动重试保存。
-      try {
-        const active = await getActiveAiInvocation();
-        if (active) setSaveConflict(active);
-      } catch {
-        /* 保留原始保存错误 */
-      }
+      await onStateChanged?.();
+      setLoadingAction(null);
     }
   };
 
@@ -286,6 +347,7 @@ export function usePrototypeAiConfiguration() {
         return;
       }
       setSaveConflict(null);
+      await onStateChanged?.();
       setSavedMessage(
         "当前 AI 运行已停止，全局 AI 已关闭。请再次点击「保存 AI 配置」完成保存。",
       );

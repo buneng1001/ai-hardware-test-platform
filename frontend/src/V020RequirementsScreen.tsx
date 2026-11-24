@@ -1,4 +1,5 @@
 import { useState } from "react";
+import "./V020DeletionImpactPanel.css";
 import type { ProductVersion } from "./projectsApi";
 
 import "./V020Requirements.css";
@@ -91,15 +92,32 @@ export function V020RequirementsScreen({
         </div>
 
         {placeholderNotice && (
-          <div className="prototype-actions">
-            <span role="status">{placeholderNotice}</span>
-            <button
-              className="prototype-secondary"
-              type="button"
-              onClick={() => setPlaceholderNotice("")}
+          <div
+            className="prototype-modal-backdrop"
+            onClick={() => setPlaceholderNotice("")}
+          >
+            <section
+              className="prototype-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="功能开发中"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setPlaceholderNotice("");
+              }}
             >
-              关闭提示
-            </button>
+              <h3>{placeholderNotice}</h3>
+              <div className="prototype-actions">
+                <button
+                  className="prototype-primary"
+                  type="button"
+                  autoFocus
+                  onClick={() => setPlaceholderNotice("")}
+                >
+                  关闭提示
+                </button>
+              </div>
+            </section>
           </div>
         )}
       </section>

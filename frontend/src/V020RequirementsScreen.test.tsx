@@ -55,11 +55,16 @@ test("需求与风险占位只提示开发中，无文件选择、AI 请求或�
       const button = screen.getByRole("button", { name: label });
       expect(button).toBeEnabled();
       fireEvent.click(button);
-      expect(screen.getByText("该功能开发中")).toBeVisible();
+      expect(
+        screen.getByRole("dialog", { name: "功能开发中" }),
+      ).toHaveTextContent("该功能开发中");
       expect(screen.getByLabelText("本版本 AI 补充说明输入")).toHaveValue(
         "已保存说明",
       );
       fireEvent.click(screen.getByRole("button", { name: "关闭提示" }));
+      expect(
+        screen.queryByRole("dialog", { name: "功能开发中" }),
+      ).not.toBeInTheDocument();
       expect(screen.queryByText("该功能开发中")).not.toBeInTheDocument();
     }
     expect(requestSpy).not.toHaveBeenCalled();

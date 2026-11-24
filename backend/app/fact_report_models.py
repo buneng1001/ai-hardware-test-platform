@@ -61,11 +61,47 @@ class ReportStageRecommendation(ReportAnalysisItem):
     suggestion: str = Field(min_length=1, max_length=300)
 
 
+TestAnalysisDimension = Literal[
+    "functional",
+    "performance",
+    "integration",
+    "compatibility",
+    "interaction",
+    "reliability",
+    "security",
+    "maintainability",
+    "flexibility",
+    "safety",
+    "environment",
+    "data_quality",
+]
+
+
+class ReportTestDirection(BaseModel):
+    dimension: TestAnalysisDimension
+    priority: Literal["high", "medium", "low"]
+    title: str = Field(min_length=1, max_length=80)
+    coverage_gap: str = Field(min_length=1, max_length=350)
+    risk: str = Field(min_length=1, max_length=350)
+    direction: str = Field(min_length=1, max_length=350)
+    evidence_refs: list[str] = Field(min_length=1, max_length=20)
+
+
+class ProfessionalReportAnalysisOutput(BaseModel):
+    """新版模型契约，不重复生成风险与补测两份列表。"""
+
+    stage_recommendation: ReportStageRecommendation
+    test_directions: list[ReportTestDirection] = Field(max_length=20)
+    regression_recommendations: list[ReportAnalysisItem] = Field(max_length=20)
+
+
 class ReportAnalysisOutput(BaseModel):
     risks: list[ReportAnalysisItem] = Field(max_length=20)
     additional_verifications: list[ReportAnalysisItem] = Field(max_length=20)
     regression_recommendations: list[ReportAnalysisItem] = Field(max_length=20)
     stage_recommendation: ReportStageRecommendation
+    # None 表示历史 V1–V3；新版保留结构化方向。
+    test_directions: list[ReportTestDirection] | None = None
 
 
 class ReportAnalysis(BaseModel):

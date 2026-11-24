@@ -51,6 +51,7 @@ export function V020TestGroupDetail({
   onDelete,
   onBack,
   onExecuteFlow,
+  executionRevision = 0,
 }: {
   detail: TestGroupDetail;
   busy: boolean;
@@ -61,6 +62,7 @@ export function V020TestGroupDetail({
   onBack: () => void;
   /** 与列表页一致：打开“生成→审核→执行”流程弹窗。 */
   onExecuteFlow: () => void;
+  executionRevision?: number;
 }) {
   const [packages, setPackages] = useState<DataPackage[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -72,6 +74,9 @@ export function V020TestGroupDetail({
   // 从组内移除用例前确认，避免误点把用例踢出范围。
   const [pendingRemove, setPendingRemove] = useState<CaseRow | null>(null);
   const execution = useV020AutomationExecution(detail.id);
+  useEffect(() => {
+    if (executionRevision > 0) execution.refresh();
+  }, [executionRevision]);
 
   useEffect(() => {
     void listDataPackages()
@@ -443,7 +448,10 @@ export function V020TestGroupDetail({
           </p>
         </V020ConfirmDialog>
       )}
-      <V020AutomationExecutionPanel execution={execution} />
+      <V020AutomationExecutionPanel
+        execution={execution}
+        revealRevision={executionRevision}
+      />
     </section>
   );
 }

@@ -120,6 +120,16 @@
   gap: 6px;
 }
 
+/* Keep the import range help below the primary checkbox controls. */
+.prototype-import-options .prototype-import-range-note {
+  flex: 0 0 100%;
+  min-width: 0;
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
 .prototype-import-record {
   display: flex;
   flex-wrap: wrap;

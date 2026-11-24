@@ -62,6 +62,9 @@ export function useV020FactReports(groupId: number | null) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const requestToken = useRef(0);
+  const analysisReadToken = useRef(0);
+  const cancellingAnalysis = useRef(false);
+  const refreshingAnalysis = useRef(false);
 
   const load = useCallback(async (id: number) => {
     const token = requestToken.current + 1;
@@ -90,8 +93,10 @@ export function useV020FactReports(groupId: number | null) {
         "error" in availableHistory ? availableHistory.error : null,
       );
       const latestId = reportIdOf(reportHistory.items);
-      setReport(latestId === null ? null : await getFactReport(latestId));
+      const latestReport =
+        latestId === null ? null : await getFactReport(latestId);
       if (requestToken.current !== token) return;
+      setReport(latestReport);
       setStatus("ready");
     } catch (caught) {
       if (requestToken.current !== token) return;
@@ -218,40 +223,82 @@ export function useV020FactReports(groupId: number | null) {
     }
   };
 
-  const cancelAnalysis = async () => {
-    if (!report) return;
-    setActionError(null);
+  const cancelAnalysis = async (): Promise<string> => {
+    if (!report || cancellingAnalysis.current) return "";
+    cancellingAnalysis.current = true;
+    ++analysisReadToken.current; // 丢弃取消前已发出的旧状态查询。
+    const reportId = report.id;
+    const apply = (next: FactReport) =>
+      setReport((current) => (current?.id === reportId ? next : current));
     try {
-      const result = await cancelFactReportAnalysis(report.id);
+      let result;
+      try {
+        result = await cancelFactReportAnalysis(reportId);
+      } catch (caught) {
+        // 任务可能已在用户点击前结束。重新读取事实，不把旧界面当成运行中的任务。
+        let latest: FactReport;
+        try {
+          latest = await getFactReport(reportId);
+        } catch {
+          throw caught;
+        }
+        apply(latest);
+        if (latest.analysis.status !== "pending") {
+          return "本次分析已结束，无需取消；已刷新实际结果。";
+        }
+        if (latest.analysis.stopping)
+          return "停止请求已受理，等待当前模型请求收尾。";
+        throw caught;
+      }
       if (result.stopping) {
         setReport((current) =>
-          current?.id === report.id
+          current?.id === reportId && current.analysis.status === "pending"
             ? {
                 ...current,
                 analysis: {
-                  status: "pending",
+                  ...current.analysis,
                   message: "AI 分析正在停止",
-                  output: null,
                   stopping: true,
                 },
               }
             : current,
         );
-      } else {
-        setReport(await getFactReport(report.id));
       }
-    } catch (caught) {
-      setActionError(errorMessage(caught, "取消报告 AI 分析失败"));
+      try {
+        const latest = await getFactReport(reportId);
+        apply(latest);
+        if (latest.analysis.status === "cancelled")
+          return "本次 AI 分析已取消。";
+        if (latest.analysis.status !== "pending")
+          return "本次分析已结束，已刷新实际结果。";
+      } catch {
+        // 保留停止受理状态，后续轮询继续核实终态。
+      }
+      return result.stopping
+        ? "停止请求已受理，等待当前模型请求返回或超时；停止完成前不能重试。"
+        : "取消请求已受理，正在确认最终状态。";
+    } finally {
+      cancellingAnalysis.current = false;
     }
   };
 
   const refreshAnalysis = async () => {
-    if (!report) return;
-    setActionError(null);
+    if (!report || cancellingAnalysis.current || refreshingAnalysis.current)
+      return;
+    refreshingAnalysis.current = true;
+    const token = ++analysisReadToken.current;
+    const reportId = report.id;
     try {
-      setReport(await getFactReport(report.id));
+      const latest = await getFactReport(reportId);
+      if (token === analysisReadToken.current) {
+        setReport((current) => (current?.id === reportId ? latest : current));
+      }
     } catch (caught) {
-      setActionError(errorMessage(caught, "报告分析状态刷新失败"));
+      if (token === analysisReadToken.current) {
+        throw new Error(errorMessage(caught, "报告分析状态刷新失败"));
+      }
+    } finally {
+      refreshingAnalysis.current = false;
     }
   };
 

@@ -92,9 +92,24 @@ def semantic_batches(analysis_input: dict[str, Any], config: BatchConfig) -> lis
     """按模块和记录切批，绝不按字符数切分。"""
     modules = analysis_input.get("modules", [])
     # 各分批均携带同一份启动上下文；二分时也会继承这些字段。
-    context = {key: analysis_input[key] for key in ("version_ai_context", "product_profile") if key in analysis_input}
+    context = {
+        key: analysis_input[key]
+        for key in (
+            "version_ai_context",
+            "product_profile",
+            "scope_overview",
+            "execution_context",
+            "source_catalog",
+            "historical_reports",
+            "cross_module_issues",
+        )
+        if key in analysis_input
+    }
     if not isinstance(modules, list) or not modules:
-        return [{"modules": [], "stage_progress": analysis_input.get("stage_progress"), **context}]
+        empty = {"modules": [], "stage_progress": analysis_input.get("stage_progress"), **context}
+        empty["key"] = _batch_key(empty)
+        empty["refs"] = _refs_for(empty)
+        return [empty]
     batches: list[dict[str, Any]] = []
     current: list[dict[str, Any]] = []
     for module in modules:
@@ -112,15 +127,8 @@ def semantic_batches(analysis_input: dict[str, Any], config: BatchConfig) -> lis
     if current:
         batches.append({"modules": current, "stage_progress": analysis_input.get("stage_progress"), **context})
     for batch in batches:
-        refs = ["stage_progress"]
-        for module in batch["modules"]:
-            if module.get("ref"):
-                refs.append(str(module["ref"]))
-            for record in module.get("records", []):
-                if record.get("ref"):
-                    refs.append(str(record["ref"]))
         batch["key"] = _batch_key(batch)
-        batch["refs"] = refs
+        batch["refs"] = _refs_for(batch)
     return batches
 
 
@@ -176,10 +184,17 @@ def split_batch(batch: dict[str, Any]) -> list[dict[str, Any]] | None:
 
 def _refs_for(batch: dict[str, Any]) -> list[str]:
     refs = ["stage_progress"]
+    refs.extend(
+        key
+        for key in ("scope_overview", "execution_context", "product_profile", "version_ai_context", "source_catalog")
+        if batch.get(key)
+    )
     for module in batch.get("modules", []):
         if module.get("ref"):
             refs.append(str(module["ref"]))
         refs.extend(str(record["ref"]) for record in module.get("records", []) if record.get("ref"))
+    for key in ("historical_reports", "cross_module_issues"):
+        refs.extend(str(item["ref"]) for item in batch.get(key, []) if item.get("ref"))
     return refs
 
 

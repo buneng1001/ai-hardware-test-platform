@@ -182,6 +182,12 @@ export function stubReportApi(state: ReportStubState) {
       if (cancelMatch && method === "POST") {
         const reportId = Number(cancelMatch[1]);
         const report = state.reports[reportId];
+        if (!report || report.analysis.status !== "pending") {
+          return jsonResponse(
+            { detail: "当前报告没有正在运行的 AI 分析" },
+            404,
+          );
+        }
         if (report) {
           state.reports[reportId] = {
             ...report,

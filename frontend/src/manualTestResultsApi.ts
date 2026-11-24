@@ -39,6 +39,11 @@ export type ManualTestResultBatch = {
   created_at: string;
   updated_at: string;
   results: ManualTestResult[];
+  /** 后端冻结批次范围，包含未填写的未执行项。 */
+  report_input?: Array<{
+    source_test_case_id: number;
+    status: ManualTestStatus;
+  }>;
 };
 
 export type ManualTestResultPage = {

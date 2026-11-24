@@ -132,6 +132,74 @@ test("T13 报告来源明确无、人工多批次、历史跨版本独立对照"
   });
 });
 
+test("合并后的来源卡片实时更新所选记录统计，所有来源均在生成按钮之前", async () => {
+  const sample = state();
+  stubReportApi({
+    ...sample,
+    executions: [
+      executionRecord({ id: 3, execution_number: 3 }),
+      executionRecord({
+        id: 2,
+        execution_number: 2,
+        summary: { passed: 0, failed: 1, blocked: 0, not_executed: 0 },
+      }),
+    ],
+    batches: [
+      {
+        ...manualBatch(2, 2, []),
+        report_input: [
+          { source_test_case_id: 1, status: "passed" },
+          { source_test_case_id: 2, status: "not_executed" },
+        ],
+      },
+      {
+        ...manualBatch(1, 1, []),
+        report_input: [{ source_test_case_id: 1, status: "failed" }],
+      },
+    ],
+  });
+  await openReportView();
+  const automatic = await screen.findByLabelText("最终报告自动化来源");
+  const autoCard = screen.getByRole("region", { name: "自动化执行结果" });
+  const manualCard = screen.getByRole("region", { name: "人工测试结果" });
+  fireEvent.change(automatic, { target: { value: "2" } });
+  expect(
+    within(autoCard).getByRole("group", {
+      name: "通过 0 · 失败 1 · 阻塞 0 · 未执行 0",
+    }),
+  ).toBeVisible();
+  const manualDetails = within(manualCard)
+    .getByText(/^人工测试结果（多选）/)
+    .closest("details")!;
+  fireEvent.click(within(manualDetails).getByText(/^人工测试结果（多选）/));
+  expect(
+    within(manualCard).getByRole("group", {
+      name: "通过 1 · 失败 0 · 阻塞 0 · 未执行 1",
+    }),
+  ).toBeVisible();
+  fireEvent.click(within(manualDetails).getByLabelText("选择人工批次 #1"));
+  expect(
+    within(manualCard).getByRole("group", {
+      name: "通过 1 · 失败 1 · 阻塞 0 · 未执行 1",
+    }),
+  ).toBeVisible();
+  const generate = screen.getByRole("button", { name: "生成最终报告" });
+  const history = screen.getByText(/^历史最终报告（多选）/);
+  for (const source of [autoCard, manualCard, history]) {
+    expect(
+      source.compareDocumentPosition(generate) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  }
+  expect(screen.queryByText("本次最终报告的事实来源")).not.toBeInTheDocument();
+  fireEvent.click(generate);
+  const confirm = await screen.findByRole("dialog", {
+    name: "确认生成最终报告",
+  });
+  expect(within(confirm).getByText(/自动化执行记录：#2/)).toBeVisible();
+  expect(within(confirm).getByText(/人工测试记录：#2、#1/)).toBeVisible();
+});
+
 test("T13 显式无跨页面重新加载保持，不回退最新记录", async () => {
   stubReportApi(state());
   await openReportView();

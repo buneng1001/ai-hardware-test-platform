@@ -208,6 +208,145 @@
   color: var(--prototype-color-muted);
 }
 
+/* AI 专业分析：保留报告原有视觉语言，以分层阅读取代重复列表。 */
+.v030-professional-analysis {
+  display: grid;
+  gap: 18px;
+}
+.v030-professional-analysis .v030-analysis-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.v030-professional-analysis .v030-analysis-block + .v030-analysis-block {
+  border-top: 1px solid var(--prototype-color-line);
+  padding-top: 16px;
+}
+.v030-professional-analysis .v030-analysis-block > p {
+  margin: 0;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.v030-direction-list {
+  display: grid;
+  gap: 8px;
+}
+.v030-direction {
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--prototype-color-line);
+}
+.v030-direction > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+}
+.v030-direction > summary::-webkit-details-marker {
+  display: none;
+}
+.v030-direction > summary::before {
+  content: "›";
+  font-size: 18px;
+  color: var(--prototype-color-muted);
+}
+.v030-direction[open] > summary::before {
+  transform: rotate(90deg);
+}
+.v030-direction-heading {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* 可展开的测试方向：标题与箭头使用高对比度浅蓝，区别于正文。 */
+.prototype-report-ai-output
+  .v030-direction
+  > summary
+  .v030-direction-heading
+  strong,
+.prototype-report-ai-output .v030-direction > summary::before {
+  color: #83c9ff;
+}
+.prototype-report-ai-output
+  .v030-direction
+  > summary:hover
+  .v030-direction-heading
+  strong,
+.prototype-report-ai-output .v030-direction > summary:hover::before {
+  color: #c4e7ff;
+}
+.prototype-report-ai-output .v030-direction > summary:focus-visible {
+  outline: 2px solid #83c9ff;
+  outline-offset: 4px;
+}
+.v030-direction-heading small {
+  margin-left: 0;
+  font-size: 12px;
+}
+.v030-direction-priority {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.v030-direction-priority--high {
+  color: #c05261;
+  font-weight: 600;
+}
+.v030-direction-priority--medium {
+  color: #9a6c22;
+}
+.v030-direction-priority--low {
+  color: var(--prototype-color-muted);
+}
+.v030-direction dl {
+  display: grid;
+  grid-template-columns: 5em minmax(0, 1fr);
+  gap: 7px 10px;
+  margin: 12px 0 6px;
+  line-height: 1.65;
+}
+.v030-direction dt {
+  color: var(--prototype-color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.v030-direction dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.v030-direction .v030-direction-evidence {
+  display: block;
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.v030-regression-list {
+  padding-left: 20px;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.v030-regression-list p {
+  margin: 0;
+  line-height: 1.6;
+}
+@media (max-width: 520px) {
+  .v030-direction dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .v030-direction dd {
+    margin-bottom: 6px;
+  }
+}
 .prototype-report-cleanup,
 .prototype-report-delete {
   max-width: 760px;

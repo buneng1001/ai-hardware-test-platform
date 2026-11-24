@@ -3,6 +3,7 @@ import { waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { FrontendRoot } from "./FrontendRoot";
+import { PrototypeHome } from "./V020PrototypeEntryScreens";
 import type { AiConfigState } from "./aiSettingsApi";
 
 function jsonResponse(value: unknown) {
@@ -54,6 +55,131 @@ afterEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
 });
+
+test.each(["success", "verification-failed", "enable-failed"] as const)(
+  "首页连接测试与保存开启流程：%s",
+  async (outcome) => {
+    const initial = configState();
+    let saved = initial;
+    let enabled = false;
+    let testCount = 0;
+    const stateWrites: boolean[] = [];
+    const onOpenProjects = vi.fn();
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/settings/ai/config") {
+          if (init?.method === "POST") {
+            saved = configState({
+              snapshot: {
+                ...initial.snapshot!,
+                network_mode: "direct",
+                fingerprint: "fingerprint-2",
+              },
+              verification: {
+                ...initial.verification,
+                status: "invalidated",
+                fingerprint: "fingerprint-2",
+              },
+            });
+            enabled = false;
+          }
+          return jsonResponse(saved);
+        }
+        if (url === "/api/settings/ai/test") {
+          testCount += 1;
+          const ok = testCount === 1 || outcome !== "verification-failed";
+          if (testCount > 1) {
+            saved = {
+              ...saved,
+              verification: {
+                ...saved.verification,
+                status: ok ? "verified" : "failed",
+                message: ok ? "正式连接可用" : "正式连接失败",
+              },
+            };
+          }
+          return jsonResponse({
+            ok,
+            provider: "deepseek",
+            model: "deepseek-flash",
+            message: ok ? "连接可用" : "正式连接失败",
+            config_fingerprint: "fingerprint-2",
+          });
+        }
+        if (url === "/api/settings/ai/state") {
+          if (init?.method === "PUT") {
+            const body = JSON.parse(String(init.body)) as { enabled: boolean };
+            stateWrites.push(body.enabled);
+            expect(saved.verification.status).toBe("verified");
+            if (outcome === "enable-failed") {
+              return new Response(JSON.stringify({ detail: "开启失败" }), {
+                status: 409,
+              });
+            }
+            enabled = body.enabled;
+          }
+          return jsonResponse({
+            enabled,
+            can_enable: saved.verification.status === "verified",
+            reason: null,
+            provider: "deepseek",
+            model: "deepseek-flash",
+          });
+        }
+        if (url === "/api/settings/ai/active-invocation")
+          return jsonResponse({ active: null });
+        throw new Error(`unexpected request ${url}`);
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PrototypeHome onOpenProjects={onOpenProjects} />);
+    await screen.findByText("AI 已关闭");
+    await screen.findByText(/验证状态：已验证/);
+    fireEvent.change(screen.getByRole("combobox", { name: "网络方式" }), {
+      target: { value: "direct" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "AI 连接测试" }));
+    await screen.findByText(/连接成功：DeepSeek/);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "保存 AI 配置" }),
+      ).toBeEnabled(),
+    );
+    expect(stateWrites).toEqual([]);
+    expect(screen.getByText("AI 已关闭")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "保存 AI 配置" }));
+    if (outcome === "success") {
+      await screen.findByText("AI 配置已保存，AI 已开启。");
+      expect(await screen.findByText("AI 已开启")).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "关闭 AI，仅使用基础功能" }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "暂不配置，进入平台" }),
+      ).not.toBeInTheDocument();
+      expect(stateWrites).toEqual([true]);
+    } else {
+      await screen.findByText(
+        outcome === "verification-failed"
+          ? /AI 配置已保存，但正式连接验证失败/
+          : /AI 配置已保存，但开启 AI 失败/,
+      );
+      expect(screen.getByText("AI 已关闭")).toBeVisible();
+      expect(stateWrites).toEqual(
+        outcome === "verification-failed" ? [] : [true],
+      );
+    }
+    expect(testCount).toBe(2);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "开启平台" })).toBeEnabled(),
+    );
+    const beforeEntry = [...stateWrites];
+    fireEvent.click(screen.getByRole("button", { name: "开启平台" }));
+    expect(onOpenProjects).toHaveBeenCalledOnce();
+    expect(stateWrites).toEqual(beforeEntry);
+  },
+);
 
 test("恢复已保存 AI 配置，变更即失效并可保存和确认目录缺项", async () => {
   let savedBody: unknown = null;

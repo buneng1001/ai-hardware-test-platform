@@ -175,7 +175,7 @@ test("报告与历史记录只列最终报告并支持查找", async () => {
   expect(within(dialog).queryByText("自动化执行 #3")).toBeNull();
   expect(within(dialog).queryByText("人工记录批次 #1")).toBeNull();
 
-  fireEvent.change(within(dialog).getByLabelText("查找报告与历史记录"), {
+  fireEvent.change(within(dialog).getByLabelText("查找最终报告"), {
     target: { value: "回归" },
   });
   fireEvent.click(within(dialog).getByRole("button", { name: "查找" }));

@@ -1,10 +1,23 @@
+import { useEffect } from "react";
 import {
   prototypeAiProviders as providers,
   type PrototypeAiProviderKey as ProviderKey,
 } from "./V020PrototypeAiModels";
 import { usePrototypeAiConfiguration } from "./usePrototypeAiConfiguration";
 
-export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
+export function PrototypeAiConfiguration({
+  onSkip,
+  aiEnabled = false,
+  onStateChanged,
+  onBusyChange,
+  skipBusy = false,
+}: {
+  onSkip: () => void;
+  aiEnabled?: boolean;
+  onStateChanged?: () => Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
+  skipBusy?: boolean;
+}) {
   const {
     provider,
     model,
@@ -39,7 +52,10 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
     cancelConfigurationSave,
     validateConnectionConfiguration,
     refreshModelCatalog,
-  } = usePrototypeAiConfiguration();
+  } = usePrototypeAiConfiguration(onStateChanged);
+  useEffect(() => {
+    onBusyChange?.(loadingAction === "save");
+  }, [loadingAction, onBusyChange]);
 
   return (
     <section className="prototype-ai-card" aria-labelledby="prototype-ai-title">
@@ -61,6 +77,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           </span>
           <select
             aria-label="服务商"
+            disabled={loadingAction !== null}
             value={provider}
             onChange={(event) =>
               changeProvider(event.target.value as ProviderKey)
@@ -81,6 +98,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           </span>
           <select
             aria-label="网络方式"
+            disabled={loadingAction !== null}
             value={networkMode}
             onChange={(event) =>
               changeNetworkMode(
@@ -114,6 +132,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           </div>
           <select
             aria-label="模型"
+            disabled={loadingAction !== null}
             value={model}
             onChange={(event) => setModel(event.target.value)}
           >
@@ -145,6 +164,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           </span>
           <input
             aria-label="临时 API Key"
+            disabled={loadingAction !== null}
             type="password"
             autoComplete="off"
             value={temporaryKey}
@@ -159,6 +179,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           <input
             type="checkbox"
             checked={rememberTemporaryKey}
+            disabled={loadingAction !== null}
             onChange={(event) =>
               changeRememberTemporaryKey(event.target.checked)
             }
@@ -169,6 +190,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           className="prototype-secondary"
           type="button"
           onClick={clearTemporaryKey}
+          disabled={loadingAction !== null}
         >
           清除临时 API
         </button>
@@ -191,7 +213,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           }
           type="button"
           aria-pressed={accessMode === "temporary"}
-          disabled={!canUseTemporaryApi}
+          disabled={!canUseTemporaryApi || loadingAction !== null}
           title={canUseTemporaryApi ? undefined : "请先填写临时 API Key"}
           onClick={() => chooseAccessMode("temporary")}
         >
@@ -201,6 +223,7 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           className={accessMode === "local" ? "prototype-ai-mode-active" : ""}
           type="button"
           aria-pressed={accessMode === "local"}
+          disabled={loadingAction !== null}
           onClick={() => chooseAccessMode("local")}
         >
           使用后端配置接入
@@ -209,14 +232,24 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
       <small className="prototype-ai-catalog-feedback">
         临时 API 优先于后端配置；临时密钥只保存在当前会话，不写入数据库。
       </small>
-      <button
-        className="prototype-ai-test"
-        type="button"
-        onClick={validateConnectionConfiguration}
-        disabled={loadingAction !== null}
-      >
-        {loadingAction === "test" ? "正在测试…" : "AI 连接测试"}
-      </button>
+      <div className="prototype-ai-config-actions">
+        <button
+          className="prototype-ai-test"
+          type="button"
+          onClick={validateConnectionConfiguration}
+          disabled={loadingAction !== null}
+        >
+          {loadingAction === "test" ? "正在测试…" : "AI 连接测试"}
+        </button>
+        <button
+          className="prototype-secondary"
+          type="button"
+          onClick={saveConfiguration}
+          disabled={loadingAction !== null}
+        >
+          {loadingAction === "save" ? "正在保存…" : "保存 AI 配置"}
+        </button>
+      </div>
       {connectionMessage && (
         <p
           className={`prototype-ai-feedback${connectionSucceeded === false ? " prototype-ai-feedback-error" : ""}`}
@@ -251,16 +284,9 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
         </p>
       )}
       <p className="prototype-muted">
-        连接测试只验证最小请求，不代表报告分析或用例转换能力。
+        连接测试只验证最小请求，不代表报告分析或用例转换能力。连接成功后保存配置，正式验证通过即开启
+        AI。
       </p>
-      <button
-        className="prototype-secondary"
-        type="button"
-        onClick={saveConfiguration}
-        disabled={loadingAction !== null}
-      >
-        保存 AI 配置
-      </button>
       {saveConflict && (
         <div className="prototype-ai-stop-backdrop" role="presentation">
           <section
@@ -313,8 +339,17 @@ export function PrototypeAiConfiguration({ onSkip }: { onSkip: () => void }) {
           </section>
         </div>
       )}
-      <button className="prototype-ai-skip" type="button" onClick={onSkip}>
-        暂不配置，进入平台
+      <button
+        className="prototype-ai-skip"
+        type="button"
+        onClick={onSkip}
+        disabled={skipBusy || loadingAction === "save"}
+      >
+        {aiEnabled
+          ? "关闭 AI，仅使用基础功能"
+          : connectionSucceeded
+            ? "暂不启用 AI，进入平台"
+            : "暂不配置，进入平台"}
       </button>
     </section>
   );
