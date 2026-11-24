@@ -272,6 +272,9 @@ export type RegressionResult = {
   invocation_id: string;
   config_fingerprint: string;
   is_mock: boolean;
+  generated_at: string;
+  prompt_version: string;
+  invocation_status: "completed";
   overall_risk: RegressionExplanation;
   key_changes: RegressionExplanation | null;
   regression_focus: RegressionExplanation;
@@ -281,12 +284,44 @@ export type RegressionResult = {
   candidates: RegressionCandidate[];
 };
 
-export function generateIntelligentRegression(
+export function getCurrentIntelligentRegression(
+  groupId: number | undefined,
+  reportId: number | null,
+) {
+  const base =
+    groupId !== undefined
+      ? `/api/test-groups/${groupId}`
+      : `/api/fact-reports/${reportId}`;
+  return request<{ project_id: number; result: RegressionResult | null }>(
+    `${base}/intelligent-regression/current`,
+    { cache: "no-store" },
+  );
+}
+
+export function getIntelligentRegressionRepeatInfo(
   reportId: number,
   reportIds: number[],
 ) {
+  return request<{
+    same_input: boolean;
+    has_previous: boolean;
+    running_same_operation: boolean;
+    occupied_other: boolean;
+    active_invocation_id: string | null;
+  }>(`/api/fact-reports/${reportId}/intelligent-regression/repeat-info`, {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify({ report_ids: reportIds }),
+  });
+}
+
+export function generateIntelligentRegression(
+  reportId: number,
+  reportIds: number[],
+  force = false,
+) {
   return request<RegressionResult>(
-    `/api/fact-reports/${reportId}/intelligent-regression`,
+    `/api/fact-reports/${reportId}/intelligent-regression${force ? "?force=true" : ""}`,
     {
       method: "POST",
       headers: jsonHeaders,

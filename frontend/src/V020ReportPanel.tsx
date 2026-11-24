@@ -310,20 +310,12 @@ export function V020ReportPanel({
         </div>
       </div>
 
-      {report ? (
-        <V030AuxiliaryReportSelector
-          key={report.id}
-          reportId={report.id}
-          analysisStatus={report.analysis.status}
-        />
-      ) : (
-        <section className="prototype-report-source-picker">
-          <button type="button" className="prototype-primary" disabled>
-            生成智能回归建议
-          </button>
-          <p className="prototype-muted">请先生成最终测试报告</p>
-        </section>
-      )}
+      <V030AuxiliaryReportSelector
+        key={`${groupId}:${report?.id ?? "none"}`}
+        groupId={groupId}
+        reportId={report?.id ?? null}
+        analysisStatus={report?.analysis.status ?? "missing"}
+      />
 
       {reports.actionError && (
         <div className="prototype-inline-note" role="alert">

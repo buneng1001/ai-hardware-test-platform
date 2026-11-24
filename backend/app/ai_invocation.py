@@ -267,33 +267,45 @@ def is_cancel_requested(invocation_id: str) -> bool:
         )
 
 
-def finish_invocation(invocation_id: str, *, status: Literal["completed", "failed", "cancelled"]) -> FinalStatus:
-    """只由本次请求持有者在响应/超时和全部本地收尾后调用，绝不提前释放。"""
+def finish_invocation_in_transaction(
+    connection: sqlite3.Connection,
+    invocation_id: str,
+    *,
+    status: Literal["completed", "failed", "cancelled"],
+) -> FinalStatus:
+    """Finalize inside the caller's existing write transaction, without committing it."""
+    if not connection.in_transaction:
+        raise RuntimeError("结束 AI 调用前必须开启写事务")
     if status not in ("completed", "failed", "cancelled"):
         raise ValueError("非法 AI 调用结束状态")
+    row = connection.execute("SELECT * FROM ai_active_invocation WHERE id = 1").fetchone()
+    if row is None or row["invocation_id"] != invocation_id:
+        raise AiInvocationCancelled("当前调用租约已失效，不能结束其他调用")
+    if row["status"] != "running":
+        return row["status"]
+    final_status = "cancelled" if row["cancel_requested_at"] is not None else status
+    connection.execute(
+        "UPDATE ai_active_invocation SET status = ?, finished_at = ? WHERE id = 1",
+        (final_status, _now()),
+    )
+    connection.execute(
+        """UPDATE ai_batch_runs SET status = ?, finished_at = ?
+           WHERE invocation_id = ? AND status = 'running'""",
+        (final_status, _now(), invocation_id),
+    )
+    if row["disable_global_after_finish"]:
+        connection.execute(
+            "UPDATE ai_global_state SET enabled = 0, updated_at = ? WHERE id = 1",
+            (_now(),),
+        )
+    return final_status
+
+
+def finish_invocation(invocation_id: str, *, status: Literal["completed", "failed", "cancelled"]) -> FinalStatus:
+    """只由本次请求持有者在响应/超时和全部本地收尾后调用，绝不提前释放。"""
     with open_database() as connection:
         connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute("SELECT * FROM ai_active_invocation WHERE id = 1").fetchone()
-        if row is None or row["invocation_id"] != invocation_id:
-            raise AiInvocationCancelled("当前调用租约已失效，不能结束其他调用")
-        if row["status"] != "running":
-            return row["status"]
-        final_status = "cancelled" if row["cancel_requested_at"] is not None else status
-        connection.execute(
-            "UPDATE ai_active_invocation SET status = ?, finished_at = ? WHERE id = 1",
-            (final_status, _now()),
-        )
-        connection.execute(
-            """UPDATE ai_batch_runs SET status = ?, finished_at = ?
-               WHERE invocation_id = ? AND status = 'running'""",
-            (final_status, _now(), invocation_id),
-        )
-        if row["disable_global_after_finish"]:
-            connection.execute(
-                "UPDATE ai_global_state SET enabled = 0, updated_at = ? WHERE id = 1",
-                (_now(),),
-            )
-        return final_status
+        return finish_invocation_in_transaction(connection, invocation_id, status=status)
 
 
 def recover_interrupted_invocations() -> int:
