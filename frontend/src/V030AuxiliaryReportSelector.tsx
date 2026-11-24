@@ -6,6 +6,7 @@ import {
   type ActiveAiInvocation,
 } from "./aiGlobalState";
 import { cancelAiInvocation } from "./diagnosisApi";
+import { V030RegressionResult } from "./V030RegressionResult";
 
 import {
   listRegressionAuxiliaryReports,
@@ -557,52 +558,7 @@ export function V030AuxiliaryReportSelector({
       </div>
       {currentError && <p role="alert">{currentError}</p>}
       {result && (
-        <section aria-label="智能回归生成结果">
-          <h4>智能回归分析 {result.is_mock ? "（Mock）" : ""}</h4>
-          <p className="prototype-muted">
-            当前有效建议 · 主报告 #{result.main_report_id}
-            {result.generated_at
-              ? ` · ${result.generated_at.slice(0, 19).replace("T", " ")}`
-              : ""}
-          </p>
-          <h5>总体风险判断</h5>
-          <p>{result.overall_risk.content}</p>
-          <h5>重点变化</h5>
-          <p>
-            {result.key_changes?.content ??
-              "未选择辅助报告，仅分析主报告，不进行跨版本比较。"}
-          </p>
-          <h5>回归重点</h5>
-          <p>{result.regression_focus.content}</p>
-          <h5>建议总结</h5>
-          <p>{result.summary}</p>
-          <div style={{ overflowX: "auto" }}>
-            <table aria-label="结构化回归候选">
-              <thead>
-                <tr>
-                  <th>用例标题</th>
-                  <th>执行方式</th>
-                  <th>模块</th>
-                  <th>优先级</th>
-                  <th>回归原因</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.candidates.map((candidate) => (
-                  <tr key={candidate.id}>
-                    <td>{candidate.title}</td>
-                    <td>
-                      {candidate.case_type === "manual" ? "人工" : "自动化"}
-                    </td>
-                    <td>{candidate.module}</td>
-                    <td>{candidate.priority}</td>
-                    <td>{candidate.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <V030RegressionResult key={result.invocation_id} result={result} />
       )}
     </section>
   );
