@@ -98,9 +98,43 @@ test("从测试用例表生成候选后可跳回来源原始用例", async () =>
   expect(await screen.findByText("AUTO-000007")).toBeVisible();
 
   fireEvent.click(screen.getByRole("link", { name: "REC-001" }));
-  expect(await screen.findByText("录制文件完整")).toBeVisible();
+  await screen.findByRole("checkbox", { name: "选择用例 REC-001" });
   const row = document.getElementById("source-test-case-4");
   expect(row).toHaveClass("prototype-row-highlight");
+});
+
+test("来源跳转按 ID 定位第二页而非同标题记录", async () => {
+  const cases = Array.from({ length: 25 }, (_, i) =>
+    sourceCase({ id: i + 1, case_number: `SRC-${i + 1}`, title: "同标题" }),
+  );
+  const fetchMock = stubApi({
+    cases,
+    records: [],
+    automationCases: [
+      automationCase({
+        id: 9,
+        source_test_case_id: 25,
+        source_case_number: "SRC-25",
+      }),
+    ],
+  });
+  await openAutomationView();
+  fireEvent.click(screen.getByRole("link", { name: "SRC-25" }));
+  expect(await screen.findByText(/第 2 \/ 2 页/)).toBeVisible();
+  expect(document.getElementById("source-test-case-25")).toHaveClass(
+    "prototype-row-highlight",
+  );
+  expect(document.getElementById("source-test-case-1")).toBeNull();
+  expect(
+    callsOf(fetchMock).filter(([url]) =>
+      String(url).endsWith("/source-relation"),
+    ),
+  ).toHaveLength(1);
+  expect(
+    callsOf(fetchMock).filter(
+      ([, init]) => init?.method && init.method !== "GET",
+    ),
+  ).toHaveLength(0);
 });
 
 test("自动化用例加载失败时展示原因并可以重试", async () => {

@@ -165,8 +165,16 @@ export function V020SourceCasesScreen({
   );
 
   useEffect(() => {
-    setPage(1);
-  }, [source.items]);
+    const index = source.items.findIndex((item) => item.id === focusCaseId);
+    setPage(index >= 0 ? Math.floor(index / pageSize) + 1 : 1);
+  }, [source.items, focusCaseId]);
+
+  useEffect(() => {
+    if (focusCaseId === null || source.status !== "ready") return;
+    const row = document.getElementById(`source-test-case-${focusCaseId}`);
+    row?.scrollIntoView?.({ block: "nearest" });
+    row?.focus();
+  }, [source.status, focusCaseId, currentPage]);
 
   if (versionId === null) {
     return (
@@ -190,7 +198,9 @@ export function V020SourceCasesScreen({
   if (!source.hasLoaded && source.status === "error") {
     return (
       <div className="prototype-inline-note" role="alert">
-        原始测试用例加载失败：{source.error}
+        {focusCaseId === null
+          ? `原始测试用例加载失败：${source.error}`
+          : "关联信息加载失败，请重试"}
         <button
           className="prototype-secondary"
           onClick={source.retry}
@@ -597,7 +607,8 @@ export function V020SourceCasesScreen({
       {(source.status === "error" ||
         (source.status === "ready" && source.relationIssues)) && (
         <div className="prototype-inline-note" role="alert">
-          关联信息加载失败，请重试{source.error ? `：${source.error}` : ""}
+          关联信息加载失败，请重试
+          {focusCaseId === null && source.error ? `：${source.error}` : ""}
           <button
             type="button"
             className="prototype-secondary"
@@ -607,6 +618,13 @@ export function V020SourceCasesScreen({
           </button>
         </div>
       )}
+      {focusCaseId !== null &&
+        source.status === "ready" &&
+        !source.allItems.some((item) => item.id === focusCaseId) && (
+          <p role="status" className="prototype-muted">
+            来源用例不可用
+          </p>
+        )}
       <V020SourceCaseTable
         relationStatus={source.status}
         onRetryRelations={source.retry}

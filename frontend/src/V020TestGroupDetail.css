@@ -40,6 +40,16 @@
   min-width: 0;
 }
 
+.test-group-source-relation {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.prototype-source-relation-link {
+  color: var(--prototype-color-brand-strong);
+  text-decoration: underline;
+}
+
 /* 执行按钮宽度固定，状态反馈放在按钮旁边，避免点了看不到变化。 */
 .test-group-topbar .prototype-primary {
   min-width: 140px;

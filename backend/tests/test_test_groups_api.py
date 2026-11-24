@@ -25,8 +25,8 @@ def _wait_for_completed_run(client: TestClient, run_id: int) -> None:
     raise AssertionError("数据任务未在测试时间内完成")
 
 
-def _create_version_with_cases(client: TestClient) -> tuple[int, list[int]]:
-    project = client.post("/api/projects", json={"name": "Atlas", "product_name": "Camera"}).json()
+def _create_version_with_cases(client: TestClient, project_name: str = "Atlas") -> tuple[int, list[int]]:
+    project = client.post("/api/projects", json={"name": project_name, "product_name": "Camera"}).json()
     version = client.post(f"/api/projects/{project['id']}/product-versions", json={"version": "EVT1"}).json()
     response = client.post(
         f"/api/product-versions/{version['id']}/source-test-case-imports",
@@ -83,6 +83,7 @@ def test_test_group_carries_selection_and_only_accepts_validated_automation_case
     ).json()
     assert detail["automation_test_cases"][0]["case_number"].startswith("AUTO-")
     assert detail["automation_test_cases"][0]["position"] == 1
+    assert detail["automation_test_cases"][0]["source_test_case_id"] == automation[0]["source_test_case_id"]
 
     second = client.post(
         f"/api/product-versions/{version_id}/test-groups",

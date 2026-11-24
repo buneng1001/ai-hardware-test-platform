@@ -34,6 +34,7 @@ export type TestGroupDetail = TestGroupSummary & {
   automation_test_cases: Array<{
     id: number;
     case_number: string;
+    source_test_case_id?: number | null;
     source_case_number: string;
     title: string;
     validation_status: string;

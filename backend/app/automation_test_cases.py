@@ -35,9 +35,10 @@ def _case_from_row(row: sqlite3.Row) -> AutomationTestCase:
 def _list_cases(connection: sqlite3.Connection, version_id: int) -> list[AutomationTestCase]:
     rows = connection.execute(
         """
-        SELECT automation.*, source.case_number AS source_case_number
+        SELECT automation.*, COALESCE(source.case_number, '') AS source_case_number
         FROM automation_test_cases automation
-        JOIN source_test_cases source ON source.id = automation.source_test_case_id
+        LEFT JOIN source_test_cases source ON source.id = automation.source_test_case_id
+            AND source.product_version_id = automation.product_version_id
         WHERE automation.product_version_id = ?
         ORDER BY automation.id
         """,
@@ -53,6 +54,7 @@ def _get_case(connection: sqlite3.Connection, version_id: int, case_id: int) -> 
         FROM automation_test_cases automation
         JOIN source_test_cases source ON source.id = automation.source_test_case_id
         WHERE automation.product_version_id = ? AND automation.id = ?
+          AND source.product_version_id = automation.product_version_id
         """,
         (version_id, case_id),
     ).fetchone()
@@ -81,6 +83,25 @@ def list_automation_test_cases(version_id: int) -> AutomationTestCaseList:
     with open_database() as connection:
         _ensure_version(connection, version_id)
         return AutomationTestCaseList(items=_list_cases(connection, version_id))
+
+
+@router.get("/api/product-versions/{version_id}/automation-test-cases/{case_id}/source-relation")
+def get_automation_source_relation(version_id: int, case_id: int) -> dict[str, int]:
+    """Resolve only the current, version-scoped relation; never return source content on failure."""
+    with open_database() as connection:
+        row = connection.execute(
+            """
+            SELECT source.id FROM automation_test_cases automation
+            JOIN source_test_cases source ON source.id = automation.source_test_case_id
+                AND source.product_version_id = automation.product_version_id
+            JOIN product_versions version ON version.id = automation.product_version_id
+            WHERE automation.product_version_id = ? AND automation.id = ?
+            """,
+            (version_id, case_id),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="来源用例不可用")
+        return {"source_test_case_id": row["id"], "product_version_id": version_id}
 
 
 @router.post(

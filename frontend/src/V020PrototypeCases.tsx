@@ -8,17 +8,21 @@ import { V020SourceCasesScreen } from "./V020SourceCasesScreen";
 type CasesSectionProps = Pick<
   WorkspaceProps,
   "projectWorkspace" | "caseView" | "setCaseView" | "setSection"
->;
+> & {
+  sourceFocusId: number | null;
+  onOpenSource: (caseId: number) => void;
+  onClearSource: () => void;
+};
 
 export function CasesSection({
   projectWorkspace,
   caseView,
   setCaseView,
   setSection,
+  sourceFocusId,
+  onOpenSource,
+  onClearSource,
 }: CasesSectionProps) {
-  const [focusedSourceCaseId, setFocusedSourceCaseId] = useState<number | null>(
-    null,
-  );
   const versionId = projectWorkspace.openedVersion?.id ?? null;
   const [focusedAutomation, setFocusedAutomation] = useState<{
     versionId: number;
@@ -51,7 +55,7 @@ export function CasesSection({
             }
             onClick={() => {
               setCaseView(key);
-              if (key === "source") setFocusedSourceCaseId(null);
+              onClearSource();
               setFocusedAutomation(null);
             }}
           >
@@ -72,7 +76,7 @@ export function CasesSection({
           key={versionId ?? "no-version"}
           versionId={versionId}
           versionLabel={projectWorkspace.openedVersion?.version ?? ""}
-          focusCaseId={focusedSourceCaseId}
+          focusCaseId={sourceFocusId}
           onOpenAutomation={(caseId) => {
             setFocusedAutomation(
               caseId !== undefined && versionId !== null
@@ -93,10 +97,7 @@ export function CasesSection({
               : null
           }
           onOpenGroups={() => setSection("groups")}
-          onOpenSource={(sourceTestCaseId) => {
-            setFocusedSourceCaseId(sourceTestCaseId);
-            setCaseView("source");
-          }}
+          onOpenSource={onOpenSource}
         />
       )}
     </section>

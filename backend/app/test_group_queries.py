@@ -62,11 +62,17 @@ def test_group_detail(connection: sqlite3.Connection, group_id: int) -> TestGrou
     ).fetchall()
     automation_rows = connection.execute(
         """
-        SELECT automation.id, automation.case_number, source.case_number AS source_case_number, automation.title,
-               automation.validation_status, source.software_version AS source_software_version, item.position
+        SELECT automation.id, automation.case_number, source.id AS source_test_case_id,
+               COALESCE(source.case_number, '') AS source_case_number, automation.title,
+               automation.validation_status, COALESCE(source.software_version, '') AS source_software_version,
+               item.position
         FROM test_group_automation_cases item
         JOIN automation_test_cases automation ON automation.id = item.automation_test_case_id
-        JOIN source_test_cases source ON source.id = automation.source_test_case_id
+        LEFT JOIN source_test_cases source ON source.id = automation.source_test_case_id
+            AND source.product_version_id = automation.product_version_id
+            AND automation.product_version_id = (
+                SELECT product_version_id FROM test_groups WHERE id = item.test_group_id
+            )
         WHERE item.test_group_id = ? ORDER BY item.position
         """,
         (group_id,),
