@@ -91,7 +91,7 @@ test("冻结版固定样例贯通用例、数据、测试组、执行、人工�
   expect(screen.getByText("SRC-001")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "返回执行与结果" }));
 
-  expect(await screen.findByText(/报告 #5/)).toBeVisible();
+  expect(await screen.findByText(/^报告 #5 · 生成时间/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "预览最新报告（HTML）" }));
   const reportDialog = await screen.findByRole("dialog", {
     name: "报告 #5 HTML 预览",

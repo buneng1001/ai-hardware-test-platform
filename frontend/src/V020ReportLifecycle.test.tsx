@@ -114,7 +114,7 @@ test("删除在线报告前展示影响，且不删除执行、人工记录或�
     reports: { 5: factReport() },
   });
   await openReportView();
-  await screen.findByText(/报告 #5/);
+  await screen.findByText(/^报告 #5 · 生成时间/);
 
   fireEvent.click(screen.getByRole("button", { name: "删除在线报告" }));
   const dialog = await screen.findByRole("dialog", {
@@ -164,7 +164,7 @@ test("报告与历史记录只列最终报告并支持查找", async () => {
     reports: { 5: factReport() },
   });
   await openReportView();
-  await screen.findByText(/报告 #5/);
+  await screen.findByText(/^报告 #5 · 生成时间/);
 
   fireEvent.click(screen.getByRole("button", { name: "查看报告列表" }));
   const dialog = await screen.findByRole("dialog", {
