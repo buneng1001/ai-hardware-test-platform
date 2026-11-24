@@ -13,7 +13,29 @@ export type FactReportSnapshotRecord = {
   result_consistency?: string;
 };
 
+export type HistoricalReportSnapshot = {
+  report_id: number;
+  product_version: string;
+  test_group: string;
+  generated_at: string;
+  statistics_snapshot: {
+    scope_overview: FactReportSnapshot["scope_overview"];
+    pass_rate: FactReportSnapshot["pass_rate"];
+    stage_progress: FactReportSnapshot["stage_progress"];
+    module_summary?: FactReportSnapshot["module_summary"];
+  };
+};
+
+export type HistoricalReportOption = {
+  id: number;
+  product_version: string;
+  test_group: string;
+  created_at: string;
+  overall: PassRateBlock;
+};
+
 export type FactReportSnapshot = {
+  historical_reports?: HistoricalReportSnapshot[];
   basic_information: {
     project_name: string;
     product_name: string;
@@ -112,6 +134,7 @@ export type FactReport = {
   automation_execution_id: number | null;
   manual_batch_ids: number[];
   created_at: string;
+  historical_report_ids?: number[];
   lifecycle_status: "current" | "stale" | "superseded";
   attachment_summary: ReportAttachmentSummary;
   snapshot: FactReportSnapshot;
@@ -168,9 +191,20 @@ export type ReportAnalysis = {
   stopping?: boolean;
 };
 
+export function listHistoricalFactReports(groupId: number) {
+  return request<{ items: HistoricalReportOption[] }>(
+    `/api/test-groups/${groupId}/historical-fact-reports`,
+    { cache: "no-store" },
+  );
+}
+
 export function createFactReport(
   groupId: number,
-  input: { automation_execution_id: number | null; manual_batch_ids: number[] },
+  input: {
+    automation_execution_id: number | null;
+    manual_batch_ids: number[];
+    historical_report_ids?: number[];
+  },
 ) {
   return request<FactReport>(`/api/test-groups/${groupId}/fact-reports`, {
     method: "POST",

@@ -189,6 +189,43 @@ export function V020ReportPreviewDialog({
             </p>
           </section>
 
+          {!!snapshot.historical_reports?.length && (
+            <section>
+              <h2>历史最终报告对照（不计入当前版本统计）</h2>
+              <div className="prototype-table-wrap">
+                <table className="prototype-table">
+                  <thead>
+                    <tr>
+                      <th>报告编号</th>
+                      <th>产品版本</th>
+                      <th>测试组</th>
+                      <th>生成时间</th>
+                      <th>独立通过率</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {snapshot.historical_reports.map((item) => (
+                      <tr key={item.report_id}>
+                        <td>#{item.report_id}</td>
+                        <td>{item.product_version}</td>
+                        <td>{item.test_group}</td>
+                        <td>
+                          {item.generated_at.slice(0, 16).replace("T", " ")}
+                        </td>
+                        <td>
+                          {item.statistics_snapshot.pass_rate.overall.rate ===
+                          null
+                            ? "无可统计结果"
+                            : `${item.statistics_snapshot.pass_rate.overall.rate}%`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
           {snapshot.basic_information.product_profile && (
             <section>
               <h2 id="rpt-profile">产品形态与测试环境</h2>

@@ -5,6 +5,7 @@ import { FrontendRoot } from "../FrontendRoot";
 import type { AutomationExecution } from "../automationExecutionsApi";
 import type {
   FactReport,
+  HistoricalReportOption,
   ReportAnalysis,
   ReportAttachmentCleanupImpact,
   ReportHistoryItem,
@@ -35,6 +36,7 @@ export type ReportStubState = {
   cases: ManualTestResultPage["cases"];
   batches: ManualTestResultBatch[];
   history: ReportHistoryItem[];
+  historicalOptions?: HistoricalReportOption[];
   reports: Record<number, FactReport>;
   createdReport?: FactReport;
   analysisResult?: ReportAnalysis;
@@ -77,6 +79,11 @@ export function stubReportApi(state: ReportStubState) {
           cases: state.cases,
           batches: state.batches,
         });
+      if (
+        url === "/api/test-groups/21/historical-fact-reports" &&
+        method === "GET"
+      )
+        return jsonResponse({ items: state.historicalOptions ?? [] });
       const historyMatch = url.match(
         /^\/api\/test-groups\/21\/report-history(\?.*)?$/,
       );

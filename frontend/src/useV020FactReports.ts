@@ -13,8 +13,10 @@ import {
   getFactReportRepeatInfo,
   getReportAttachmentCleanupImpact,
   getReportHistory,
+  listHistoricalFactReports,
   retryFactReportAnalysis,
   type FactReport,
+  type HistoricalReportOption,
   type ReportAttachmentCleanupImpact,
   type ReportHistoryItem,
 } from "./factReportsApi";
@@ -46,6 +48,10 @@ export function useV020FactReports(groupId: number | null) {
   const [status, setStatus] = useState<ReportLoadStatus>("idle");
   const [executions, setExecutions] = useState<AutomationExecution[]>([]);
   const [batches, setBatches] = useState<ManualTestResultBatch[]>([]);
+  const [historicalOptions, setHistoricalOptions] = useState<
+    HistoricalReportOption[]
+  >([]);
+  const [historicalError, setHistoricalError] = useState<string | null>(null);
   const [history, setHistory] = useState<ReportHistoryItem[]>([]);
   const [report, setReport] = useState<FactReport | null>(null);
   const [cleanupImpact, setCleanupImpact] =
@@ -63,15 +69,26 @@ export function useV020FactReports(groupId: number | null) {
     setStatus("loading");
     setError(null);
     try {
-      const [automation, manual, reportHistory] = await Promise.all([
-        listAutomationExecutions(id),
-        getManualTestResultPage(id),
-        getReportHistory(id),
-      ]);
+      const [automation, manual, reportHistory, availableHistory] =
+        await Promise.all([
+          listAutomationExecutions(id),
+          getManualTestResultPage(id),
+          getReportHistory(id),
+          listHistoricalFactReports(id).catch((caught: unknown) => {
+            return {
+              items: [] as HistoricalReportOption[],
+              error: errorMessage(caught, "历史来源加载失败"),
+            };
+          }),
+        ]);
       if (requestToken.current !== token) return;
       setExecutions(automation.items);
       setBatches(manual.batches);
       setHistory(reportHistory.items);
+      setHistoricalOptions(availableHistory.items);
+      setHistoricalError(
+        "error" in availableHistory ? availableHistory.error : null,
+      );
       const latestId = reportIdOf(reportHistory.items);
       setReport(latestId === null ? null : await getFactReport(latestId));
       if (requestToken.current !== token) return;
@@ -98,6 +115,7 @@ export function useV020FactReports(groupId: number | null) {
   const generate = async (
     executionId: number | null,
     manualBatchIds: number[],
+    historicalReportIds: number[] = [],
   ): Promise<boolean> => {
     if (groupId === null) return false;
     setBusy(true);
@@ -107,10 +125,16 @@ export function useV020FactReports(groupId: number | null) {
       const created = await createFactReport(groupId, {
         automation_execution_id: executionId,
         manual_batch_ids: manualBatchIds,
+        ...(historicalReportIds.length
+          ? { historical_report_ids: historicalReportIds }
+          : {}),
       });
       setReport(created);
       setHistory((await getReportHistory(groupId)).items);
       setMessage(`最终报告 #${created.id} 已生成。`);
+      void listHistoricalFactReports(groupId)
+        .then((result) => setHistoricalOptions(result.items))
+        .catch(() => undefined);
       return true;
     } catch (caught) {
       setActionError(errorMessage(caught, "事实报告生成失败"));
@@ -295,6 +319,8 @@ export function useV020FactReports(groupId: number | null) {
     executions,
     batches,
     reports,
+    historicalOptions,
+    historicalError,
     history,
     report,
     latestReportId,

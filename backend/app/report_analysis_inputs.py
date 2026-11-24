@@ -42,7 +42,13 @@ def analysis_input(snapshot: dict[str, object]) -> tuple[dict[str, object], set[
         ref = f"cross_issue:{index}"
         refs.add(ref)
         issues.append({"ref": ref, **issue})
+    history = []
+    for item in snapshot.get("historical_reports", []):
+        ref = f"history_report:{item['report_id']}"
+        refs.add(ref)
+        history.append({"ref": ref, **item})
     return {
+        "historical_reports": history,
         "stage_progress": snapshot["stage_progress"],
         "scope_overview": snapshot["scope_overview"],
         "modules": modules,
