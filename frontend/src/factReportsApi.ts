@@ -238,6 +238,69 @@ export function validateRegressionAuxiliaryReports(
   );
 }
 
+export type RegressionEvidence = { report_id: number; evidence_ref: string };
+export type RegressionExplanation = {
+  content: string;
+  evidence_refs: RegressionEvidence[];
+};
+export type RegressionCandidate = {
+  id: number;
+  title: string;
+  case_type: "manual" | "automation";
+  module: string;
+  priority: "high" | "medium" | "low";
+  test_item: string;
+  reason: string;
+  preconditions: string;
+  input: string;
+  steps: string;
+  expected_result: string;
+  sources: RegressionEvidence[];
+  source_findings: (RegressionEvidence & {
+    product_version: string;
+    finding: string;
+  })[];
+};
+export type RegressionResult = {
+  project_id: number;
+  main_report_id: number;
+  main_product_version_id: number;
+  auxiliary_report_ids: number[];
+  input_fingerprint: string;
+  ai_context_fingerprint: string;
+  report_fingerprints: Record<string, string>;
+  invocation_id: string;
+  config_fingerprint: string;
+  is_mock: boolean;
+  overall_risk: RegressionExplanation;
+  key_changes: RegressionExplanation | null;
+  regression_focus: RegressionExplanation;
+  summary: string;
+  modules: string[];
+  candidate_count: number;
+  candidates: RegressionCandidate[];
+};
+
+export function generateIntelligentRegression(
+  reportId: number,
+  reportIds: number[],
+) {
+  return request<RegressionResult>(
+    `/api/fact-reports/${reportId}/intelligent-regression`,
+    {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify({ report_ids: reportIds }),
+    },
+  );
+}
+export function cancelIntelligentRegression(reportId: number) {
+  return request<{ stopping: boolean }>(
+    `/api/fact-reports/${reportId}/intelligent-regression/cancel`,
+    { method: "POST" },
+  );
+}
+
 export function createFactReport(
   groupId: number,
   input: {
