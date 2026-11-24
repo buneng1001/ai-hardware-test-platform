@@ -84,7 +84,11 @@ export function V020AutomationCaseRow({
 
   return (
     <>
-      <tr className={failed ? "prototype-row-warning" : undefined}>
+      <tr
+        id={`automation-test-case-${item.id}`}
+        tabIndex={-1}
+        className={failed ? "prototype-row-warning" : undefined}
+      >
         <td>
           <input
             aria-label={`选择自动化用例 ${item.case_number}`}

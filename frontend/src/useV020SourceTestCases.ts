@@ -17,6 +17,7 @@ import {
   listSourceTestCases,
   previewSourceTestCaseImport,
   replaceSourceTestCaseSelection,
+  sourceAutomationRelations,
   type ImportDeletionImpact,
   type SourceTestCase,
   type SourceTestCaseImportDraft,
@@ -42,8 +43,7 @@ export function useV020SourceTestCases(productVersionId: number | null) {
   const [filters, setFilters] = useState<SourceCaseFilters>(
     emptySourceCaseFilters,
   );
-  // 只看还没有自动化版本的用例（用于“排除已自动化”）。
-  const [onlyMissing, setOnlyMissingState] = useState(false);
+  const [loadedVersion, setLoadedVersion] = useState<number | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "manual" | "automation">(
     "all",
   );
@@ -55,37 +55,35 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     useState<ImportDeletionImpact | null>(null);
   // 请求序号用于丢弃切换版本后返回的旧响应，避免覆盖当前版本数据。
   const requestToken = useRef(0);
+  const selectionRevision = useRef(0);
 
   /** 一次性加载全部用例、当前筛选结果和导入记录，并恢复已保存的勾选清单。 */
   const loadVersion = useCallback(
-    async (
-      versionId: number,
-      nextFilters: SourceCaseFilters,
-      missingOnly = false,
-    ) => {
+    async (versionId: number, nextFilters: SourceCaseFilters) => {
       const token = requestToken.current + 1;
       requestToken.current = token;
+      const selectionAtStart = selectionRevision.current;
       setStatus("loading");
       setError(null);
       setActionError(null);
       try {
         const [all, filtered, loadedRecords] = await Promise.all([
           listSourceTestCases(versionId, {}),
-          hasActiveFilters(nextFilters) || missingOnly
-            ? listSourceTestCases(versionId, {
-                ...compactFilters(nextFilters),
-                ...(missingOnly ? { automation: "missing" } : {}),
-              })
+          hasActiveFilters(nextFilters)
+            ? listSourceTestCases(versionId, compactFilters(nextFilters))
             : Promise.resolve(null),
           listSourceTestCaseImports(versionId),
         ]);
         if (requestToken.current !== token) return;
         setAllItems(all.items);
         setItems(filtered ? filtered.items : all.items);
-        setSelectedIds(
-          all.items.filter((item) => item.selected).map((item) => item.id),
-        );
+        if (selectionRevision.current === selectionAtStart) {
+          setSelectedIds(
+            all.items.filter((item) => item.selected).map((item) => item.id),
+          );
+        }
         setRecords(loadedRecords);
+        setLoadedVersion(versionId);
         setStatus("ready");
       } catch (caught) {
         if (requestToken.current !== token) return;
@@ -100,23 +98,28 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     setDraft(null);
     setDeletionImpact(null);
     setFilters(emptySourceCaseFilters);
+    setTypeFilter("all");
+    setLoadedVersion(null);
+    setItems([]);
+    setAllItems([]);
+    setRecords([]);
+    setSelectedIds([]);
     if (productVersionId === null) {
       requestToken.current += 1;
       setStatus("idle");
-      setItems([]);
-      setAllItems([]);
-      setRecords([]);
-      setSelectedIds([]);
       setError(null);
       setActionError(null);
       return;
     }
-    void loadVersion(productVersionId, emptySourceCaseFilters, onlyMissing);
-  }, [productVersionId, loadVersion, onlyMissing]);
+    void loadVersion(productVersionId, emptySourceCaseFilters);
+    return () => {
+      requestToken.current += 1;
+    };
+  }, [productVersionId, loadVersion]);
 
   const retry = () => {
     if (productVersionId === null) return;
-    void loadVersion(productVersionId, filters, onlyMissing);
+    return loadVersion(productVersionId, filters);
   };
 
   const updateFilter = async (
@@ -126,21 +129,13 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     const next = { ...filters, [field]: value };
     setFilters(next);
     if (productVersionId === null) return;
-    setActionError(null);
-    try {
-      const result = await listSourceTestCases(productVersionId, {
-        ...compactFilters(next),
-        ...(onlyMissing ? { automation: "missing" } : {}),
-      });
-      setItems(result.items);
-    } catch (caught) {
-      setActionError(errorMessage(caught, "筛选失败"));
-    }
+    await loadVersion(productVersionId, next);
   };
 
   /** 勾选清单按产品版本保存到后端，刷新或重新打开页面后仍可恢复。 */
   const persistSelection = async (nextIds: number[]) => {
     if (productVersionId === null) return;
+    selectionRevision.current += 1;
     setBusy(true);
     setActionError(null);
     try {
@@ -155,6 +150,7 @@ export function useV020SourceTestCases(productVersionId: number | null) {
     } catch (caught) {
       setActionError(errorMessage(caught, "勾选保存失败"));
     } finally {
+      selectionRevision.current += 1;
       setBusy(false);
     }
   };
@@ -170,13 +166,16 @@ export function useV020SourceTestCases(productVersionId: number | null) {
   const [inverted, setInverted] = useState(false);
   const filteredItems = useMemo(
     () =>
-      items.filter(
-        (item) =>
-          typeFilter === "all" ||
+      items.filter((item) => {
+        if (typeFilter === "all") return true;
+        const relations = sourceAutomationRelations(item);
+        return (
+          relations !== null &&
           (typeFilter === "automation"
-            ? item.case_type === "automation"
-            : item.case_type !== "automation"),
-      ),
+            ? relations.length > 0
+            : relations.length === 0)
+        );
+      }),
     [items, typeFilter],
   );
   const allFilteredSelected =
@@ -278,30 +277,34 @@ export function useV020SourceTestCases(productVersionId: number | null) {
   );
 
   const setOnlyMissing = (value: boolean) => {
-    setOnlyMissingState(value);
+    setTypeFilter(value ? "manual" : "all");
   };
 
   const resetFilters = () => {
     setFilters(emptySourceCaseFilters);
     setTypeFilter("all");
-    setOnlyMissingState(false);
     if (productVersionId !== null)
-      void loadVersion(productVersionId, emptySourceCaseFilters, false);
+      void loadVersion(productVersionId, emptySourceCaseFilters);
   };
 
   return {
     status,
+    hasLoaded: loadedVersion !== null && loadedVersion === productVersionId,
+    relationIssues:
+      allItems.some((item) => sourceAutomationRelations(item) === null) ||
+      items.some((item) => sourceAutomationRelations(item) === null),
     items: filteredItems,
     typeFilter,
     setTypeFilter,
     resetFilters,
-    onlyMissing,
+    onlyMissing: typeFilter === "manual",
     setOnlyMissing,
     missingAutomationCount: allItems.filter(
-      (item) => item.case_type !== "automation",
+      (item) => sourceAutomationRelations(item)?.length === 0,
     ).length,
-    automationCount: allItems.filter((item) => item.case_type === "automation")
-      .length,
+    automationCount: allItems.filter(
+      (item) => (sourceAutomationRelations(item)?.length ?? 0) > 0,
+    ).length,
     records,
     selectedIds,
     totalCount: allItems.length,

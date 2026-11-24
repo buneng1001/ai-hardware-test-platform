@@ -20,6 +20,10 @@ export function CasesSection({
     null,
   );
   const versionId = projectWorkspace.openedVersion?.id ?? null;
+  const [focusedAutomation, setFocusedAutomation] = useState<{
+    versionId: number;
+    caseId: number;
+  } | null>(null);
 
   return (
     <section className="prototype-cases-section">
@@ -48,6 +52,7 @@ export function CasesSection({
             onClick={() => {
               setCaseView(key);
               if (key === "source") setFocusedSourceCaseId(null);
+              setFocusedAutomation(null);
             }}
           >
             {label}
@@ -64,15 +69,29 @@ export function CasesSection({
       )}
       {caseView === "source" && (
         <V020SourceCasesScreen
+          key={versionId ?? "no-version"}
           versionId={versionId}
           versionLabel={projectWorkspace.openedVersion?.version ?? ""}
           focusCaseId={focusedSourceCaseId}
-          onOpenAutomation={() => setCaseView("automation")}
+          onOpenAutomation={(caseId) => {
+            setFocusedAutomation(
+              caseId !== undefined && versionId !== null
+                ? { versionId, caseId }
+                : null,
+            );
+            setCaseView("automation");
+          }}
         />
       )}
       {caseView === "automation" && (
         <V020AutomationCasesScreen
+          key={versionId ?? "no-version"}
           versionId={versionId}
+          focusCaseId={
+            focusedAutomation?.versionId === versionId
+              ? focusedAutomation.caseId
+              : null
+          }
           onOpenGroups={() => setSection("groups")}
           onOpenSource={(sourceTestCaseId) => {
             setFocusedSourceCaseId(sourceTestCaseId);

@@ -14,6 +14,11 @@
   box-shadow: inset 3px 0 0 var(--prototype-color-warning, #d98620);
 }
 
+.prototype-table tbody tr[id^="automation-test-case-"]:focus {
+  outline: 2px solid var(--prototype-color-brand);
+  outline-offset: -2px;
+}
+
 .prototype-row-note {
   margin: 6px 0 0;
   color: var(--prototype-color-muted);

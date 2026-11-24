@@ -53,7 +53,7 @@ export function V020SourceCasesScreen({
   versionId: number | null;
   versionLabel: string;
   focusCaseId: number | null;
-  onOpenAutomation: () => void;
+  onOpenAutomation: (caseId?: number) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const source = useV020SourceTestCases(versionId);
@@ -176,7 +176,10 @@ export function V020SourceCasesScreen({
     );
   }
 
-  if (source.status === "loading" || source.status === "idle") {
+  if (
+    !source.hasLoaded &&
+    (source.status === "loading" || source.status === "idle")
+  ) {
     return (
       <p className="prototype-muted" role="status">
         正在加载原始测试用例…
@@ -184,7 +187,7 @@ export function V020SourceCasesScreen({
     );
   }
 
-  if (source.status === "error") {
+  if (!source.hasLoaded && source.status === "error") {
     return (
       <div className="prototype-inline-note" role="alert">
         原始测试用例加载失败：{source.error}
@@ -461,6 +464,11 @@ export function V020SourceCasesScreen({
           </button>
           <button
             className="prototype-secondary"
+            disabled={
+              source.busy ||
+              source.status !== "ready" ||
+              (source.typeFilter !== "all" && source.relationIssues)
+            }
             onClick={() =>
               source.allFilteredSelected
                 ? source.clearSelection()
@@ -472,6 +480,11 @@ export function V020SourceCasesScreen({
           </button>
           <button
             className="prototype-secondary"
+            disabled={
+              source.busy ||
+              source.status !== "ready" ||
+              (source.typeFilter !== "all" && source.relationIssues)
+            }
             onClick={source.invertFiltered}
             type="button"
           >
@@ -532,7 +545,7 @@ export function V020SourceCasesScreen({
               </ul>
               <button
                 className="prototype-secondary"
-                onClick={onOpenAutomation}
+                onClick={() => onOpenAutomation()}
                 type="button"
               >
                 去自动化用例表补充阈值
@@ -576,10 +589,31 @@ export function V020SourceCasesScreen({
         />
       )}
 
+      {source.hasLoaded && source.status === "loading" && (
+        <p role="status" className="prototype-muted">
+          关联信息加载中…
+        </p>
+      )}
+      {(source.status === "error" ||
+        (source.status === "ready" && source.relationIssues)) && (
+        <div className="prototype-inline-note" role="alert">
+          关联信息加载失败，请重试{source.error ? `：${source.error}` : ""}
+          <button
+            type="button"
+            className="prototype-secondary"
+            onClick={source.retry}
+          >
+            重试
+          </button>
+        </div>
+      )}
       <V020SourceCaseTable
+        relationStatus={source.status}
+        onRetryRelations={source.retry}
+        onOpenAutomation={onOpenAutomation}
         items={pageItems}
         selectedIds={source.selectedIds}
-        busy={source.busy}
+        busy={source.busy || source.status === "loading"}
         hasCases={source.totalCount > 0}
         focusCaseId={focusCaseId}
         onToggle={source.toggleSelect}

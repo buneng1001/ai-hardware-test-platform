@@ -1,5 +1,15 @@
 import { TestSteps } from "./V020PrototypeShared";
-import type { SourceTestCase } from "./sourceTestCasesApi";
+import {
+  sourceAutomationRelations,
+  type SourceTestCase,
+} from "./sourceTestCasesApi";
+
+function validationLabel(status: string) {
+  if (status === "passed") return "已校验";
+  if (status === "failed") return "校验失败";
+  if (status === "unvalidated") return "未校验";
+  return "校验状态未知";
+}
 
 function stepsOf(item: SourceTestCase): string[] {
   return item.steps
@@ -16,6 +26,9 @@ export function V020SourceCaseTable({
   hasCases,
   focusCaseId,
   onToggle,
+  relationStatus,
+  onRetryRelations,
+  onOpenAutomation,
 }: {
   items: SourceTestCase[];
   selectedIds: number[];
@@ -23,6 +36,9 @@ export function V020SourceCaseTable({
   hasCases: boolean;
   focusCaseId: number | null;
   onToggle: (itemId: number) => void;
+  relationStatus: "idle" | "loading" | "ready" | "error";
+  onRetryRelations: () => void;
+  onOpenAutomation: (caseId: number) => void;
 }) {
   if (items.length === 0) {
     return (
@@ -61,6 +77,10 @@ export function V020SourceCaseTable({
         <tbody>
           {items.map((item) => {
             const checked = selectedIds.includes(item.id);
+            const relations =
+              relationStatus === "ready"
+                ? sourceAutomationRelations(item)
+                : null;
             return (
               <tr
                 className={
@@ -92,13 +112,43 @@ export function V020SourceCaseTable({
                   <span className="prototype-type-badge prototype-type-manual">
                     人工
                   </span>
-                  {item.case_type === "automation" && (
-                    <small className="prototype-badge-hint">
-                      {item.automation_validation_status === "passed"
-                        ? "已生成自动化"
-                        : "自动化待校验"}
+                  {relationStatus === "loading" || relationStatus === "idle" ? (
+                    <small className="prototype-badge-hint" role="status">
+                      关联信息加载中…
                     </small>
-                  )}
+                  ) : relations === null ? (
+                    <div className="prototype-source-relations">
+                      <small role="alert">关联信息加载失败，请重试</small>
+                      <button
+                        type="button"
+                        className="prototype-secondary"
+                        onClick={onRetryRelations}
+                      >
+                        重试关联
+                      </button>
+                    </div>
+                  ) : relations.length > 0 ? (
+                    <details className="prototype-source-relations">
+                      <summary>自动化 ×{relations.length}</summary>
+                      <ul aria-label={`${item.case_number} 关联自动化用例`}>
+                        {relations.map((relation) => (
+                          <li key={relation.id}>
+                            <button
+                              type="button"
+                              className="prototype-secondary"
+                              onClick={() => onOpenAutomation(relation.id)}
+                            >
+                              {relation.case_number || `#${relation.id}`} ·{" "}
+                              {relation.title || "未填写标题"}
+                            </button>
+                            <small>
+                              {validationLabel(relation.validation_status)}
+                            </small>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
                 </td>
                 <td className="is-long-text">
                   {item.preconditions || "未填写"}

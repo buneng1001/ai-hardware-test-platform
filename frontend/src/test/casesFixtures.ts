@@ -57,6 +57,8 @@ export function sourceCase(overrides: Partial<SourceTestCase>): SourceTestCase {
     software_version: "EVT1-0.2.0",
     selected: false,
     case_type: "manual",
+    automation_count: 0,
+    automation_relations: [],
     ...overrides,
   };
 }

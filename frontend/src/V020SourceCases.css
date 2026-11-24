@@ -32,6 +32,47 @@
   white-space: pre-line;
 }
 
+/* 关联提示放在现有类型列，不增加表格列。 */
+.prototype-source-relations {
+  display: block;
+  max-width: 280px;
+  margin-top: 6px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.prototype-source-relations summary {
+  cursor: pointer;
+  color: var(--prototype-color-brand-strong);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.prototype-source-relations ul {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prototype-source-relations li {
+  display: grid;
+  gap: 4px;
+}
+
+.prototype-source-relations button {
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.prototype-source-relations small {
+  display: block;
+  color: var(--prototype-color-muted);
+}
+
 .prototype-test-steps--plain p {
   margin: 0 0 4px;
 }

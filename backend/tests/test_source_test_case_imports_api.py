@@ -26,6 +26,86 @@ def create_version(client: TestClient) -> int:
     return client.post(f"/api/projects/{project['id']}/product-versions", json={"version": "EVT1"}).json()["id"]
 
 
+def test_t22_full_source_relations_and_independent_filters(client):
+    version_id = create_version(client)
+    base = f"/api/product-versions/{version_id}"
+    imported = client.post(
+        f"{base}/source-test-case-imports",
+        json={
+            "source_filename": "t22.csv",
+            "field_mapping": {"case_number": "number", "title": "title", "test_type": "type"},
+            "rows": [
+                {"number": "S-0", "title": "manual", "type": "功能"},
+                {"number": "S-1", "title": "one", "type": "性能"},
+                {"number": "S-3", "title": "three", "type": "功能"},
+                {"number": "S-F", "title": "pagination filler", "type": "兼容性"},
+            ],
+        },
+    )
+    assert imported.status_code == 201
+
+    def create(number, title):
+        response = client.post(
+            f"{base}/automation-test-cases",
+            json={
+                "source_case_number": number,
+                "title": title,
+                "input": "",
+                "steps": "检查",
+                "expected_result": "成功",
+            },
+        )
+        assert response.status_code == 201
+        return response.json()
+
+    first = create("S-3", "A-1")
+    create("S-1", "single")
+    for index in range(20):
+        create("S-F", f"padding-{index}")
+    second = create("S-3", "A-2")
+    third = create("S-3", "A-3")
+    # S-3 的后两个副本位于自动化表第二页，技术校验状态互不相同。
+    with open_database() as connection:
+        connection.execute("UPDATE automation_test_cases SET validation_status = 'passed' WHERE id = ?", (first["id"],))
+        connection.execute(
+            "UPDATE automation_test_cases SET validation_status = 'failed' WHERE id = ?", (second["id"],)
+        )
+
+    def snapshot():
+        with open_database() as connection:
+            return [
+                [tuple(row) for row in connection.execute(f"SELECT * FROM {table} ORDER BY 1")]
+                for table in ("source_test_cases", "automation_test_cases", "projects")
+            ]
+
+    before = snapshot()
+
+    def cases(**filters):
+        response = client.get(f"{base}/source-test-cases", params=filters)
+        assert response.status_code == 200
+        return {item["case_number"]: item for item in response.json()["items"]}
+
+    result = cases()
+    assert {key: value["automation_count"] for key, value in result.items()} == {
+        "S-0": 0,
+        "S-1": 1,
+        "S-3": 3,
+        "S-F": 20,
+    }
+    assert result["S-0"]["automation_relations"] == []
+    assert result["S-3"]["automation_relations"] == [
+        {"id": item["id"], "case_number": item["case_number"], "title": item["title"], "validation_status": status}
+        for item, status in ((first, "passed"), (second, "failed"), (third, "unvalidated"))
+    ]
+    assert result["S-3"]["automation_test_case_id"] == first["id"]
+    assert result["S-3"]["automation_validation_status"] == "passed"
+    assert set(cases(automation="missing")) == {"S-0"}
+    assert set(cases(automation="present")) == {"S-1", "S-3", "S-F"}
+    assert set(cases(automation="present", test_type="功能")) == {"S-3"}
+    assert set(cases(automation="missing", test_type="功能")) == {"S-0"}
+    assert snapshot() == before
+
+
 def test_engineer_previews_confirms_and_filters_source_test_case_import(client):
     version_id = create_version(client)
     content = (
@@ -90,6 +170,8 @@ def test_engineer_previews_confirms_and_filters_source_test_case_import(client):
             "case_type": "manual",
             "automation_test_case_id": None,
             "automation_validation_status": None,
+            "automation_count": 0,
+            "automation_relations": [],
         }
     ]
 

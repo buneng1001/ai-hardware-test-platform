@@ -49,6 +49,13 @@ export type SourceTestCaseImportDraft = {
   /** 覆盖该版本之前导入的用例表。 */
   replace_existing?: boolean;
 };
+export type SourceAutomationRelation = {
+  id: number;
+  case_number: string | null;
+  title: string;
+  validation_status: string;
+};
+
 export type SourceTestCase = {
   id: number;
   import_record_id: number | null;
@@ -70,11 +77,38 @@ export type SourceTestCase = {
   attachment: string;
   software_version: string;
   selected: boolean;
-  /** 已生成自动化候选的算自动化，其余默认人工。 */
+  /** 兼容旧客户端：来源关联状态，不代表原始资产执行身份。 */
   case_type?: "automation" | "manual";
   automation_test_case_id?: number | null;
   automation_validation_status?: string | null;
+  automation_count?: number;
+  automation_relations?: SourceAutomationRelation[];
 };
+
+/** 未返回完整且一致的关系时，不把未知状态当成零条。 */
+export function sourceAutomationRelations(
+  item: SourceTestCase,
+): SourceAutomationRelation[] | null {
+  const relations = item.automation_relations;
+  if (
+    !Array.isArray(relations) ||
+    item.automation_count !== relations.length ||
+    relations.some(
+      (relation) =>
+        !relation ||
+        !Number.isSafeInteger(relation.id) ||
+        relation.id <= 0 ||
+        (relation.case_number !== null &&
+          typeof relation.case_number !== "string") ||
+        typeof relation.title !== "string" ||
+        typeof relation.validation_status !== "string",
+    ) ||
+    new Set(relations.map((relation) => relation.id)).size !== relations.length
+  ) {
+    return null;
+  }
+  return relations;
+}
 export type SourceTestCaseImportRecord = {
   id: number;
   product_version_id: number;
