@@ -14,10 +14,12 @@ import "./V020AutomationCases.css";
  */
 export function V020AutomationCasesScreen({
   versionId,
+  focusCaseId,
   onOpenGroups,
   onOpenSource,
 }: {
   versionId: number | null;
+  focusCaseId: number | null;
   onOpenGroups: () => void;
   onOpenSource: (sourceTestCaseId: number) => void;
 }) {
@@ -72,8 +74,20 @@ export function V020AutomationCasesScreen({
   }, []);
 
   useEffect(() => {
-    setPage(1);
-  }, [automation.items]);
+    const index = automation.items.findIndex((item) => item.id === focusCaseId);
+    setPage(index < 0 ? 1 : Math.floor(index / pageSize) + 1);
+  }, [automation.items, focusCaseId]);
+
+  useEffect(() => {
+    if (focusCaseId === null) return;
+    const target = document.getElementById(
+      `automation-test-case-${focusCaseId}`,
+    );
+    if (target) {
+      target.focus({ preventScroll: true });
+      target.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [automation.items, focusCaseId, page]);
 
   const hasUnsavedChanges = dirtyCaseIds.length > 0 || createDirty;
   useEffect(() => {
@@ -269,6 +283,12 @@ export function V020AutomationCasesScreen({
         />
       )}
 
+      {focusCaseId !== null &&
+        !automation.items.some((item) => item.id === focusCaseId) && (
+          <p role="status" className="prototype-inline-note">
+            关联自动化用例不可用，请返回原始用例表刷新关联信息。
+          </p>
+        )}
       {automation.items.length === 0 ? (
         <div className="prototype-card">
           <h3>还没有自动化用例候选</h3>

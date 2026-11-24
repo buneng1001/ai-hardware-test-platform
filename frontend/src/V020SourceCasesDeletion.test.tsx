@@ -143,7 +143,20 @@ test("测试用例表把 AI 生成作为主入口并保留规则兜底", async (
 test("原始用例表给每条用例标出自动化或人工", async () => {
   stubApi({
     cases: [
-      sourceCase({ id: 1, case_number: "REC-001", case_type: "automation" }),
+      sourceCase({
+        id: 1,
+        case_number: "REC-001",
+        case_type: "automation",
+        automation_count: 1,
+        automation_relations: [
+          {
+            id: 1,
+            case_number: "AUTO-000001",
+            title: "录制",
+            validation_status: "passed",
+          },
+        ],
+      }),
       sourceCase({ id: 2, case_number: "REC-002", case_type: "manual" }),
     ],
     records: [],

@@ -40,6 +40,12 @@ def _case_from_row(row: sqlite3.Row) -> SourceTestCase:
     values = dict(row)
     values["source_import_status"] = "import_deleted" if values.pop("source_import_deleted") else "active"
     values["selected"] = bool(values["selected"])
+    relations = sorted(json.loads(values.pop("relations_json")), key=lambda item: item["id"])
+    values["automation_relations"] = relations
+    values["automation_count"] = len(relations)
+    values["case_type"] = "automation" if relations else "manual"
+    values["automation_test_case_id"] = relations[0]["id"] if relations else None
+    values["automation_validation_status"] = relations[0]["validation_status"] if relations else None
     return SourceTestCase(**values)
 
 
@@ -167,40 +173,36 @@ def list_source_test_cases(
             clauses.append(f"c.{field} = ?")
             parameters.append(value)
     if automation.strip() == "missing":
-        clauses.append(
-            "NOT EXISTS (SELECT 1 FROM automation_test_cases candidate WHERE candidate.source_test_case_id = c.id)"
-        )
+        clauses.append("relations.source_test_case_id IS NULL")
+    elif automation.strip() == "present":
+        clauses.append("relations.source_test_case_id IS NOT NULL")
     source_case_columns = ",".join(f"c.{field}" for field in SOURCE_CASE_FIELDS)
     with open_database() as connection:
         _ensure_version(connection, version_id)
         rows = connection.execute(
             f"""
+            WITH relations AS (
+                SELECT source_test_case_id, json_group_array(json_object(
+                    'id', id, 'case_number', case_number, 'title', title,
+                    'validation_status', validation_status
+                )) AS relations_json
+                FROM automation_test_cases
+                WHERE product_version_id = ?
+                GROUP BY source_test_case_id
+            )
             SELECT c.id, c.import_record_id, c.source_import_deleted, {source_case_columns},
                    EXISTS(
                        SELECT 1 FROM source_test_case_selections selection
                        WHERE selection.product_version_id = c.product_version_id
                          AND selection.source_test_case_id = c.id
                    ) AS selected,
-                   (
-                       SELECT automation.id FROM automation_test_cases automation
-                       WHERE automation.source_test_case_id = c.id
-                       ORDER BY automation.id LIMIT 1
-                   ) AS automation_test_case_id,
-                   (
-                       SELECT automation.validation_status
-                       FROM automation_test_cases automation
-                       WHERE automation.source_test_case_id = c.id
-                       ORDER BY automation.id LIMIT 1
-                   ) AS automation_validation_status,
-                   CASE WHEN EXISTS(
-                       SELECT 1 FROM automation_test_cases automation
-                       WHERE automation.source_test_case_id = c.id
-                   ) THEN 'automation' ELSE 'manual' END AS case_type
+                   COALESCE(relations.relations_json, '[]') AS relations_json
             FROM source_test_cases c
+            LEFT JOIN relations ON relations.source_test_case_id = c.id
             WHERE {" AND ".join(clauses)}
             ORDER BY c.id
             """,
-            parameters,
+            (version_id, *parameters),
         ).fetchall()
     return SourceTestCaseList(items=[_case_from_row(row) for row in rows])
 

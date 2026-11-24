@@ -129,6 +129,13 @@ class SourceTestCaseImportRecord(BaseModel):
     imported_at: str
 
 
+class SourceAutomationRelation(BaseModel):
+    id: int
+    case_number: str | None
+    title: str
+    validation_status: str
+
+
 class SourceTestCase(BaseModel):
     id: int
     import_record_id: int | None
@@ -150,12 +157,13 @@ class SourceTestCase(BaseModel):
     attachment: str
     software_version: str
     selected: bool
-    # 执行方式：存在已校验的自动化用例才算“自动化”，否则是“人工”。
+    # 仅表示来源关联状态，不改变原始用例的人工资产身份。
     case_type: Literal["automation", "manual"] = "manual"
-    # 该原始用例对应的自动化用例 id（没有则为空）。
+    # 兼容旧客户端：第一条关联记录；新客户端读取完整列表。
     automation_test_case_id: int | None = None
-    # 该自动化用例的校验状态（passed / unvalidated / failed）。
     automation_validation_status: str | None = None
+    automation_count: int
+    automation_relations: list[SourceAutomationRelation]
 
 
 class SourceTestCaseList(BaseModel):

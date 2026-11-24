@@ -67,6 +67,7 @@ export function stubApi(state: StubState) {
         const query = new URL(url, "http://local").searchParams;
         const fields = [
           "module",
+          "test_type",
           "test_item",
           "priority",
           "software_version",
