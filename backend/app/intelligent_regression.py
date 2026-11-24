@@ -2,14 +2,22 @@
 
 import hashlib
 import json
+import sqlite3
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 
 from app.ai_batching import batch_config, preflight_budget
-from app.ai_config import save_request_logs
-from app.ai_invocation import AiInvocationCancelled, begin_invocation, get_active_invocation, request_invocation_cancel
+from app.ai_config import get_selected_snapshot, save_request_logs
+from app.ai_invocation import (
+    AiInvocationCancelled,
+    begin_invocation,
+    finish_invocation_in_transaction,
+    get_active_invocation,
+    request_invocation_cancel,
+)
 from app.database import open_database
 from app.fact_report_models import RegressionAuxiliarySelection
 from app.fact_reports import _historical_candidates, _valid_report_snapshot
@@ -18,7 +26,8 @@ from app.report_analysis_inputs import analysis_input
 from app.settings import configured_api_key, current_settings, get_provider_adapter
 from app.siliconflow import ModelErrorKind, SiliconFlowError
 
-router = APIRouter(prefix="/api/fact-reports/{report_id}/intelligent-regression", tags=["intelligent regression"])
+router = APIRouter(tags=["intelligent regression"])
+REPORT_ROUTE = "/api/fact-reports/{report_id}/intelligent-regression"
 PROMPT_VERSION = "intelligent-regression-v1"
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=10000)]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
@@ -81,6 +90,9 @@ class RegressionResult(BaseModel):
     invocation_id: str
     config_fingerprint: str
     is_mock: bool
+    generated_at: str
+    prompt_version: str
+    invocation_status: Literal["completed"] = "completed"
     overall_risk: Explanation
     key_changes: Explanation | None
     regression_focus: Explanation
@@ -304,6 +316,8 @@ def _build_result(result, inputs, catalogs, lease, *, is_mock):
         invocation_id=lease.invocation_id,
         config_fingerprint=lease.config_snapshot["fingerprint"],
         is_mock=is_mock,
+        generated_at=datetime.now(UTC).isoformat(),
+        prompt_version=PROMPT_VERSION,
         overall_risk=result.overall_risk,
         key_changes=result.key_changes,
         regression_focus=result.regression_focus,
@@ -314,11 +328,114 @@ def _build_result(result, inputs, catalogs, lease, *, is_mock):
     )
 
 
-@router.post("", response_model=RegressionResult)
-def generate_regression(report_id: int, selection: RegressionAuxiliarySelection) -> RegressionResult:
+def _current_row(connection, project_id: int):
+    return connection.execute(
+        "SELECT * FROM current_regression_recommendations WHERE project_id = ?", (project_id,)
+    ).fetchone()
+
+
+def _read_current(connection, project_id: int) -> dict:
+    row = _current_row(connection, project_id)
+    return {
+        "project_id": project_id,
+        "result": RegressionResult.model_validate_json(row["payload"]) if row else None,
+    }
+
+
+def _report_project(connection, report_id: int) -> int:
+    row = connection.execute(
+        """SELECT v.project_id FROM online_reports r
+           JOIN product_versions v ON v.id = r.product_version_id WHERE r.id = ?""",
+        (report_id,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "主报告不存在")
+    return int(row["project_id"])
+
+
+@router.get("/api/test-groups/{group_id}/intelligent-regression/current")
+def current_regression_for_group(group_id: int) -> dict:
+    with open_database() as connection:
+        row = connection.execute(
+            """SELECT v.project_id FROM test_groups g
+               JOIN product_versions v ON v.id = g.product_version_id WHERE g.id = ?""",
+            (group_id,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "测试组不存在")
+        return _read_current(connection, int(row["project_id"]))
+
+
+@router.get(REPORT_ROUTE + "/current")
+def current_regression_for_report(report_id: int) -> dict:
+    with open_database() as connection:
+        return _read_current(connection, _report_project(connection, report_id))
+
+
+def _same_input(row, fingerprint: str, config_fingerprint: str, is_mock: bool) -> bool:
+    return bool(
+        row
+        and row["input_fingerprint"] == fingerprint
+        and row["config_fingerprint"] == config_fingerprint
+        and row["prompt_version"] == PROMPT_VERSION
+        and bool(row["is_mock"]) == is_mock
+    )
+
+
+@router.post(REPORT_ROUTE + "/repeat-info")
+def regression_repeat_info(report_id: int, selection: RegressionAuxiliarySelection) -> dict:
     with open_database() as connection:
         connection.execute("BEGIN")
-        inputs, catalogs = load_inputs(connection, report_id, selection.report_ids)
+        inputs, _ = load_inputs(connection, report_id, sorted(selection.report_ids))
+        project_id = inputs["project_id"]
+        row = _current_row(connection, project_id)
+        config = get_selected_snapshot(connection)
+        same = (
+            _same_input(row, _digest(inputs), config["fingerprint"], current_settings().mode == "mock")
+            if config
+            else False
+        )
+    active = get_active_invocation().active
+    own = bool(active and active.operation_type == "intelligent_regression" and active.project_id == project_id)
+    return {
+        "same_input": same,
+        "has_previous": row is not None,
+        "running_same_operation": own,
+        "occupied_other": bool(active and not own),
+        "active_invocation_id": active.invocation_id if own else None,
+    }
+
+
+def _save_current(connection, result: RegressionResult) -> None:
+    connection.execute(
+        """INSERT INTO current_regression_recommendations
+           (project_id, invocation_id, input_fingerprint, config_fingerprint,
+            prompt_version, is_mock, payload, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(project_id) DO UPDATE SET invocation_id=excluded.invocation_id,
+           input_fingerprint=excluded.input_fingerprint, config_fingerprint=excluded.config_fingerprint,
+           prompt_version=excluded.prompt_version, is_mock=excluded.is_mock,
+           payload=excluded.payload, created_at=excluded.created_at""",
+        (
+            result.project_id,
+            result.invocation_id,
+            result.input_fingerprint,
+            result.config_fingerprint,
+            result.prompt_version,
+            int(result.is_mock),
+            result.model_dump_json(),
+            result.generated_at,
+        ),
+    )
+
+
+@router.post(REPORT_ROUTE, response_model=RegressionResult)
+def generate_regression(
+    report_id: int, selection: RegressionAuxiliarySelection, force: bool = False
+) -> RegressionResult:
+    with open_database() as connection:
+        connection.execute("BEGIN")
+        inputs, catalogs = load_inputs(connection, report_id, sorted(selection.report_ids))
     lease = begin_invocation(
         operation_type="intelligent_regression",
         project_id=inputs["project_id"],
@@ -326,10 +443,15 @@ def generate_regression(report_id: int, selection: RegressionAuxiliarySelection)
         input_fingerprint=_digest(inputs),
     )
     outcome: Literal["completed", "failed", "cancelled"] = "failed"
+    committed = False
     adapter = None
     try:
         config = lease.config_snapshot
         is_mock = current_settings().mode == "mock"
+        with open_database() as connection:
+            previous = _current_row(connection, inputs["project_id"])
+            if not force and _same_input(previous, _digest(inputs), config["fingerprint"], is_mock):
+                raise HTTPException(409, "输入与当前建议相同，结果可能重复；请选择重新执行或取消")
         if lease.cancel_requested():
             raise AiInvocationCancelled("智能回归已取消")
         if is_mock:
@@ -366,6 +488,18 @@ def generate_regression(report_id: int, selection: RegressionAuxiliarySelection)
         if lease.cancel_requested():
             raise AiInvocationCancelled("智能回归已取消")
         result = _build_result(_validate_output(raw, inputs, catalogs), inputs, catalogs, lease, is_mock=is_mock)
+        # Complete request logging before the atomic publication/release boundary.
+        if adapter is not None:
+            save_request_logs(getattr(adapter, "request_logs", []))
+            adapter = None
+        with open_database() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            lease.assert_can_commit(connection)
+            _save_current(connection, result)
+            if finish_invocation_in_transaction(connection, lease.invocation_id, status="completed") != "completed":
+                raise AiInvocationCancelled("智能回归已取消")
+            connection.commit()
+        committed = True
         outcome = "completed"
     except AiInvocationCancelled as exc:
         outcome = "cancelled"
@@ -379,20 +513,23 @@ def generate_regression(report_id: int, selection: RegressionAuxiliarySelection)
             ModelErrorKind.RATE_LIMIT: "模型服务限流",
         }.get(exc.kind, "模型调用失败")
         raise HTTPException(422, f"智能回归生成失败：{reason}，未生成新建议") from exc
+    except sqlite3.Error as exc:
+        raise HTTPException(500, "智能回归结果保存失败，当前有效建议保持不变") from exc
     except (ValidationError, ValueError, TypeError) as exc:
         raise HTTPException(422, "智能回归生成失败：模型结构或来源证据未通过校验，未生成新建议") from exc
     finally:
-        try:
-            if adapter is not None:
-                save_request_logs(getattr(adapter, "request_logs", []))
-        finally:
-            final = lease.finish(outcome)
-        if final == "cancelled":
-            raise HTTPException(409, "智能回归已取消，未生成新建议")
+        if not committed:
+            try:
+                if adapter is not None:
+                    save_request_logs(getattr(adapter, "request_logs", []))
+            finally:
+                final = lease.finish(outcome)
+            if final == "cancelled":
+                raise HTTPException(409, "智能回归已取消，未生成新建议")
     return result
 
 
-@router.post("/cancel")
+@router.post(REPORT_ROUTE + "/cancel")
 def cancel_regression(report_id: int) -> dict[str, bool]:
     active = get_active_invocation().active
     if not active or active.operation_type != "intelligent_regression" or active.resource_id != report_id:

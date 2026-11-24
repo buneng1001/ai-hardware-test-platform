@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LATEST_SCHEMA_VERSION = 42
+LATEST_SCHEMA_VERSION = 43
 
 
 def migrate_database(connection: sqlite3.Connection) -> None:
@@ -1128,6 +1128,28 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (42); PRAGMA user_version = 42;"
         )
         current_version = 42
+
+    if current_version < 43:
+        # T16: only one recoverable current recommendation per project.
+        # Report IDs are historical evidence, not foreign keys: deleting a source must not
+        # silently remove the already generated recommendation.
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS current_regression_recommendations (
+                project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+                invocation_id TEXT NOT NULL UNIQUE,
+                input_fingerprint TEXT NOT NULL,
+                config_fingerprint TEXT NOT NULL,
+                prompt_version TEXT NOT NULL,
+                is_mock INTEGER NOT NULL CHECK (is_mock IN (0, 1)),
+                payload TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO schema_migrations (version) VALUES (43);
+            PRAGMA user_version = 43;
+            """
+        )
+        current_version = 43
 
 
 def get_data_dir() -> Path:
