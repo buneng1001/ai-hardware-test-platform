@@ -92,8 +92,17 @@ def enable_ai(client, monkeypatch):
 
 def model_output(ref="stage_progress"):
     return {
-        "risks": [{"content": "必须核查事实证据", "evidence_refs": [ref]}],
-        "additional_verifications": [],
+        "test_directions": [
+            {
+                "dimension": "functional",
+                "priority": "high",
+                "title": "事实复核",
+                "coverage_gap": "当前事实范围有限",
+                "risk": "必须核查事实证据",
+                "direction": "补充相关功能验证",
+                "evidence_refs": [ref],
+            }
+        ],
         "regression_recommendations": [],
         "stage_recommendation": {
             "suggestion": "人工复核",

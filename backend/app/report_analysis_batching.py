@@ -6,7 +6,8 @@ from collections.abc import Callable
 from typing import Any
 
 from app.ai_batching import BatchConfig, preflight_budget, split_batch
-from app.fact_report_models import ReportAnalysisOutput
+from app.fact_report_models import ProfessionalReportAnalysisOutput, ReportAnalysisOutput
+from app.report_analysis_contract import PRIORITY_ORDER, professional_to_stored
 from app.siliconflow import ModelErrorKind, SiliconFlowError
 
 CANCEL_EVENTS: dict[int, threading.Event] = {}
@@ -32,11 +33,17 @@ def validate_report_output(raw_output: dict[str, Any], valid_refs: set[str]) -> 
         *output.additional_verifications,
         *output.regression_recommendations,
         output.stage_recommendation,
+        *(output.test_directions or []),
     ]
     invalid_refs = sorted({ref for item in items for ref in item.evidence_refs if ref not in valid_refs})
     if invalid_refs:
         raise ValueError(f"包含无效事实引用：{', '.join(invalid_refs)}")
     return output
+
+
+def validate_professional_output(raw_output: dict[str, Any], valid_refs: set[str]) -> ReportAnalysisOutput:
+    output = professional_to_stored(ProfessionalReportAnalysisOutput.model_validate(raw_output))
+    return validate_report_output(output.model_dump(), valid_refs)
 
 
 def _aggregate(outputs: list[dict[str, Any]]) -> dict[str, Any]:
@@ -54,6 +61,50 @@ def _aggregate(outputs: list[dict[str, Any]]) -> dict[str, Any]:
         merged["regression_recommendations"].extend(output.get("regression_recommendations", []))
         if not merged["stage_recommendation"]:
             merged["stage_recommendation"] = output.get("stage_recommendation")
+    if all(output.get("test_directions") is not None for output in outputs):
+        # 合并相同方向，保留不同的测试思路；兼容字段仅保留优先的20项。
+        directions = {}
+        for output in outputs:
+            for item in output["test_directions"]:
+                key = tuple(item[field] for field in ("dimension", "title", "coverage_gap", "risk", "direction"))
+                if key in directions:
+                    current = directions[key]
+                    current["evidence_refs"] = list(dict.fromkeys(current["evidence_refs"] + item["evidence_refs"]))[
+                        :20
+                    ]
+                    if PRIORITY_ORDER[item["priority"]] < PRIORITY_ORDER[current["priority"]]:
+                        current["priority"] = item["priority"]
+                else:
+                    directions[key] = dict(item)
+        ordered = sorted(directions.values(), key=lambda item: PRIORITY_ORDER[item["priority"]])
+        merged["test_directions"] = ordered
+        merged["risks"] = [
+            {"content": f"{item['title']}：{item['risk']}", "evidence_refs": item["evidence_refs"]}
+            for item in ordered[:20]
+        ]
+        merged["additional_verifications"] = [
+            {"content": f"{item['title']}：{item['direction']}", "evidence_refs": item["evidence_refs"]}
+            for item in ordered[:20]
+        ]
+        unique_regression = {}
+        for item in merged["regression_recommendations"]:
+            unique_regression.setdefault((item["content"], tuple(item["evidence_refs"])), item)
+        merged["regression_recommendations"] = list(unique_regression.values())[:20]
+        stages = list(
+            dict.fromkeys(
+                output["stage_recommendation"]["suggestion"] + "：" + output["stage_recommendation"]["content"]
+                for output in outputs
+            )
+        )
+        if len(stages) > 1:
+            joined = "；".join(stages)
+            merged["stage_recommendation"] = {
+                "suggestion": "多批次分析：综合各批次证据，优先处理高优先级测试方向。",
+                "content": joined[:970] + ("…（其余请见各测试方向）" if len(joined) > 970 else ""),
+                "evidence_refs": list(
+                    dict.fromkeys(ref for output in outputs for ref in output["stage_recommendation"]["evidence_refs"])
+                )[:20],
+            }
     return merged
 
 
@@ -129,4 +180,6 @@ def run_batches(
             raise
 
     outputs = [process(batch) for batch in batches]
-    return ReportAnalysisOutput.model_validate(_aggregate(outputs))
+    return validate_report_output(
+        _aggregate(outputs), valid_refs | {ref for batch in batches for ref in batch.get("refs", [])}
+    )

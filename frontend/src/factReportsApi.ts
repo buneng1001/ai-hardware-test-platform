@@ -169,6 +169,16 @@ export type ReportHistoryItem = {
   occurred_at: string;
 };
 
+export type ReportTestDirection = {
+  dimension: string;
+  priority: "high" | "medium" | "low";
+  title: string;
+  coverage_gap: string;
+  risk: string;
+  direction: string;
+  evidence_refs: string[];
+};
+
 export type ReportAnalysis = {
   status: string;
   message: string;
@@ -176,6 +186,7 @@ export type ReportAnalysis = {
     risks: { content: string; evidence_refs: string[] }[];
     additional_verifications: { content: string; evidence_refs: string[] }[];
     regression_recommendations: { content: string; evidence_refs: string[] }[];
+    test_directions?: ReportTestDirection[] | null;
     stage_recommendation: {
       suggestion: string;
       content: string;

@@ -230,9 +230,9 @@ test("AI 配置可从后端刷新服务商实时模型目录", async () => {
   expect(screen.getByRole("option", { name: "Qwen3.6-27B" })).toBeVisible();
 
   fireEvent.click(screen.getByRole("button", { name: "刷新可用模型" }));
-  expect(await screen.findByRole("status")).toHaveTextContent(
-    "已从 SiliconFlow 实时获取 3 个可用模型",
-  );
+  expect(
+    await screen.findByText(/已从 SiliconFlow 实时获取 3 个可用模型/),
+  ).toBeVisible();
   expect(
     screen.getByRole("option", { name: "new-provider/Latest-Model" }),
   ).toBeVisible();

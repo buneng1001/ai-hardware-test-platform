@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-
 import { V020ConfirmDialog } from "./V020ConfirmDialog";
+import {
+  prepareAutomationExecution,
+  startAutomationExecution,
+  type AutomationExecution,
+  type PreparationCheck,
+} from "./automationExecutionsApi";
 
-/** 演示版的执行流程步骤。 */
-type FlowStep = "generate" | "review" | "running" | "done";
-
-type Issue = { level: "blocking" | "warning"; message: string };
-
+type FlowStep = "prepare" | "review" | "running" | "done";
 export type ExecuteFlowGroup = {
   id: number;
   name: string;
@@ -14,11 +15,7 @@ export type ExecuteFlowGroup = {
   packageCount: number;
 };
 
-/**
- * 执行自动化测试的完整演示流程：
- * 生成可执行用例（JSON）→ 校验/人工审核 → 触发执行器 → 回收结果。
- * 全部为前端模拟，不请求后端，也不真的连接 CI。
- */
+/** 正式后端数据驱动模拟：预检、人工确认、执行与持久化。未接入真实执行器。 */
 export function V020ExecuteFlowDialog({
   group,
   runnerName,
@@ -28,115 +25,67 @@ export function V020ExecuteFlowDialog({
   group: ExecuteFlowGroup | null;
   runnerName: string | null;
   onClose: () => void;
-  onFinished: (message: string) => void;
+  onFinished: (message: string, recordId?: number) => void;
 }) {
-  const [step, setStep] = useState<FlowStep>("generate");
-  const [scope, setScope] = useState<"all" | "missing" | "selected">("missing");
-  const [format, setFormat] = useState<"platform" | "pytest">("platform");
-  const [generated, setGenerated] = useState<{
-    cases: number;
-    bytes: number;
-  } | null>(null);
+  const [step, setStep] = useState<FlowStep>("prepare");
+  const [checks, setChecks] = useState<PreparationCheck[]>([]);
+  const [passed, setPassed] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
-  const [timeline, setTimeline] = useState<
-    Array<{ label: string; done: boolean }>
-  >([
-    { label: "已触发执行器", done: false },
-    { label: "执行器已拉取用例与数据包", done: false },
-    { label: "用例执行中", done: false },
-    { label: "回收结果文件", done: false },
-  ]);
-  const [result, setResult] = useState<{
-    passed: number;
-    failed: number;
-    blocked: number;
-    notExecuted: number;
-  } | null>(null);
-  const timerRef = useRef<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<AutomationExecution | null>(null);
+  const requestBusy = useRef(false);
 
-  // 每次打开都从第一步开始，避免残留上一次的执行状态。
   useEffect(() => {
-    if (group) {
-      setStep("generate");
-      setGenerated(null);
-      setConfirmed(false);
-      setTimeline((current) =>
-        current.map((item) => ({ ...item, done: false })),
-      );
-      setResult(null);
-    }
-    return () => {
-      if (timerRef.current !== null) window.clearInterval(timerRef.current);
-    };
+    setStep("prepare");
+    setChecks([]);
+    setPassed(false);
+    setConfirmed(false);
+    setError("");
+    setResult(null);
+    setBusy(false);
+    requestBusy.current = false;
   }, [group]);
 
   if (!group) return null;
-
-  const blockingIssues: Issue[] = [];
-  const warningIssues: Issue[] = [];
-  if (group.packageCount < group.automationCount) {
-    blockingIssues.push({
-      level: "blocking",
-      message: `${group.automationCount - group.packageCount} 条自动化用例还没有分配数据包，无法执行`,
-    });
-  }
-  if (group.automationCount === 0) {
-    blockingIssues.push({
-      level: "blocking",
-      message: "这个测试组还没有自动化用例",
-    });
-  }
-
-  const generate = () => {
-    const cases =
-      scope === "all"
-        ? group.automationCount
-        : scope === "selected"
-          ? Math.min(group.automationCount, 5)
-          : group.automationCount;
-    // 模拟生成一个 JSON 文件的大小；真实实现会写入磁盘。
-    setGenerated({ cases, bytes: 600 + cases * 420 });
-    setStep("review");
-  };
-
-  const publishAndRun = () => {
-    setStep("running");
-    let index = 0;
-    timerRef.current = window.setInterval(() => {
-      index += 1;
-      setTimeline((current) =>
-        current.map((item, position) => ({
-          ...item,
-          done: position < index,
-        })),
-      );
-      if (index >= 4) {
-        if (timerRef.current !== null) window.clearInterval(timerRef.current);
-        const total = Math.max(group.automationCount, 1);
-        const failed = Math.round(total * 0.2);
-        const blocked = Math.round(total * 0.05);
-        const passed = total - failed - blocked;
-        setResult({ passed, failed, blocked, notExecuted: 0 });
-        setStep("done");
-      }
-    }, 700);
-  };
-
-  const closeAndFinish = () => {
-    if (result) {
-      onFinished(
-        `执行完成：通过 ${result.passed} · 失败 ${result.failed} · 阻塞 ${result.blocked} · 未执行 ${result.notExecuted}`,
-      );
+  const prepare = async () => {
+    if (requestBusy.current) return;
+    requestBusy.current = true;
+    setBusy(true);
+    setError("");
+    setConfirmed(false);
+    try {
+      const preparation = await prepareAutomationExecution(group.id);
+      setChecks(preparation.checks);
+      setPassed(preparation.passed);
+      setStep("review");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "准备检查失败");
+    } finally {
+      requestBusy.current = false;
+      setBusy(false);
     }
-    onClose();
   };
-
-  const cancelRun = () => {
-    if (timerRef.current !== null) window.clearInterval(timerRef.current);
-    onFinished("已取消本次测试，执行器侧结果不会回传。");
-    onClose();
+  const publishAndRun = async () => {
+    if (requestBusy.current || !passed || !confirmed) return;
+    requestBusy.current = true;
+    setBusy(true);
+    setError("");
+    setStep("running");
+    try {
+      const record = await startAutomationExecution(group.id);
+      setResult(record);
+      setStep("done");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "执行失败");
+      setStep("review");
+      setConfirmed(false);
+      setPassed(false);
+    } finally {
+      requestBusy.current = false;
+      setBusy(false);
+    }
   };
-
   return (
     <div className="prototype-modal-backdrop">
       <section
@@ -147,53 +96,32 @@ export function V020ExecuteFlowDialog({
       >
         <h3>执行自动化测试 · {group.name}</h3>
         <p className="prototype-muted">
-          执行器：{runnerName ?? "未选择"} ·{" "}
-          {step === "generate" && "第 1 步：生成可执行用例"}
-          {step === "review" && "第 2 步：校验与人工审核"}
-          {step === "running" && "第 3 步：执行中"}
-          {step === "done" && "第 4 步：结果已回收"}
+          执行模式：数据驱动模拟（不连接真实设备）
+          {runnerName ? ` · 已配置执行器：${runnerName}（本次不调用）` : ""}
         </p>
-
-        {step === "generate" && (
+        {error && (
+          <p role="alert" className="prototype-inline-note">
+            {error}
+          </p>
+        )}
+        {step === "prepare" && (
           <>
-            <label>
-              生成范围
-              <select
-                aria-label="生成范围"
-                onChange={(event) =>
-                  setScope(event.target.value as typeof scope)
-                }
-                value={scope}
-              >
-                <option value="missing">只生成还没生成过的用例（推荐）</option>
-                <option value="all">全部自动化用例</option>
-                <option value="selected">只生成当前勾选的用例</option>
-              </select>
-            </label>
-            <label>
-              用例格式
-              <select
-                aria-label="用例格式"
-                onChange={(event) =>
-                  setFormat(event.target.value as typeof format)
-                }
-                value={format}
-              >
-                <option value="platform">平台标准 JSON</option>
-                <option value="pytest">pytest 参数化模板</option>
-              </select>
-            </label>
+            <p>
+              本次执行当前测试组的全部 {group.automationCount}{" "}
+              条自动化用例，使用已关联的数据包。开始前由后端校验用例和数据包。
+            </p>
             <div className="prototype-actions">
               <button
                 className="prototype-primary"
-                disabled={group.automationCount === 0}
-                onClick={generate}
+                disabled={busy || group.automationCount === 0}
+                onClick={() => void prepare()}
                 type="button"
               >
-                生成可执行用例
+                {busy ? "正在预检…" : "开始准备检查"}
               </button>
               <button
                 className="prototype-secondary"
+                disabled={busy}
                 onClick={onClose}
                 type="button"
               >
@@ -202,108 +130,84 @@ export function V020ExecuteFlowDialog({
             </div>
           </>
         )}
-
-        {step === "review" && generated && (
+        {step === "review" && (
           <>
-            <p>
-              已生成 <strong>{generated.cases}</strong> 条可执行用例， 约{" "}
-              {Math.round(generated.bytes / 1024)} KB。
-            </p>
-            <p className="prototype-muted">
-              下面是文件开头的一条示例；完整文件含全部 {generated.cases}{" "}
-              条用例，结构相同。
-            </p>
-            <pre className="prototype-json-preview">{`{
-  "group": "${group.name}",
-  "runner": "${runnerName ?? "未选择"}",
-  "format": "${format}",
-  "cases": [
-    { "case_number": "AUTO-000001", "package": "DP-000001",
-      "assert": { "metric": "frame_rate", "op": ">=", "value": 30 } }
-  ]
-}`}</pre>
-            <h4>校验结果</h4>
-            <ul className="prototype-issue-list">
-              {blockingIssues.map((issue) => (
-                <li className="is-blocking" key={issue.message}>
-                  阻断：{issue.message}
-                </li>
-              ))}
-              {warningIssues.map((issue) => (
-                <li className="is-warning" key={issue.message}>
-                  警告：{issue.message}
-                </li>
-              ))}
-              {blockingIssues.length === 0 && (
-                <li className="is-ok">
-                  结构校验通过，没有阻断问题。上面只展示 1 条示例，其余{" "}
-                  {generated.cases - 1} 条按同样结构生成，不需要逐条查看。
-                </li>
-              )}
-            </ul>
-            <label className="prototype-inline-check">
-              <input
-                aria-label="已人工确认"
-                checked={confirmed}
-                onChange={(event) => setConfirmed(event.target.checked)}
-                type="checkbox"
-              />
-              我已人工确认内容，跳过逐条审核
-            </label>
+            <h4>{passed ? "准备检查通过" : "准备检查未通过"}</h4>
+            {checks.length > 0 && (
+              <ul className="prototype-preparation-checks">
+                {checks.map((check) => (
+                  <li key={`${check.code}-${check.object_id}`}>
+                    <strong>{check.code}</strong>
+                    <span>
+                      失败对象：{check.object_type} #{check.object_id}
+                    </span>
+                    <span>实际值：{check.actual}</span>
+                    <span>期望值：{check.expected}</span>
+                    <span>修复建议：{check.suggestion}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {passed && (
+              <label className="prototype-inline-check">
+                <input
+                  aria-label="已人工确认"
+                  type="checkbox"
+                  checked={confirmed}
+                  disabled={busy}
+                  onChange={(event) => setConfirmed(event.target.checked)}
+                />{" "}
+                我已确认当前测试组与执行范围
+              </label>
+            )}
             <div className="prototype-actions">
               <button
                 className="prototype-primary"
-                disabled={blockingIssues.length > 0 || !confirmed}
-                onClick={publishAndRun}
+                disabled={busy || !passed || !confirmed}
+                onClick={() => void publishAndRun()}
                 type="button"
               >
                 发布并执行
               </button>
               <button
                 className="prototype-secondary"
-                onClick={() => setStep("generate")}
+                disabled={busy}
+                onClick={() => setStep("prepare")}
                 type="button"
               >
-                返回修改
+                返回准备
               </button>
-            </div>
-          </>
-        )}
-
-        {step === "running" && (
-          <>
-            <ul className="prototype-run-timeline">
-              {timeline.map((item) => (
-                <li className={item.done ? "is-done" : ""} key={item.label}>
-                  {item.done ? "✓" : "…"} {item.label}
-                </li>
-              ))}
-            </ul>
-            <div className="prototype-actions">
               <button
                 className="prototype-secondary"
-                onClick={cancelRun}
+                disabled={busy}
+                onClick={onClose}
                 type="button"
               >
-                取消本次测试
+                取消
               </button>
             </div>
           </>
         )}
-
+        {step === "running" && (
+          <p role="status">后端正在执行并保存记录，请勿重复提交。</p>
+        )}
         {step === "done" && result && (
           <>
+            <p>自动化执行 #{result.execution_number} · 记录已保存</p>
             <p className="prototype-run-result">
-              通过 {result.passed} · 失败 {result.failed} · 阻塞{" "}
-              {result.blocked} · 未执行 {result.notExecuted}
-            </p>
-            <p className="prototype-muted">
-              结果文件已回传，执行记录和最终报告可以直接使用。
+              通过 {result.summary.passed} · 失败 {result.summary.failed} · 阻塞{" "}
+              {result.summary.blocked} · 未执行 {result.summary.not_executed}
             </p>
             <div className="prototype-actions">
               <button
                 className="prototype-primary"
-                onClick={closeAndFinish}
+                onClick={() => {
+                  onFinished(
+                    `自动化执行 #${result.execution_number} 已保存：通过 ${result.summary.passed} · 失败 ${result.summary.failed} · 阻塞 ${result.summary.blocked} · 未执行 ${result.summary.not_executed}。`,
+                    result.id,
+                  );
+                  onClose();
+                }}
                 type="button"
               >
                 关闭并查看结果

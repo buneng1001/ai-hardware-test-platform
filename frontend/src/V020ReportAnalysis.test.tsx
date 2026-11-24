@@ -1,5 +1,6 @@
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
@@ -199,6 +200,111 @@ test("报告 AI 正在执行时允许就地取消，并显示正在停止状态"
   ).toBeVisible();
 });
 
+test("超过五分钟仍查询后端，收到终态立即停止查询", async () => {
+  vi.useFakeTimers();
+  try {
+    const report = factReport({
+      analysis: { status: "pending", message: "AI 分析正在运行", output: null },
+    });
+    const onRefresh = vi.fn(async () => {});
+    const props = {
+      busy: false,
+      onRetry: vi.fn(),
+      onRerun: vi.fn(),
+      onCheckRepeat: async () => ({
+        same_input: false,
+        has_previous: false,
+        running_same_operation: false,
+        occupied_other: false,
+      }),
+      onRefresh,
+      onCancel: async () => "",
+    };
+    const view = render(
+      <V020ReportAnalysisSection {...props} report={report} />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(543000);
+    });
+    expect(onRefresh).toHaveBeenCalledTimes(181);
+    expect(screen.getByText(/已等待 543 秒/)).toBeVisible();
+    view.rerender(
+      <V020ReportAnalysisSection
+        {...props}
+        report={{
+          ...report,
+          analysis: {
+            status: "failed",
+            message: "模型分析结构无效",
+            output: null,
+          },
+        }}
+      />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9000);
+    });
+    expect(onRefresh).toHaveBeenCalledTimes(181);
+    expect(screen.queryByText(/已等待/)).toBeNull();
+    expect(screen.getByText("模型分析结构无效")).toBeVisible();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("点击取消时后台已失败，弹窗直接刷新终态而非停留运行中", async () => {
+  const state = {
+    ...baseState(),
+    history: [reportHistoryItem(5)],
+    reports: {
+      5: factReport({
+        analysis: {
+          status: "pending",
+          message: "AI 分析正在运行",
+          output: null,
+        },
+      }),
+    },
+  };
+  const fetchMock = stubReportApi(state);
+  await openReportView();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "预览最新报告（HTML）" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "报告 #5 HTML 预览",
+  });
+  state.reports[5] = {
+    ...state.reports[5],
+    analysis: {
+      status: "failed",
+      message: "分析未完成：模型分析结构无效",
+      output: null,
+    },
+  };
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "取消本次 AI 分析" }),
+  );
+  expect(
+    await within(dialog).findByText("本次分析已结束，已刷新实际结果。"),
+  ).toBeVisible();
+  expect(
+    within(dialog).getByText("分析未完成：模型分析结构无效"),
+  ).toBeVisible();
+  expect(
+    within(dialog).queryByRole("button", { name: "取消本次 AI 分析" }),
+  ).toBeNull();
+  expect(
+    within(dialog).getByRole("button", { name: "重试报告分析" }),
+  ).toBeEnabled();
+  expect(
+    callsOf(fetchMock).filter(
+      ([url, init]) =>
+        String(url).endsWith("/analysis/cancel") && init?.method === "POST",
+    ),
+  ).toHaveLength(1);
+});
+
 test("AI 分析完成后只展示建议区域且事实结论保持不变", async () => {
   stubReportApi({
     ...baseState(),
@@ -234,6 +340,68 @@ test("AI 分析完成后只展示建议区域且事实结论保持不变", async
   ).toBeGreaterThan(0);
 });
 
+test("专业测试分析按优先级合并缺口风险和测试方向，历史格式保持兼容", async () => {
+  const legacy = completedAnalysis();
+  const analysis = {
+    ...legacy,
+    output: {
+      ...legacy.output!,
+      test_directions: [
+        {
+          dimension: "performance",
+          priority: "medium" as const,
+          title: "录像性能",
+          coverage_gap: "缺少性能证据",
+          risk: "可能存在资源瓶颈",
+          direction: "关注吞吐与延迟",
+          evidence_refs: ["product_profile"],
+        },
+        {
+          dimension: "functional",
+          priority: "high" as const,
+          title: "实机功能覆盖",
+          coverage_gap: "仅有模拟证据",
+          risk: "实机可靠性未证实",
+          direction: "补齐实机功能验证",
+          evidence_refs: ["execution_context"],
+        },
+      ],
+    },
+  };
+  stubReportApi({
+    ...baseState(),
+    history: [reportHistoryItem(5)],
+    reports: { 5: factReport({ analysis }) },
+  });
+  await openReportView();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "预览最新报告（HTML）" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "报告 #5 HTML 预览",
+  });
+  expect(
+    within(dialog).getByRole("heading", { name: "01 综合评价" }),
+  ).toBeVisible();
+  expect(
+    within(dialog).getByRole("heading", { name: "03 下一阶段测试重点" }),
+  ).toBeVisible();
+  const high = within(dialog).getByText("实机功能覆盖").closest("details")!;
+  const medium = within(dialog).getByText("录像性能").closest("details")!;
+  expect(high.open).toBe(true);
+  expect(medium.open).toBe(false);
+  expect(
+    high.compareDocumentPosition(medium) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(within(high).getByText("补齐实机功能验证")).toBeVisible();
+  expect(
+    within(dialog).queryByRole("heading", { name: "AI 风险提示" }),
+  ).toBeNull();
+  expect(
+    within(dialog).getByRole("heading", { name: "总体结论与通过率" }),
+  ).toBeVisible();
+});
+
 test("T07 同输入报告再运行先确认，默认保留旧结果", async () => {
   const onRerun = vi.fn();
   render(
@@ -248,8 +416,8 @@ test("T07 同输入报告再运行先确认，默认保留旧结果", async () =
         running_same_operation: false,
         occupied_other: false,
       })}
-      onRefresh={() => {}}
-      onCancel={() => {}}
+      onRefresh={async () => {}}
+      onCancel={async () => ""}
     />,
   );
   fireEvent.click(screen.getByRole("button", { name: "重新运行分析" }));

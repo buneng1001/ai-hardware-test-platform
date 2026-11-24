@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 
-import { V020ExecutionResultCard } from "./V020ExecutionResultCard";
-import { V020ManualResultSummaryCard } from "./V020ManualResultSummaryCard";
 import { V020ReportPanel } from "./V020ReportPanel";
 import { listTestGroups, type TestGroupSummary } from "./testGroupsApi";
 import "./V020AutomationExecutions.css";
@@ -21,12 +19,6 @@ export function V020ExecutionResultsScreen({
   const [groupId, setGroupId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
-  // 报告使用的记录：默认取各自最新一条，在两张卡片里切换。
-  const [reportExecutionId, setReportExecutionId] = useState<number | null>(
-    null,
-  );
-  const [reportBatchId, setReportBatchId] = useState<number | null>(null);
-
   useEffect(() => {
     if (versionId === null) {
       setGroups([]);
@@ -47,12 +39,6 @@ export function V020ExecutionResultsScreen({
         setError(caught instanceof Error ? caught.message : "测试组加载失败"),
       );
   }, [versionId, reloadToken]);
-
-  useEffect(() => {
-    // 不把前一个测试组的来源选择带入新的测试组。
-    setReportExecutionId(null);
-    setReportBatchId(null);
-  }, [groupId]);
 
   const groupName =
     groups?.find((item) => item.id === groupId)?.name ?? "未选择测试组";
@@ -109,27 +95,10 @@ export function V020ExecutionResultsScreen({
           </p>
         </div>
       )}
-      {groupId !== null && (
-        <div className="prototype-result-grid">
-          <V020ExecutionResultCard
-            groupId={groupId}
-            onSelectExecution={setReportExecutionId}
-            selectedExecutionId={reportExecutionId}
-          />
-          <V020ManualResultSummaryCard
-            groupId={groupId}
-            groupName={groupName}
-            onOpenManual={onOpenManual}
-            onSelectBatch={setReportBatchId}
-            selectedBatchId={reportBatchId}
-          />
-        </div>
-      )}
-      {groupId !== null && (
+      {groupId !== null && groups?.some((item) => item.id === groupId) && (
         <V020ReportPanel
           key={groupId}
-          batchId={reportBatchId}
-          executionId={reportExecutionId}
+          onOpenManual={onOpenManual}
           groupId={groupId}
           groupName={groupName}
         />

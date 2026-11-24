@@ -161,9 +161,12 @@ export function stubExecutionApi(state: ExecutionStubState) {
           ? jsonResponse(record)
           : jsonResponse({ detail: "自动化执行记录不存在" }, 404);
       }
-      if (url === "/api/test-groups/21/manual-test-result-batches")
+      const manualMatch = url.match(
+        /^\/api\/test-groups\/(\d+)\/manual-test-result-batches$/,
+      );
+      if (manualMatch)
         return jsonResponse({
-          test_group_id: 21,
+          test_group_id: Number(manualMatch[1]),
           product_version_id: 11,
           cases: [],
           batches: [],

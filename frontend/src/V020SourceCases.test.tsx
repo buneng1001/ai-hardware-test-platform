@@ -110,8 +110,26 @@ test("筛选、全选、反选和勾选都会按产品版本保存选择清单",
 test("导入前核对字段映射并选择可选导入范围", async () => {
   const preview: SourceTestCaseImportDraft = {
     source_filename: "beta.csv",
-    field_mapping: { case_number: "用例编号", title: "测试用例标题" },
-    rows: [{ 用例编号: "REC-009", 测试用例标题: "导入用例" }],
+    field_mapping: {
+      case_number: "用例编号",
+      title: "测试用例标题",
+      test_result: "测试结果",
+      test_record: "测试记录",
+      pre_test_notes: "测试前备注信息",
+      planned_execution_time: "计划执行时间",
+      attachment: "附件",
+    },
+    rows: [
+      {
+        用例编号: "REC-009",
+        测试用例标题: "导入用例",
+        测试结果: "通过",
+        测试记录: "历史记录",
+        测试前备注信息: "备注",
+        计划执行时间: "2026-11-20",
+        附件: "image.png",
+      },
+    ],
     import_options: {},
   };
   const fetchMock = stubApi({
@@ -138,6 +156,17 @@ test("导入前核对字段映射并选择可选导入范围", async () => {
   expect(
     screen.getByRole("combobox", { name: "测试用例标题映射" }),
   ).toHaveValue("测试用例标题");
+  for (const label of [
+    "测试结果",
+    "测试记录",
+    "测试前备注信息",
+    "计划执行时间",
+    "附件",
+  ]) {
+    expect(
+      screen.queryByRole("combobox", { name: `${label}映射` }),
+    ).not.toBeInTheDocument();
+  }
   const historyOption = screen.getByRole("checkbox", {
     name: "导入历史测试结果",
   });
@@ -166,6 +195,9 @@ test("导入前核对字段映射并选择可选导入范围", async () => {
   expect(body.source_filename).toBe("beta.csv");
   expect(body.field_mapping.case_number).toBe("用例编号");
   expect(body.import_options.include_historical_results).toBe(true);
+  expect(body.field_mapping.test_result).toBe("测试结果");
+  expect(body.field_mapping.test_record).toBe("测试记录");
+  expect(body.import_options.include_test_records).toBe(false);
 
   expect(await screen.findByText(/导入时间：2026-10-29 10:00/)).toBeVisible();
 });

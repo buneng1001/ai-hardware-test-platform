@@ -8,6 +8,7 @@ import {
 import { afterEach, expect, test, vi } from "vitest";
 
 import { V020AutomationExecutionPanel } from "./V020AutomationExecutionPanel";
+import { V020ExecuteFlowDialog } from "./V020ExecuteFlowDialog";
 import { useV020AutomationExecution } from "./useV020AutomationExecution";
 
 /** 测试外壳：执行入口在面板外，与详情页顶部按钮保持一致。 */
@@ -71,13 +72,25 @@ test("执行与结果页展示真实执行记录并按测试组切换", async ()
   const fetchMock = stubExecutionApi(state);
   await openResultsView();
 
-  expect(await screen.findByText("自动化执行 #1")).toBeVisible();
-  expect(screen.getByText("已完成")).toBeVisible();
-  expect(screen.getByText("通过 1 · 失败 0 · 阻塞 0 · 未执行 0")).toBeVisible();
+  expect(await screen.findByLabelText("最终报告自动化来源")).toHaveValue("1");
+  expect(screen.getByText(/执行时间：.*已完成/)).toBeVisible();
+  expect(
+    screen.getByRole("group", { name: "通过 1 · 失败 0 · 阻塞 0 · 未执行 0" }),
+  ).toBeVisible();
   expect(screen.getByLabelText("当前测试组")).toHaveValue("21");
-  const record = screen.getByLabelText("自动化执行 1");
-  expect(record).toHaveClass("prototype-execution-record--embedded");
-  expect(record).not.toHaveClass("prototype-result-card");
+  const auto = screen.getByRole("region", { name: "自动化执行结果" });
+  const manual = screen.getByRole("region", { name: "人工测试结果" });
+  expect(auto).toHaveClass("v030-result-source-card");
+  expect(manual).toHaveClass("v030-result-source-card");
+  expect(auto.querySelector(".prototype-result-card")).toBeNull();
+  expect(manual.querySelector(".prototype-result-card")).toBeNull();
+  expect(screen.getAllByLabelText("最终报告自动化来源")).toHaveLength(1);
+  expect(recordCallsAfterLoad()).toBe(1);
+  function recordCallsAfterLoad() {
+    return callsOf(fetchMock).filter(([input]) =>
+      String(input).endsWith("/test-groups/21/automation-executions"),
+    ).length;
+  }
 
   const recordCalls = () =>
     callsOf(fetchMock).filter(([input]) =>
@@ -98,6 +111,82 @@ test("执行与结果页展示真实执行记录并按测试组切换", async ()
       String(input).endsWith("/test-groups/22/automation-executions"),
     ),
   ).toBe(true);
+});
+
+test("测试组执行弹窗使用后端预检及保存接口，结果与再次读取的执行记录一致", async () => {
+  const state = {
+    groups: [testGroupDetail({ id: 21 })],
+    executions: [],
+    nextExecution: executionRecord({
+      id: 99,
+      execution_number: 7,
+      summary: { passed: 0, failed: 1, blocked: 0, not_executed: 0 },
+    }),
+  };
+  const fetchMock = stubExecutionApi(state);
+  const onFinished = vi.fn();
+  const onClose = vi.fn();
+  render(
+    <V020ExecuteFlowDialog
+      group={{ id: 21, name: "回归组", automationCount: 1, packageCount: 1 }}
+      runnerName="本机"
+      onClose={onClose}
+      onFinished={onFinished}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "开始准备检查" }));
+  await screen.findByText("准备检查通过");
+  expect(screen.getByRole("button", { name: "发布并执行" })).toBeDisabled();
+  fireEvent.click(screen.getByLabelText("已人工确认"));
+  fireEvent.click(screen.getByRole("button", { name: "发布并执行" }));
+  await screen.findByText("自动化执行 #7 · 记录已保存");
+  expect(screen.getByText("通过 0 · 失败 1 · 阻塞 0 · 未执行 0")).toBeVisible();
+  const posts = callsOf(fetchMock).filter(
+    ([, init]) => init?.method === "POST",
+  );
+  expect(posts.map(([url]) => String(url))).toEqual([
+    "/api/test-groups/21/automation-execution-preparations",
+    "/api/test-groups/21/automation-executions",
+  ]);
+  fireEvent.click(screen.getByRole("button", { name: "关闭并查看结果" }));
+  expect(onFinished).toHaveBeenCalledWith(
+    expect.stringContaining("自动化执行 #7 已保存"),
+    99,
+  );
+  expect(onClose).toHaveBeenCalledOnce();
+  cleanup();
+  await openResultsView();
+  expect(await screen.findByLabelText("最终报告自动化来源")).toHaveValue("99");
+  expect(
+    screen.getByRole("group", { name: "通过 0 · 失败 1 · 阻塞 0 · 未执行 0" }),
+  ).toBeVisible();
+});
+
+test("测试组执行弹窗预检失败不提交正式执行", async () => {
+  const fetchMock = stubExecutionApi({
+    groups: [testGroupDetail({ id: 21 })],
+    executions: [],
+    preparation: preparationFailure,
+  });
+  render(
+    <V020ExecuteFlowDialog
+      group={{ id: 21, name: "回归组", automationCount: 1, packageCount: 0 }}
+      runnerName="本机"
+      onClose={vi.fn()}
+      onFinished={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "开始准备检查" }));
+  expect(await screen.findByText("准备检查未通过")).toBeVisible();
+  expect(screen.getByText("PREP_CASE_DATA_MISSING")).toBeVisible();
+  expect(screen.getByRole("button", { name: "发布并执行" })).toBeDisabled();
+  expect(
+    callsOf(fetchMock).filter(
+      ([url, init]) =>
+        String(url).endsWith("/automation-executions") &&
+        init?.method === "POST",
+    ),
+  ).toHaveLength(0);
 });
 
 test("准备检查失败展示完整可操作信息且不创建执行记录", async () => {

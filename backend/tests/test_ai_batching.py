@@ -268,7 +268,22 @@ def test_report_batched_analysis_saves_and_resumes_checkpoints(tmp_path, monkeyp
 
         def generate_json(self, *, evidence_json, **_kwargs):
             self.call_count += 1
-            return _output(json.loads(evidence_json))
+            batch = json.loads(evidence_json)
+            result = _output(batch)
+            ref = result.pop("risks")[0]["evidence_refs"][0]
+            result.pop("additional_verifications")
+            result["test_directions"] = [
+                {
+                    "dimension": "functional",
+                    "priority": "high",
+                    "title": ref,
+                    "coverage_gap": "覆盖有限",
+                    "risk": "建议",
+                    "direction": "补充验证",
+                    "evidence_refs": [ref],
+                }
+            ]
+            return result
 
     analysis_input = _analysis_input(7)
     refs = {"stage_progress"} | {f"module:{index}" for index in range(7)}

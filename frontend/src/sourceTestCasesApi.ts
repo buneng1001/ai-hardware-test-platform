@@ -20,6 +20,18 @@ export const sourceCaseFields = [
 ] as const;
 
 export type SourceCaseField = (typeof sourceCaseFields)[number][0];
+
+/** 执行历史字段由文件预览自动识别，是否导入只由导入范围决定。 */
+export const sourceCaseMappingFields = sourceCaseFields.filter(
+  ([field]) =>
+    ![
+      "test_result",
+      "test_record",
+      "pre_test_notes",
+      "planned_execution_time",
+      "attachment",
+    ].includes(field),
+);
 export type ImportOptions = {
   include_historical_results: boolean;
   include_test_records: boolean;

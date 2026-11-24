@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { V020ExecutionRecordCard } from "./V020ExecutionRecordCard";
 import type { PreparationCheck } from "./automationExecutionsApi";
 import type { V020AutomationExecution } from "./useV020AutomationExecution";
@@ -14,9 +15,22 @@ const actionLabels: Record<PreparationCheck["action"], string> = {
  */
 export function V020AutomationExecutionPanel({
   execution,
+  revealRevision = 0,
 }: {
   execution: V020AutomationExecution;
+  revealRevision?: number;
 }) {
+  const historyRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (
+      revealRevision > 0 &&
+      execution.status === "ready" &&
+      historyRef.current
+    ) {
+      historyRef.current.open = true;
+      historyRef.current.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [revealRevision, execution.status]);
   if (execution.status === "loading" || execution.status === "idle") {
     return (
       <section
@@ -90,7 +104,7 @@ export function V020AutomationExecutionPanel({
         </div>
       )}
 
-      <details className="test-group-history">
+      <details className="test-group-history" ref={historyRef}>
         <summary>
           历史执行记录（{execution.records.length}）— 点击展开或收起
         </summary>

@@ -3,6 +3,9 @@
 import html
 
 from app.fact_report_models import FactReport
+from app.report_analysis_contract import DIMENSION_LABELS, PRIORITY_ORDER
+
+PRIORITY_LABELS = {"high": "高优先级", "medium": "中优先级", "low": "低优先级"}
 
 STATUS_LABELS = {
     "passed": "通过",
@@ -108,18 +111,35 @@ def render_text(report: FactReport) -> str:
     lines.extend(["", "八、AI 分析", report.analysis.message])
     if report.analysis.output:
         output = report.analysis.output
-        lines.extend(
-            [
-                "AI 高风险问题",
-                *([f"- {item.content}" for item in output.risks] or ["无"]),
-                "AI 补充验证",
-                *([f"- {item.content}" for item in output.additional_verifications] or ["无"]),
-                "AI 回归建议",
-                *([f"- {item.content}" for item in output.regression_recommendations] or ["无"]),
-                "AI 阶段推进建议",
-                output.stage_recommendation.suggestion,
-            ]
-        )
+        if output.test_directions is not None:
+            lines.extend(["01 综合评价", output.stage_recommendation.suggestion, "", "02 重点测试方向"])
+            for item in sorted(output.test_directions, key=lambda item: PRIORITY_ORDER[item.priority]):
+                lines.extend(
+                    [
+                        f"- {item.title}（{DIMENSION_LABELS[item.dimension]} · {PRIORITY_LABELS[item.priority]}）",
+                        f"  覆盖缺口：{item.coverage_gap}",
+                        f"  潜在风险：{item.risk}",
+                        f"  测试方向：{item.direction}",
+                        f"  依据：{'、'.join(item.evidence_refs)}",
+                    ]
+                )
+            if not output.test_directions:
+                lines.append("当前未识别出具体测试方向，请复核证据范围。")
+            lines.extend(["", "03 下一阶段测试重点", output.stage_recommendation.content, "", "04 AI 回归建议"])
+            lines.extend([f"- {item.content}" for item in output.regression_recommendations] or ["暂无明确回归候选"])
+        else:
+            lines.extend(
+                [
+                    "AI 高风险问题",
+                    *([f"- {item.content}" for item in output.risks] or ["无"]),
+                    "AI 补充验证",
+                    *([f"- {item.content}" for item in output.additional_verifications] or ["无"]),
+                    "AI 回归建议",
+                    *([f"- {item.content}" for item in output.regression_recommendations] or ["无"]),
+                    "AI 阶段推进建议",
+                    output.stage_recommendation.suggestion,
+                ]
+            )
 
     lines.extend(["", "九、附录"])
     lines.append("附件使用状态")
@@ -254,15 +274,43 @@ def render_html(report: FactReport) -> str:
     ai_lines: list[str] = [f"<p>{_escape(report.analysis.message)}</p>"]
     if report.analysis.output:
         output = report.analysis.output
-        ai_lines.append("<h3>AI 阶段建议</h3>")
-        ai_lines.append(f"<p>{_escape(output.stage_recommendation.suggestion)}</p>")
-        for title, entries in (
-            ("AI 高风险问题", output.risks),
-            ("AI 补充验证", output.additional_verifications),
-            ("AI 回归建议", output.regression_recommendations),
-        ):
-            ai_lines.append(f"<h3>{_escape(title)}</h3>")
-            ai_lines.append(_list([_escape(entry.content) for entry in entries]))
+        if output.test_directions is not None:
+            ai_lines.extend(
+                [
+                    "<h3>01 综合评价</h3>",
+                    f"<p>{_escape(output.stage_recommendation.suggestion)}</p>",
+                    "<h3>02 重点测试方向</h3>",
+                ]
+            )
+            for item in sorted(output.test_directions, key=lambda item: PRIORITY_ORDER[item.priority]):
+                ai_lines.append(
+                    f"<h4>{_escape(item.title)} · {_escape(DIMENSION_LABELS[item.dimension])}"
+                    f" · {_escape(PRIORITY_LABELS[item.priority])}</h4>"
+                    f"<p><strong>覆盖缺口：</strong>{_escape(item.coverage_gap)}</p>"
+                    f"<p><strong>潜在风险：</strong>{_escape(item.risk)}</p>"
+                    f"<p><strong>测试方向：</strong>{_escape(item.direction)}</p>"
+                    f"<p class='muted'>依据：{_escape('、'.join(item.evidence_refs))}</p>"
+                )
+            if not output.test_directions:
+                ai_lines.append("<p>当前未识别出具体测试方向，请复核证据范围。</p>")
+            ai_lines.extend(
+                [
+                    "<h3>03 下一阶段测试重点</h3>",
+                    f"<p>{_escape(output.stage_recommendation.content)}</p>",
+                    "<h3>04 AI 回归建议</h3>",
+                    _list([_escape(item.content) for item in output.regression_recommendations], "暂无明确回归候选"),
+                ]
+            )
+        else:
+            ai_lines.append("<h3>AI 阶段建议</h3>")
+            ai_lines.append(f"<p>{_escape(output.stage_recommendation.suggestion)}</p>")
+            for title, entries in (
+                ("AI 高风险问题", output.risks),
+                ("AI 补充验证", output.additional_verifications),
+                ("AI 回归建议", output.regression_recommendations),
+            ):
+                ai_lines.append(f"<h3>{_escape(title)}</h3>")
+                ai_lines.append(_list([_escape(entry.content) for entry in entries]))
 
     attachments = [item.filename for item in report.attachment_summary.attachments]
     appendix = [

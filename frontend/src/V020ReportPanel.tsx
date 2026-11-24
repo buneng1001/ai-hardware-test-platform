@@ -8,6 +8,8 @@ import { V020ReportPreviewDialog } from "./V020ReportPreviewDialog";
 import { useV020FactReports } from "./useV020FactReports";
 import { V020ResultBreakdown } from "./V020ResultBreakdown";
 import { V030AuxiliaryReportSelector } from "./V030AuxiliaryReportSelector";
+import { V020ExecutionResultCard } from "./V020ExecutionResultCard";
+import { V020ManualResultSummaryCard } from "./V020ManualResultSummaryCard";
 import "./V020Reports.css";
 
 type ReportView = "closed" | "generate" | "history" | "preview";
@@ -46,19 +48,16 @@ function readSourceChoice(groupId: number): SourceChoice {
 export function V020ReportPanel({
   groupId,
   groupName,
-  executionId,
-  batchId,
+  onOpenManual,
 }: {
   groupId: number;
   groupName: string;
-  /** 上方两张卡片里选中的记录，用来生成报告。 */
-  executionId: number | null;
-  batchId: number | null;
+  onOpenManual: (group: { id: number; name: string }) => void;
 }) {
   const reports = useV020FactReports(groupId);
   const [view, setView] = useState<ReportView>("closed");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  // undefined = 沿用卡片当前默认；null/[] = 用户明确选“无”，跨刷新保留。
+  // undefined = 默认最新；null/[] = 用户明确选“无”，跨刷新保留。
   const [sourceChoice, setSourceChoice] = useState<SourceChoice>(() =>
     readSourceChoice(groupId),
   );
@@ -72,13 +71,13 @@ export function V020ReportPanel({
   };
   const selectedExecutionId =
     sourceChoice.automation === undefined
-      ? executionId
+      ? (reports.executions[0]?.id ?? null)
       : sourceChoice.automation;
   const selectedManualIds =
     sourceChoice.manual === undefined
-      ? batchId === null
-        ? []
-        : [batchId]
+      ? reports.batches.length
+        ? [reports.batches[0].id]
+        : []
       : sourceChoice.manual;
   const missingSource =
     (selectedExecutionId !== null &&
@@ -133,6 +132,83 @@ export function V020ReportPanel({
 
   return (
     <>
+      <div className="prototype-result-grid v030-result-grid">
+        <V020ExecutionResultCard
+          records={reports.executions}
+          selectedExecutionId={selectedExecutionId}
+          onSelectExecution={(id) =>
+            updateSourceChoice({ ...sourceChoice, automation: id })
+          }
+          onRefresh={reports.retry}
+          busy={reports.busy}
+        />
+        <V020ManualResultSummaryCard
+          batches={reports.batches}
+          selectedBatchIds={selectedManualIds}
+          onSelectBatches={(ids) =>
+            updateSourceChoice({ ...sourceChoice, manual: ids })
+          }
+          onOpenManual={() => onOpenManual({ id: groupId, name: groupName })}
+          busy={reports.busy}
+        />
+      </div>
+      <div className="prototype-report-source-picker v030-history-source">
+        <details className="prototype-report-source-menu">
+          <summary>
+            历史最终报告（多选）：
+            {historyIds.length ? `已选 ${historyIds.length} 份` : "不纳入"}
+          </summary>
+          <div
+            className="prototype-report-source-options"
+            role="group"
+            aria-label="历史最终报告来源"
+          >
+            {reports.historicalOptions.map((item) => (
+              <label key={item.id}>
+                <input
+                  type="checkbox"
+                  aria-label={`选择历史报告 #${item.id}`}
+                  checked={historyIds.includes(item.id)}
+                  onChange={(event) =>
+                    setHistoryIds((current) =>
+                      event.target.checked
+                        ? [...current, item.id]
+                        : current.filter((id) => id !== item.id),
+                    )
+                  }
+                />
+                报告 #{item.id} · {item.product_version} · {item.test_group} ·{" "}
+                {item.created_at.slice(0, 16).replace("T", " ")}
+              </label>
+            ))}
+            {!reports.historicalOptions.length && (
+              <p className="prototype-muted">
+                当前项目暂无可选的有效历史最终报告。
+              </p>
+            )}
+            {reports.historicalError && (
+              <p role="alert">{reports.historicalError}</p>
+            )}
+          </div>
+        </details>
+        <p className="prototype-muted v030-report-source-note">
+          历史报告仅作独立对照，不计入当前版本统计。
+        </p>
+      </div>
+      <div className="v030-report-generation">
+        <p className="prototype-muted">
+          本次报告来源：自动化 {selectedExecutionId === null ? 0 : 1} 批 · 人工{" "}
+          {selectedManualIds.length} 批 · 历史报告 {historyIds.length} 份
+        </p>
+        {missingSource && (
+          <p role="alert">已保存的某项来源现已不可用，请重新选择后再生成。</p>
+        )}
+        {!canGenerate && (
+          <p className="prototype-muted">
+            至少需要一项有效事实来源才能生成最终报告。
+          </p>
+        )}
+      </div>
       <div className="prototype-report-preview">
         <div>
           {report ? (
@@ -238,128 +314,6 @@ export function V020ReportPanel({
         <V030AuxiliaryReportSelector key={report.id} reportId={report.id} />
       )}
 
-      <div className="prototype-report-source-picker">
-        <h4>本次最终报告的事实来源</h4>
-        <p className="prototype-muted">
-          上方卡片可浏览单条记录；此处决定实际纳入报告的来源。明确选择“无”后，刷新页面不会恢复为最新批次。
-        </p>
-        <div className="prototype-report-source-grid">
-          <label>
-            自动化执行结果（单选）
-            <select
-              aria-label="最终报告自动化来源"
-              value={selectedExecutionId ?? "none"}
-              onChange={(event) =>
-                updateSourceChoice({
-                  ...sourceChoice,
-                  automation:
-                    event.target.value === "none"
-                      ? null
-                      : Number(event.target.value),
-                })
-              }
-            >
-              <option value="none">无（不参与本次报告）</option>
-              {reports.executions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  报告来源：自动化执行 #{item.execution_number}
-                </option>
-              ))}
-            </select>
-          </label>
-          <details className="prototype-report-source-menu">
-            <summary>
-              人工测试结果（多选）：
-              {selectedManualIds.length
-                ? `已选 ${selectedManualIds.length} 批`
-                : "无（不参与本次报告）"}
-            </summary>
-            <div
-              className="prototype-report-source-options"
-              role="group"
-              aria-label="最终报告人工来源"
-            >
-              <button
-                type="button"
-                className="prototype-secondary"
-                onClick={() =>
-                  updateSourceChoice({ ...sourceChoice, manual: [] })
-                }
-              >
-                无（不参与本次报告）
-              </button>
-              {reports.batches.map((item) => (
-                <label key={item.id}>
-                  <input
-                    type="checkbox"
-                    aria-label={`选择人工批次 #${item.batch_number}`}
-                    checked={selectedManualIds.includes(item.id)}
-                    onChange={(event) =>
-                      updateSourceChoice({
-                        ...sourceChoice,
-                        manual: event.target.checked
-                          ? [...selectedManualIds, item.id]
-                          : selectedManualIds.filter((id) => id !== item.id),
-                      })
-                    }
-                  />
-                  人工批次 #{item.batch_number}
-                </label>
-              ))}
-              {!reports.batches.length && (
-                <p className="prototype-muted">当前测试组没有人工测试批次。</p>
-              )}
-            </div>
-          </details>
-          <details className="prototype-report-source-menu">
-            <summary>
-              历史最终报告（多选）：
-              {historyIds.length ? `已选 ${historyIds.length} 份` : "不纳入"}
-            </summary>
-            <div
-              className="prototype-report-source-options"
-              role="group"
-              aria-label="历史最终报告来源"
-            >
-              {reports.historicalOptions.map((item) => (
-                <label key={item.id}>
-                  <input
-                    type="checkbox"
-                    aria-label={`选择历史报告 #${item.id}`}
-                    checked={historyIds.includes(item.id)}
-                    onChange={(event) =>
-                      setHistoryIds((current) =>
-                        event.target.checked
-                          ? [...current, item.id]
-                          : current.filter((id) => id !== item.id),
-                      )
-                    }
-                  />
-                  报告 #{item.id} · {item.product_version} · {item.test_group} ·{" "}
-                  {item.created_at.slice(0, 16).replace("T", " ")}
-                </label>
-              ))}
-              {!reports.historicalOptions.length && (
-                <p className="prototype-muted">
-                  当前项目暂无可选的有效历史最终报告。
-                </p>
-              )}
-              {reports.historicalError && (
-                <p role="alert">{reports.historicalError}</p>
-              )}
-            </div>
-          </details>
-        </div>
-        {missingSource && (
-          <p role="alert">已保存的某项来源现已不可用，请重新选择后再生成。</p>
-        )}
-        {!canGenerate && (
-          <p className="prototype-muted">
-            至少需要一项有效事实来源才能生成最终报告。
-          </p>
-        )}
-      </div>
-
       {reports.actionError && (
         <div className="prototype-inline-note" role="alert">
           {reports.actionError}
@@ -437,11 +391,11 @@ export function V020ReportPanel({
           groupName={groupName}
           onBack={() => setView("history")}
           onCancelCleanup={reports.cancelCleanup}
-          onCancelAnalysis={() => void reports.cancelAnalysis()}
+          onCancelAnalysis={reports.cancelAnalysis}
           onClose={() => setView("closed")}
           onConfirmCleanup={() => void reports.confirmCleanup()}
           onPrepareCleanup={() => void reports.prepareCleanup()}
-          onRefreshAnalysis={() => void reports.refreshAnalysis()}
+          onRefreshAnalysis={reports.refreshAnalysis}
           onRerunAnalysis={(overwrite, resumeChoice) =>
             void reports.retryAnalysis(true, overwrite, resumeChoice)
           }

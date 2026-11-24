@@ -1,5 +1,8 @@
 """从事实报告快照构造有限 AI 输入，并提供固定 Mock 输出。"""
 
+import sqlite3
+from collections import defaultdict
+
 from app.fact_report_models import (
     ReportAnalysisItem,
     ReportAnalysisOutput,
@@ -10,7 +13,22 @@ from app.fact_report_models import (
 def analysis_input(snapshot: dict[str, object]) -> tuple[dict[str, object], set[str]]:
     """只选择持久化事实报告内的有限字段，避免把日志或可变资产交给模型。"""
     modules = []
-    refs = {"stage_progress"}
+    refs = {"stage_progress", "scope_overview"}
+    basic = snapshot.get("basic_information") or {}
+    execution_context = {
+        key: basic[key]
+        for key in (
+            "product_name",
+            "product_version",
+            "test_group",
+            "contains",
+            "automation_execution",
+            "manual_batches",
+        )
+        if key in basic
+    }
+    if execution_context:
+        refs.add("execution_context")
     for module_index, module in enumerate(snapshot["modules"]):
         module_ref = f"module:{module_index}"
         refs.add(module_ref)
@@ -51,9 +69,52 @@ def analysis_input(snapshot: dict[str, object]) -> tuple[dict[str, object], set[
         "historical_reports": history,
         "stage_progress": snapshot["stage_progress"],
         "scope_overview": snapshot["scope_overview"],
+        "execution_context": execution_context,
         "modules": modules,
         "cross_module_issues": issues,
     }, refs
+
+
+def source_catalog_context(
+    connection: sqlite3.Connection, version_id: int, data: dict[str, object]
+) -> dict[str, object]:
+    """只收集当前版本用例定义摘要，不读取历史结果、步骤、附件或未选执行数据。"""
+    reported = {
+        (module["name"], record["case_number"])
+        for module in data.get("modules", [])
+        for record in module.get("records", [])
+    }
+    rows = connection.execute(
+        """SELECT case_number, title, module, test_type, test_item FROM source_test_cases
+           WHERE product_version_id = ? ORDER BY id""",
+        (version_id,),
+    )
+    groups = defaultdict(lambda: {"defined_count": 0, "matching_report_number_count": 0, "other_title_examples": []})
+    total = 0
+    matched = 0
+    for row in rows:
+        module = row["module"] or "未分类"
+        key = (module, row["test_type"] or "未分类", row["test_item"] or "未分类")
+        group = groups[key]
+        group["defined_count"] += 1
+        total += 1
+        if (module, row["case_number"]) in reported:
+            group["matching_report_number_count"] += 1
+            matched += 1
+        elif len(group["other_title_examples"]) < 4:
+            group["other_title_examples"].append({"case_number": row["case_number"][:100], "title": row["title"][:150]})
+    ordered = sorted(groups.items(), key=lambda pair: (not pair[1]["matching_report_number_count"], pair[0]))
+    return {
+        "defined_count": total,
+        "matching_report_number_count": matched,
+        "group_count": len(groups),
+        "omitted_group_count": max(0, len(groups) - 60),
+        "match_basis": "仅按模块与来源用例编号匹配，不是执行状态或精确覆盖率；样例非完整目录",
+        "groups": [
+            {"module": key[0][:100], "test_type": key[1][:100], "test_item": key[2][:100], **group}
+            for key, group in ordered[:60]
+        ],
+    }
 
 
 def _item(content: str, evidence_ref: str) -> ReportAnalysisItem:

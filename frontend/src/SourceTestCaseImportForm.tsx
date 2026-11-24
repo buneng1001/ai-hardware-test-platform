@@ -1,5 +1,5 @@
 import {
-  sourceCaseFields,
+  sourceCaseMappingFields,
   type ImportOptions,
   type SourceTestCaseImportDraft,
 } from "./sourceTestCasesApi";
@@ -60,7 +60,7 @@ function FieldMappingConfirmation({
       <h4>确认字段映射</h4>
       <p>“输入”可以不映射；其余可选字段也可以留空。</p>
       <div className="source-case-mapping-grid">
-        {sourceCaseFields.map(([field, label]) => (
+        {sourceCaseMappingFields.map(([field, label]) => (
           <label key={field}>
             {label}映射
             <select
@@ -103,6 +103,16 @@ function FieldMappingConfirmation({
             {label}
           </label>
         ))}
+        <small
+          style={{
+            display: "block",
+            flexBasis: "100%",
+            marginTop: 8,
+            opacity: 0.75,
+          }}
+        >
+          自动识别文件中的历史字段，仅导入已识别且勾选的内容。
+        </small>
       </fieldset>
       <button type="button" onClick={onConfirm}>
         确认并导入

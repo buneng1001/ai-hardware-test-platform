@@ -65,6 +65,37 @@ def test_adapter_returns_structured_json_from_openai_compatible_response():
     assert result == {"diagnosis_status": "completed"}
 
 
+@pytest.mark.parametrize(
+    ("model", "stage", "bounded"),
+    [
+        ("Qwen/Qwen3.8-27B", "report_analysis", True),
+        ("Qwen/Qwen3.8-27B", "report_analysis_repair", True),
+        ("Qwen/Qwen3.8-27B", "conversion", False),
+        ("demo-model", "report_analysis", False),
+    ],
+)
+def test_report_thinking_budget_is_scoped(model, stage, bounded):
+    def transport(request):
+        body = request["body"]
+        if bounded:
+            assert body["enable_thinking"] is True
+            assert body["thinking_budget"] == 1024
+        else:
+            assert "thinking_budget" not in body
+        return 200, json.dumps({"choices": [{"message": {"content": "{}"}}]})
+
+    assert (
+        SiliconFlowAdapter(transport=transport).generate_json(
+            api_key="temporary-secret",
+            model=model,
+            system_prompt="Return JSON",
+            evidence_json="{}",
+            stage=stage,
+        )
+        == {}
+    )
+
+
 def test_connection_check_accepts_normal_model_reply_without_diagnosis_schema():
     def transport(_request):
         return 200, json.dumps({"choices": [{"message": {"content": "连接成功"}}]})

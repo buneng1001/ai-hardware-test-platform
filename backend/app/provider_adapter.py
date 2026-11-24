@@ -236,6 +236,15 @@ class ProviderAdapter(RequestRunner):
         }
         if self.provider != "kimi":
             body["temperature"] = 0
+        # 限定当前已知支持思考预算的硅基流动模型和报告分析场景；
+        # 保留最终输出预算，不把内部推理长度限制当成质量保证。
+        if (
+            self.provider == "siliconflow"
+            and model in {"Qwen/Qwen3.8-27B", "Qwen/Qwen3.8-27B-FP8"}
+            and stage in {"report_analysis", "report_analysis_batch", "report_analysis_repair"}
+        ):
+            body["enable_thinking"] = True
+            body["thinking_budget"] = 1024
         request_data = {"api_key": api_key, "endpoint": self._endpoint, "body": body}
 
         def parse(text: str) -> dict[str, object]:
