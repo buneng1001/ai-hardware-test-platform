@@ -198,6 +198,35 @@ export function listHistoricalFactReports(groupId: number) {
   );
 }
 
+export type RegressionAuxiliaryReportOption = {
+  id: number;
+  product_version: string;
+  test_group: string;
+  created_at: string;
+  analysis_status: string;
+};
+
+export function listRegressionAuxiliaryReports(reportId: number) {
+  return request<{ items: RegressionAuxiliaryReportOption[] }>(
+    `/api/fact-reports/${reportId}/regression-auxiliary-options`,
+    { cache: "no-store" },
+  );
+}
+
+export function validateRegressionAuxiliaryReports(
+  reportId: number,
+  reportIds: number[],
+) {
+  return request<{ report_ids: number[] }>(
+    `/api/fact-reports/${reportId}/regression-auxiliary-validation`,
+    {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify({ report_ids: reportIds }),
+    },
+  );
+}
+
 export function createFactReport(
   groupId: number,
   input: {

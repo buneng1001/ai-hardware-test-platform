@@ -7,6 +7,7 @@ import { V020ReportHistoryDialog } from "./V020ReportHistoryDialog";
 import { V020ReportPreviewDialog } from "./V020ReportPreviewDialog";
 import { useV020FactReports } from "./useV020FactReports";
 import { V020ResultBreakdown } from "./V020ResultBreakdown";
+import { V030AuxiliaryReportSelector } from "./V030AuxiliaryReportSelector";
 import "./V020Reports.css";
 
 type ReportView = "closed" | "generate" | "history" | "preview";
@@ -232,6 +233,10 @@ export function V020ReportPanel({
           )}
         </div>
       </div>
+
+      {report && (
+        <V030AuxiliaryReportSelector key={report.id} reportId={report.id} />
+      )}
 
       <div className="prototype-report-source-picker">
         <h4>本次最终报告的事实来源</h4>

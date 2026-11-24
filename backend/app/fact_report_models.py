@@ -36,6 +36,22 @@ class HistoricalReportOptions(BaseModel):
     items: list[HistoricalReportOption]
 
 
+class RegressionAuxiliarySelection(BaseModel):
+    report_ids: list[int] = Field(default_factory=list, max_length=100)
+
+
+class RegressionAuxiliaryReportOption(BaseModel):
+    id: int
+    product_version: str
+    test_group: str
+    created_at: datetime
+    analysis_status: str
+
+
+class RegressionAuxiliaryReportOptions(BaseModel):
+    items: list[RegressionAuxiliaryReportOption]
+
+
 class ReportAnalysisItem(BaseModel):
     content: str = Field(min_length=1, max_length=1000)
     evidence_refs: list[str] = Field(min_length=1, max_length=20)

@@ -48,6 +48,70 @@
   gap: 8px;
 }
 
+.v030-regression-tags,
+.v030-regression-filters,
+.v030-regression-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.v030-regression-tags {
+  margin-top: 12px;
+}
+.v030-regression-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 8px;
+  padding: 5px 9px;
+}
+.v030-regression-tag button {
+  cursor: pointer;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+}
+.v030-regression-results {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 9px;
+}
+.v030-regression-filters input {
+  flex: 2 1 220px;
+  min-width: 0;
+}
+.v030-regression-filters select {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+.v030-regression-options {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  margin-top: 12px;
+}
+.v030-regression-options button {
+  text-align: left;
+  border: 1px solid var(--prototype-color-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.v030-regression-actions {
+  margin-top: 12px;
+}
+.v030-regression-actions p {
+  margin: 0;
+}
+
 .prototype-report-download {
   display: inline-flex;
   align-items: center;

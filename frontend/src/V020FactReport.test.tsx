@@ -46,7 +46,7 @@ test("执行与结果页展示真实在线报告摘要、状态和下载入口",
   });
   await openReportView();
 
-  expect(await screen.findByText(/报告 #5/)).toBeVisible();
+  expect(await screen.findByText(/^报告 #5 · 生成时间/)).toBeVisible();
   expect(screen.getByText("当前在线报告")).toBeVisible();
   expect(screen.getByText(/建议暂缓并补充验证/)).toBeVisible();
   expect(screen.getByText(/AI 区域状态：not_configured/)).toBeVisible();
@@ -251,7 +251,7 @@ test("报告列表展示真实生命周期并可预览历史报告", async () =>
     },
   });
   await openReportView();
-  await screen.findByText(/报告 #5/);
+  await screen.findByText(/^报告 #5 · 生成时间/);
 
   fireEvent.click(screen.getByRole("button", { name: "查看报告列表" }));
   const historyDialog = await screen.findByRole("dialog", {
