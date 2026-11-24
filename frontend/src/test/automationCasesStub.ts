@@ -92,6 +92,20 @@ export function handleAutomationRequest(
       items: validated,
     });
   }
+  const relationMatch = url.match(
+    /^\/api\/product-versions\/11\/automation-test-cases\/(\d+)\/source-relation$/,
+  );
+  if (relationMatch && method === "GET") {
+    const item = state.automationCases?.find(
+      (item) => item.id === Number(relationMatch[1]),
+    );
+    return item
+      ? jsonResponse({
+          source_test_case_id: item.source_test_case_id,
+          product_version_id: item.product_version_id,
+        })
+      : jsonResponse({ detail: "来源用例不可用" }, 404);
+  }
   const caseMatch = url.match(
     /^\/api\/product-versions\/11\/automation-test-cases\/(\d+)$/,
   );

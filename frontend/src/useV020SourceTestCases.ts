@@ -294,6 +294,7 @@ export function useV020SourceTestCases(productVersionId: number | null) {
       allItems.some((item) => sourceAutomationRelations(item) === null) ||
       items.some((item) => sourceAutomationRelations(item) === null),
     items: filteredItems,
+    allItems,
     typeFilter,
     setTypeFilter,
     resetFilters,

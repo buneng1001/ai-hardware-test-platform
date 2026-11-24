@@ -89,6 +89,7 @@ export function V020SourceCaseTable({
                     : undefined
                 }
                 id={`source-test-case-${item.id}`}
+                tabIndex={-1}
                 key={item.id}
               >
                 <td>

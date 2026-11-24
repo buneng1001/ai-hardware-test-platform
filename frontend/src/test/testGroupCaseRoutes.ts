@@ -88,6 +88,8 @@ export function handleGroupCases(
       );
       return groupAutomationCase(caseId, candidate?.case_number ?? "", {
         title: candidate?.title ?? "",
+        source_test_case_id: candidate?.source_test_case_id ?? null,
+        source_case_number: candidate?.source_case_number ?? "",
         position: start + index + 1,
       });
     });

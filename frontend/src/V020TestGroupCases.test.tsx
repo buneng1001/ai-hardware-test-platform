@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
+import { automationCase, sourceCase } from "./test/casesFixtures";
 import { dataPackage } from "./test/dataPackagesHarness";
 import {
   groupAutomationCase,
@@ -88,6 +89,33 @@ test("测试组详情用一张表列出人工与自动化用例并支持移出",
     ).toBe(true),
   );
   expect(await screen.findByText("已从测试组移除。")).toBeVisible();
+});
+
+test("测试组来源链接定位真实原始 ID，保持九列和原操作", async () => {
+  const state = detailState({
+    groups: [
+      testGroupDetail({
+        automation_test_cases: [
+          groupAutomationCase(1, "AUTO-000001", { source_test_case_id: 25 }),
+        ],
+      }),
+    ],
+    sourceCases: Array.from({ length: 25 }, (_, i) =>
+      sourceCase({ id: i + 1, case_number: `SRC-${i + 1}`, title: "同标题" }),
+    ),
+    automationCases: [automationCase({ id: 1, source_test_case_id: 25 })],
+  });
+  await openDetailWith(state);
+  const row = screen.getByText("AUTO-000001").closest("tr")!;
+  expect(within(row).getAllByRole("cell")).toHaveLength(9);
+  expect(screen.getAllByRole("columnheader")).toHaveLength(9);
+  expect(within(row).getByRole("button", { name: "移除" })).toBeVisible();
+  expect(within(row).getByLabelText("AUTO-000001 数据包")).toBeVisible();
+  fireEvent.click(within(row).getByRole("link", { name: "来源用例" }));
+  expect(await screen.findByText(/第 2 \/ 2 页/)).toBeVisible();
+  expect(document.getElementById("source-test-case-25")).toHaveClass(
+    "prototype-row-highlight",
+  );
 });
 
 test("数据包可以在表内逐条选择，也可以批量分配", async () => {

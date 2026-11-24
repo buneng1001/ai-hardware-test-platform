@@ -24,8 +24,10 @@ import "./V020TestGroups.css";
  */
 export function V020TestGroupsScreen({
   versionId,
+  onOpenSource,
 }: {
   versionId: number | null;
+  onOpenSource: (versionId: number, sourceId: number) => void;
 }) {
   const groups = useV020TestGroups(versionId);
   const [showCreate, setShowCreate] = useState(false);
@@ -104,6 +106,9 @@ export function V020TestGroupsScreen({
           executionRevision={executionRevision}
           onApply={groups.applyDetail}
           onBack={groups.closeDetail}
+          onOpenSource={(sourceId) =>
+            onOpenSource(groups.detail!.product_version_id, sourceId)
+          }
           onDelete={() => void groups.previewDeletion(groups.detail!.id)}
           onExecuteFlow={() =>
             groups.detail &&

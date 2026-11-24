@@ -93,6 +93,7 @@ class AssignedDataPackage(BaseModel):
 
 class TestGroupAutomationCase(BaseModel):
     id: int
+    source_test_case_id: int | None = None
     case_number: str
     source_case_number: str
     title: str

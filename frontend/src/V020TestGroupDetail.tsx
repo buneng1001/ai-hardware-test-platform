@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SourceRelationLink } from "./SourceRelationLink";
 
 import { Status } from "./V020PrototypeShared";
 import { V020AutomationExecutionPanel } from "./V020AutomationExecutionPanel";
@@ -28,6 +29,7 @@ type CaseRow = {
   position: number;
   packageIds: number[];
   validationStatus?: string;
+  sourceId?: number | null;
   /** 排序用：自动化用例回落到它的来源用例编号，保证同一用例的两种形态排在一起。 */
   orderKey: string;
 };
@@ -52,6 +54,7 @@ export function V020TestGroupDetail({
   onBack,
   onExecuteFlow,
   executionRevision = 0,
+  onOpenSource,
 }: {
   detail: TestGroupDetail;
   busy: boolean;
@@ -63,6 +66,7 @@ export function V020TestGroupDetail({
   /** 与列表页一致：打开“生成→审核→执行”流程弹窗。 */
   onExecuteFlow: () => void;
   executionRevision?: number;
+  onOpenSource: (sourceId: number) => void;
 }) {
   const [packages, setPackages] = useState<DataPackage[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -116,6 +120,7 @@ export function V020TestGroupDetail({
         position: item.position,
         packageIds: item.data_packages.map((entry) => entry.id),
         validationStatus: item.validation_status,
+        sourceId: item.source_test_case_id,
         orderKey: item.source_case_number || item.case_number,
       }))
       .sort((left, right) => left.position - right.position),
@@ -341,7 +346,20 @@ export function V020TestGroupDetail({
                 </td>
                 <td>{(currentPage - 1) * pageSize + index + 1}</td>
                 <td>{row.caseNumber}</td>
-                <td>{row.title}</td>
+                <td>
+                  {row.title}
+                  {row.kind === "automation" && (
+                    <div className="test-group-source-relation">
+                      <SourceRelationLink
+                        versionId={detail.product_version_id}
+                        automationId={row.id}
+                        sourceId={row.sourceId}
+                        label="来源用例"
+                        onOpen={onOpenSource}
+                      />
+                    </div>
+                  )}
+                </td>
                 <td>
                   <span
                     className={

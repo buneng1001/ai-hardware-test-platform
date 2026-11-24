@@ -58,6 +58,22 @@ export function stubGroupsApi(state: GroupStubState) {
           message: "尚无最终报告",
           points: [],
         });
+      if (url === "/api/product-versions/11/source-test-case-imports")
+        return jsonResponse([]);
+      const relationMatch = url.match(
+        /^\/api\/product-versions\/11\/automation-test-cases\/(\d+)\/source-relation$/,
+      );
+      if (relationMatch && method === "GET") {
+        const item = state.automationCases.find(
+          (entry) => entry.id === Number(relationMatch[1]),
+        );
+        return item
+          ? jsonResponse({
+              source_test_case_id: item.source_test_case_id,
+              product_version_id: item.product_version_id,
+            })
+          : jsonResponse({ detail: "来源用例不可用" }, 404);
+      }
       if (url.startsWith("/api/product-versions/11/source-test-cases"))
         return jsonResponse({ items: state.sourceCases });
       if (

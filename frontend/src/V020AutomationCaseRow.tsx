@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SourceRelationLink } from "./SourceRelationLink";
 
 import { Status, TestSteps } from "./V020PrototypeShared";
 import { V020AutomationCaseEditor } from "./V020AutomationCaseEditor";
@@ -101,15 +102,17 @@ export function V020AutomationCaseRow({
         <td>{item.case_number}</td>
         <td>{item.title || emptyCell}</td>
         <td>
-          <a
-            href={`#source-test-case-${item.source_test_case_id}`}
-            onClick={(event) => {
-              event.preventDefault();
-              onOpenSource(item.source_test_case_id);
-            }}
-          >
-            {item.source_case_number}
-          </a>
+          <SourceRelationLink
+            versionId={productVersionId}
+            automationId={item.id}
+            sourceId={
+              item.product_version_id === productVersionId
+                ? item.source_test_case_id
+                : null
+            }
+            label={item.source_case_number}
+            onOpen={onOpenSource}
+          />
         </td>
         <td>{item.input || emptyCell}</td>
         <td>
