@@ -10,7 +10,15 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app.automation_executions import _record_from_row
 from app.database import open_database
-from app.fact_report_models import FactReport, FactReportCreate, HistoricalReportOption, HistoricalReportOptions
+from app.fact_report_models import (
+    FactReport,
+    FactReportCreate,
+    HistoricalReportOption,
+    HistoricalReportOptions,
+    RegressionAuxiliaryReportOption,
+    RegressionAuxiliaryReportOptions,
+    RegressionAuxiliarySelection,
+)
 from app.fact_report_rendering import STATUS_LABELS, render_html, render_text
 from app.manual_test_results import _batch_from_row
 from app.report_analysis import analysis_is_enabled, enqueue_analysis, latest_analysis, run_analysis_in_background
@@ -413,6 +421,63 @@ def list_historical_fact_reports(group_id: int) -> HistoricalReportOptions:
                 )
             )
         return HistoricalReportOptions(items=items)
+
+
+def _regression_auxiliary_candidates(
+    connection: sqlite3.Connection, main_report_id: int
+) -> list[RegressionAuxiliaryReportOption]:
+    main = _get_report(connection, main_report_id)
+    excluded = {main_report_id, *main.historical_report_ids}
+    candidates = []
+    for row in _historical_candidates(connection, main.test_group_id):
+        if row["id"] in excluded or row["product_version"] == main.snapshot["basic_information"]["product_version"]:
+            continue
+        try:
+            snapshot = json.loads(row["snapshot"])
+        except (ValueError, TypeError):
+            continue
+        if not _valid_report_snapshot(snapshot):
+            continue
+        # The project-scoped query above includes only reports belonging to the main report's project.
+        analysis = latest_analysis(connection, row["id"])
+        candidates.append(
+            RegressionAuxiliaryReportOption(
+                id=row["id"],
+                product_version=row["product_version"],
+                test_group=snapshot["basic_information"].get("test_group") or row["test_group"],
+                created_at=datetime.fromisoformat(row["created_at"]),
+                analysis_status=analysis.status,
+            )
+        )
+    return candidates
+
+
+@router.get(
+    "/api/fact-reports/{report_id:int}/regression-auxiliary-options",
+    response_model=RegressionAuxiliaryReportOptions,
+)
+def list_regression_auxiliary_options(report_id: int) -> RegressionAuxiliaryReportOptions:
+    with open_database() as connection:
+        return RegressionAuxiliaryReportOptions(items=_regression_auxiliary_candidates(connection, report_id))
+
+
+@router.post("/api/fact-reports/{report_id:int}/regression-auxiliary-validation")
+def validate_regression_auxiliary_reports(
+    report_id: int, selection: RegressionAuxiliarySelection
+) -> dict[str, list[int]]:
+    with open_database() as connection:
+        # The source of truth is the stored main-report snapshot, not caller-supplied metadata.
+        main = _get_report(connection, report_id)
+        excluded = {report_id, *main.historical_report_ids}
+        ids = selection.report_ids
+        if any(report_id <= 0 for report_id in ids) or len(ids) != len(set(ids)):
+            raise HTTPException(status_code=422, detail="辅助报告编号无效或重复")
+        if any(report_id in excluded for report_id in ids):
+            raise HTTPException(status_code=422, detail="辅助报告不能包含主报告或主报告已纳入的历史报告")
+        allowed = {item.id for item in _regression_auxiliary_candidates(connection, report_id)}
+        if any(report_id not in allowed for report_id in ids):
+            raise HTTPException(status_code=422, detail="辅助报告不存在、跨项目、同版本或缺少有效事实快照")
+        return {"report_ids": ids}
 
 
 @router.post("/api/test-groups/{group_id}/fact-reports", response_model=FactReport, status_code=status.HTTP_201_CREATED)
