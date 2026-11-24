@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  getAiGlobalState,
+  getActiveAiInvocation,
+  type ActiveAiInvocation,
+} from "./aiGlobalState";
 
 import {
   listRegressionAuxiliaryReports,
+  generateIntelligentRegression,
+  cancelIntelligentRegression,
+  type RegressionResult,
   validateRegressionAuxiliaryReports,
   type RegressionAuxiliaryReportOption,
 } from "./factReportsApi";
@@ -10,11 +18,13 @@ function label(item: RegressionAuxiliaryReportOption) {
   return `${item.product_version} · ${item.test_group} · #${item.id}`;
 }
 
-/** T14: selection and server validation only. T15 will consume the selected ids when creating AI runs. */
+/** Saved final-report inputs and the explicit, cancellable regression generation action. */
 export function V030AuxiliaryReportSelector({
   reportId,
+  analysisStatus,
 }: {
   reportId: number;
+  analysisStatus?: string;
 }) {
   const [options, setOptions] = useState<RegressionAuxiliaryReportOption[]>([]);
   const [selected, setSelected] = useState<RegressionAuxiliaryReportOption[]>(
@@ -27,6 +37,89 @@ export function V030AuxiliaryReportSelector({
   const [error, setError] = useState("");
   const [invalid, setInvalid] = useState(false);
   const [message, setMessage] = useState("");
+  const [result, setResult] = useState<RegressionResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const lock = useRef(false);
+  const [activeCall, setActiveCall] = useState<ActiveAiInvocation | null>(null);
+  const [gate, setGate] = useState<string>("正在检查 AI 状态");
+  const [generationError, setGenerationError] = useState("");
+  const [stopping, setStopping] = useState(false);
+  const [invalidReportId, setInvalidReportId] = useState<number | null>(null);
+  useEffect(() => {
+    if (analysisStatus === undefined) return;
+    let current = true;
+    const refresh = async () => {
+      try {
+        const [state, active] = await Promise.all([
+          getAiGlobalState(),
+          getActiveAiInvocation(),
+        ]);
+        if (!current) return;
+        setActiveCall(active);
+        setGate(
+          !state.enabled
+            ? "请先开启 AI"
+            : !state.can_enable
+              ? state.reason || "请先验证 AI 配置"
+              : active
+                ? "当前有功能正在占用 AI，请稍后再试。"
+                : "",
+        );
+      } catch {
+        if (current) setGate("暂时无法确认 AI 状态");
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 1000);
+    return () => {
+      current = false;
+      window.clearInterval(timer);
+    };
+  }, [analysisStatus]);
+  const ownCall =
+    activeCall?.operation_type === "intelligent_regression" &&
+    activeCall.resource_id === reportId;
+  const reason =
+    analysisStatus !== "completed" ? "请先完成报告 AI 总体分析" : gate;
+  const generate = async () => {
+    if (lock.current || reason) return;
+    lock.current = true;
+    setRunning(true);
+    setStopping(false);
+    setInvalidReportId(null);
+    setGenerationError("");
+    try {
+      const generated = await generateIntelligentRegression(
+        reportId,
+        selected.map((item) => item.id),
+      );
+      setResult(generated);
+    } catch (caught) {
+      const detail =
+        caught instanceof Error ? caught.message : "智能回归生成失败";
+      setGenerationError(detail);
+      const match = detail.match(/报告 #(\d+)/);
+      if (match && selected.some((item) => item.id === Number(match[1]))) {
+        setInvalidReportId(Number(match[1]));
+      }
+    } finally {
+      setRunning(false);
+      setStopping(false);
+      lock.current = false;
+    }
+  };
+  const cancel = async () => {
+    if (stopping) return;
+    setStopping(true);
+    try {
+      await cancelIntelligentRegression(reportId);
+    } catch (caught) {
+      setStopping(false);
+      setGenerationError(
+        caught instanceof Error ? caught.message : "停止执行失败",
+      );
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -82,7 +175,7 @@ export function V030AuxiliaryReportSelector({
         reportId,
         selected.map((item) => item.id),
       );
-      setMessage("辅助报告选择已通过服务端校验。实际生成将在 T15 接入。");
+      setMessage("辅助报告选择已通过服务端校验。");
     } catch (caught) {
       setInvalid(true);
       setMessage(
@@ -110,7 +203,9 @@ export function V030AuxiliaryReportSelector({
             <button
               type="button"
               aria-label={`移除辅助报告 #${item.id}`}
+              disabled={running || ownCall}
               onClick={() => {
+                if (invalidReportId === item.id) setInvalidReportId(null);
                 setSelected((current) =>
                   current.filter((chosen) => chosen.id !== item.id),
                 );
@@ -126,6 +221,7 @@ export function V030AuxiliaryReportSelector({
           type="button"
           className="prototype-secondary"
           aria-expanded={expanded}
+          disabled={running || ownCall}
           onClick={() => setExpanded((current) => !current)}
         >
           搜索 / 选择辅助报告
@@ -185,6 +281,7 @@ export function V030AuxiliaryReportSelector({
                   type="button"
                   role="option"
                   aria-selected={false}
+                  disabled={running || ownCall}
                   key={item.id}
                   onClick={() => {
                     setSelected((current) => [...current, item]);
@@ -205,10 +302,71 @@ export function V030AuxiliaryReportSelector({
         <button
           type="button"
           className="prototype-secondary"
+          disabled={running || ownCall}
           onClick={() => void validate()}
         >
           校验辅助报告选择
         </button>
+        {analysisStatus !== undefined && (
+          <>
+            <button
+              type="button"
+              className="prototype-primary"
+              disabled={
+                Boolean(reason) ||
+                running ||
+                ownCall ||
+                invalid ||
+                invalidReportId !== null
+              }
+              onClick={() => void generate()}
+            >
+              生成智能回归建议
+            </button>
+            {(running || ownCall) && (
+              <button
+                type="button"
+                className="prototype-secondary"
+                disabled={stopping || Boolean(activeCall?.stopping)}
+                onClick={() => void cancel()}
+              >
+                {stopping || activeCall?.stopping ? "正在停止…" : "停止执行"}
+              </button>
+            )}
+            {running || ownCall ? (
+              <p role="status">智能回归生成中…</p>
+            ) : (
+              reason && <p className="prototype-muted">{reason}</p>
+            )}
+            {generationError && <p role="alert">{generationError}</p>}
+            {invalidReportId !== null && (
+              <>
+                <button
+                  type="button"
+                  className="prototype-secondary"
+                  onClick={() => {
+                    setSelected((items) =>
+                      items.filter((item) => item.id !== invalidReportId),
+                    );
+                    setInvalidReportId(null);
+                    setGenerationError("已移除失效报告，请重新点击生成。");
+                  }}
+                >
+                  移除失效报告 #{invalidReportId} 后继续
+                </button>
+                <button
+                  type="button"
+                  className="prototype-secondary"
+                  onClick={() => {
+                    setGenerationError("已取消本次生成，请调整辅助报告选择。");
+                  }}
+                >
+                  取消本次生成
+                </button>
+              </>
+            )}
+          </>
+        )}
         {message && <p role={invalid ? "alert" : "status"}>{message}</p>}
         {invalid && (
           <button
@@ -224,6 +382,48 @@ export function V030AuxiliaryReportSelector({
           </button>
         )}
       </div>
+      {result && (
+        <section aria-label="智能回归生成结果">
+          <h4>智能回归分析 {result.is_mock ? "（Mock）" : ""}</h4>
+          <h5>总体风险判断</h5>
+          <p>{result.overall_risk.content}</p>
+          <h5>重点变化</h5>
+          <p>
+            {result.key_changes?.content ??
+              "未选择辅助报告，仅分析主报告，不进行跨版本比较。"}
+          </p>
+          <h5>回归重点</h5>
+          <p>{result.regression_focus.content}</p>
+          <h5>建议总结</h5>
+          <p>{result.summary}</p>
+          <div style={{ overflowX: "auto" }}>
+            <table aria-label="结构化回归候选">
+              <thead>
+                <tr>
+                  <th>用例标题</th>
+                  <th>执行方式</th>
+                  <th>模块</th>
+                  <th>优先级</th>
+                  <th>回归原因</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.candidates.map((candidate) => (
+                  <tr key={candidate.id}>
+                    <td>{candidate.title}</td>
+                    <td>
+                      {candidate.case_type === "manual" ? "人工" : "自动化"}
+                    </td>
+                    <td>{candidate.module}</td>
+                    <td>{candidate.priority}</td>
+                    <td>{candidate.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </section>
   );
 }

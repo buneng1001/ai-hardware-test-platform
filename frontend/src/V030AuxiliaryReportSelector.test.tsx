@@ -86,3 +86,52 @@ test("empty candidates do not block validation, failed validation permits remove
   fireEvent.click(screen.getByRole("button", { name: "移除失效选择" }));
   expect(screen.queryByRole("button", { name: "移除失效选择" })).toBeNull();
 });
+
+test("T15 requires completed analysis and global AI, then renders a validated result", async () => {
+  const generated = {
+    is_mock: true,
+    overall_risk: { content: "风险判断", evidence_refs: [] },
+    key_changes: null,
+    regression_focus: { content: "复测方向", evidence_refs: [] },
+    summary: "本次共生成 1 条候选",
+    candidates: [
+      {
+        id: 1,
+        title: "录制回归",
+        case_type: "manual",
+        module: "录像",
+        priority: "high",
+        reason: "事实失败",
+      },
+    ],
+  };
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    let result: unknown = { items: options };
+    if (url.endsWith("/state")) result = { enabled: true, can_enable: true };
+    if (url.endsWith("/active-invocation")) result = { active: null };
+    if (url.endsWith("/intelligent-regression")) {
+      expect(JSON.parse(String(init?.body))).toEqual({ report_ids: [21] });
+      result = generated;
+    }
+    return Promise.resolve(new Response(JSON.stringify(result)));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const view = render(
+    <V030AuxiliaryReportSelector reportId={23} analysisStatus="failed" />,
+  );
+  const button = screen.getByRole("button", {
+    name: "生成智能回归建议",
+  }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  view.rerender(
+    <V030AuxiliaryReportSelector reportId={23} analysisStatus="completed" />,
+  );
+  await waitFor(() => expect(button.disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "搜索 / 选择辅助报告" }));
+  fireEvent.click(await screen.findByRole("option", { name: /EVT2.*Camera/ }));
+  fireEvent.click(button);
+  await screen.findByText("本次共生成 1 条候选");
+  expect(screen.getByText("录制回归")).toBeTruthy();
+  expect(screen.getByText(/未选择辅助报告/)).toBeTruthy();
+});
