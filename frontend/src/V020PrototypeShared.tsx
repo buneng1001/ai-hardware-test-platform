@@ -20,6 +20,11 @@ export type WorkspaceProps = {
   setCaseView: (view: CaseView) => void;
   onNavigate: PrototypeProps["onNavigate"];
   onOpenManual: (group: { id: number; name: string }) => void;
+  reportFocus?: {
+    reportId: number;
+    groupId: number;
+    target: "ai" | "regression";
+  } | null;
 };
 
 export const sections: Array<{ key: SectionKey; label: string }> = [

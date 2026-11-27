@@ -166,10 +166,55 @@ def _escape(value: object) -> str:
     return html.escape(str(value if value is not None else ""))
 
 
+def _evidence_target(reference: str) -> str | None:
+    if reference in {"execution_context", "product_profile"}:
+        return "basic"
+    if reference == "stage_progress":
+        return "overview"
+    if reference == "scope_overview":
+        return "modules"
+    parts = reference.split(":")
+    if len(parts) == 2 and parts[0] == "module" and parts[1].isdigit():
+        return f"module-{int(parts[1]) + 1}"
+    if len(parts) == 3 and parts[0] == "record" and all(part.isdigit() for part in parts[1:]):
+        return f"record-{int(parts[1])}-{int(parts[2])}"
+    if len(parts) == 2 and parts[0] == "cross_issue" and parts[1].isdigit():
+        return f"cross-issue-{int(parts[1])}"
+    if len(parts) == 2 and parts[0] == "history_report" and parts[1].isdigit():
+        return f"history-report-{int(parts[1])}"
+    return None
+
+
+def _evidence_links(references: list[str]) -> str:
+    links = []
+    for reference in references:
+        label = _escape(reference)
+        target = _evidence_target(reference)
+        links.append(
+            f"<a class='evidence-ref' href='#{target}'>{label}</a>"
+            if target
+            else f"<span class='evidence-ref'>{label}</span>"
+        )
+    return "、".join(links)
+
+
 def _list(items: list[str], empty: str = "无") -> str:
     if not items:
         return f"<p class='muted'>{_escape(empty)}</p>"
     return "<ul>" + "".join(f"<li>{item}</li>" for item in items) + "</ul>"
+
+
+def _analysis_items(items: list[object], empty: str) -> str:
+    if not items:
+        return _list([], empty)
+    return (
+        "<ul>"
+        + "".join(
+            f"<li>{_escape(item.content)}<p class='ai-evidence'>依据：{_evidence_links(item.evidence_refs)}</p></li>"
+            for item in items
+        )
+        + "</ul>"
+    )
 
 
 STYLE = """
@@ -178,7 +223,15 @@ body { margin: 0; padding: 32px 40px 80px; max-width: 980px; color: #182632;
 h1 { margin: 0 0 8px; font-size: 1.7rem; }
 h2 { margin: 36px 0 12px; font-size: 1.2rem; border-bottom: 1px solid #e2e8ee; padding-bottom: 6px; }
 h3 { margin: 22px 0 8px; font-size: 1rem; }
-p.muted { color: #64748b; }
+p.muted { color: #40566d; }
+.ai-status { color: #155d82; font-weight: 700; }
+.ai-evidence { color: #36556d; font-size: 0.92rem; }
+.evidence-ref { display: inline-block; margin: 1px 2px; padding: 0 5px; border: 1px solid #bfdced;
+                border-radius: 4px; background: #edf6fb; color: #075f91; font-weight: 700;
+                text-decoration: none; }
+.evidence-ref:hover { color: #06466b; background: #dceef8; text-decoration: underline; }
+.case-number { display: inline-block; padding: 0 5px; border-radius: 4px;
+               background: #edf6fb; color: #075f91; font-weight: 700; }
 table { width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: 0.9rem; }
 th, td { padding: 8px 10px; border: 1px solid #e2e8ee; text-align: left; vertical-align: top; }
 th { background: #f3f6f8; color: #475569; font-weight: 600; }
@@ -245,12 +298,12 @@ def render_html(report: FactReport) -> str:
         )
 
     failed_items = [
-        f"<strong>{_escape(item['case_number'])}</strong> {_escape(item['title'])}"
+        f"<strong class='case-number'>{_escape(item['case_number'])}</strong> {_escape(item['title'])}"
         f"（{_escape(item['module'])}）：{_escape(item['actual_result'])}"
         for item in issues.get("failed", [])
     ]
     blocked_items = [
-        f"<strong>{_escape(item['case_number'])}</strong> {_escape(item['title'])}"
+        f"<strong class='case-number'>{_escape(item['case_number'])}</strong> {_escape(item['title'])}"
         f"（{_escape(STATUS_LABELS.get(item['status'], item['status']))}）：{_escape(item['actual_result'])}"
         for item in issues.get("blocked", []) + issues.get("not_executed", [])
     ]
@@ -258,20 +311,20 @@ def render_html(report: FactReport) -> str:
     module_details = []
     for index, module in enumerate(data.get("modules", []), start=1):
         records = "".join(
-            "<li>"
-            f"<strong>{_escape(item['case_number'])}</strong> {_escape(item['title'])}："
+            f"<li id='record-{index - 1}-{record_index}'>"
+            f"<strong class='case-number'>{_escape(item['case_number'])}</strong> {_escape(item['title'])}："
             f"{_escape(item['source'])} {_escape(STATUS_LABELS.get(item['status'], item['status']))}"
             f"{_escape('；' + item['result_consistency']) if item.get('result_consistency') else ''}；"
             f"{_escape(item['message'])}"
             "</li>"
-            for item in module["records"]
+            for record_index, item in enumerate(module["records"])
         )
         module_details.append(
             f"<h3 id='module-{index}'>{_escape(module['name'])}"
             f"<span class='muted'>（{_escape(module['conclusion'])}）</span></h3><ul>{records}</ul>"
         )
 
-    ai_lines: list[str] = [f"<p>{_escape(report.analysis.message)}</p>"]
+    ai_lines: list[str] = [f"<p class='ai-status'>{_escape(report.analysis.message)}</p>"]
     if report.analysis.output:
         output = report.analysis.output
         if output.test_directions is not None:
@@ -289,7 +342,7 @@ def render_html(report: FactReport) -> str:
                     f"<p><strong>覆盖缺口：</strong>{_escape(item.coverage_gap)}</p>"
                     f"<p><strong>潜在风险：</strong>{_escape(item.risk)}</p>"
                     f"<p><strong>测试方向：</strong>{_escape(item.direction)}</p>"
-                    f"<p class='muted'>依据：{_escape('、'.join(item.evidence_refs))}</p>"
+                    f"<p class='ai-evidence'>依据：{_evidence_links(item.evidence_refs)}</p>"
                 )
             if not output.test_directions:
                 ai_lines.append("<p>当前未识别出具体测试方向，请复核证据范围。</p>")
@@ -297,8 +350,9 @@ def render_html(report: FactReport) -> str:
                 [
                     "<h3>03 下一阶段测试重点</h3>",
                     f"<p>{_escape(output.stage_recommendation.content)}</p>",
+                    f"<p class='ai-evidence'>依据：{_evidence_links(output.stage_recommendation.evidence_refs)}</p>",
                     "<h3>04 AI 回归建议</h3>",
-                    _list([_escape(item.content) for item in output.regression_recommendations], "暂无明确回归候选"),
+                    _analysis_items(output.regression_recommendations, "暂无明确回归候选"),
                 ]
             )
         else:
@@ -310,19 +364,21 @@ def render_html(report: FactReport) -> str:
                 ("AI 回归建议", output.regression_recommendations),
             ):
                 ai_lines.append(f"<h3>{_escape(title)}</h3>")
-                ai_lines.append(_list([_escape(entry.content) for entry in entries]))
+                ai_lines.append(_analysis_items(entries, "无"))
 
     attachments = [item.filename for item in report.attachment_summary.attachments]
     appendix = [
         "<h3>附件</h3>",
         _list([_escape(name) for name in attachments], "无"),
         "<h3>跨模块问题</h3>",
-        _list(
-            [
-                f"<strong>{_escape(item['case_number'])}</strong>：{_escape(item['message'])}"
-                for item in data.get("cross_module_issues", [])
-            ],
-        ),
+        "<ul>"
+        + "".join(
+            f"<li id='cross-issue-{index}'>"
+            f"<strong class='case-number'>{_escape(item['case_number'])}</strong>："
+            f"{_escape(item['message'])}</li>"
+            for index, item in enumerate(data.get("cross_module_issues", []))
+        )
+        + "</ul>",
     ]
 
     historical_rows = []
@@ -330,7 +386,7 @@ def render_html(report: FactReport) -> str:
         historical_overall = source["statistics_snapshot"]["pass_rate"]["overall"]
         historical_rows.append(
             "<tr>"
-            f"<td>#{_escape(source['report_id'])}</td>"
+            f"<td id='history-report-{_escape(source['report_id'])}'>#{_escape(source['report_id'])}</td>"
             f"<td>{_escape(source['product_version'])}</td>"
             f"<td>{_escape(source['test_group'])}</td>"
             f"<td>{_escape(source['generated_at'])}</td>"

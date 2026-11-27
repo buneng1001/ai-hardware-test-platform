@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
 import { V020ReportDeleteDialog } from "./V020ReportDeleteDialog";
@@ -8,6 +8,8 @@ import { V020ReportPreviewDialog } from "./V020ReportPreviewDialog";
 import { useV020FactReports } from "./useV020FactReports";
 import { V020ResultBreakdown } from "./V020ResultBreakdown";
 import { V030AuxiliaryReportSelector } from "./V030AuxiliaryReportSelector";
+import { V030ReadOnlyReport } from "./V030ReadOnlyReport";
+import "./V030ReportWorkflow.css";
 import { V020ExecutionResultCard } from "./V020ExecutionResultCard";
 import { V020ManualResultSummaryCard } from "./V020ManualResultSummaryCard";
 import "./V020Reports.css";
@@ -49,12 +51,54 @@ export function V020ReportPanel({
   groupId,
   groupName,
   onOpenManual,
+  reportFocus,
 }: {
   groupId: number;
   groupName: string;
   onOpenManual: (group: { id: number; name: string }) => void;
+  reportFocus?: {
+    reportId: number;
+    groupId: number;
+    target: "ai" | "regression";
+  } | null;
 }) {
   const reports = useV020FactReports(groupId);
+  const openReportRef = useRef(reports.openReport);
+  openReportRef.current = reports.openReport;
+  const [focusAiSection, setFocusAiSection] = useState(false);
+  useEffect(() => {
+    if (!reportFocus) return;
+    let live = true;
+    void openReportRef.current(reportFocus.reportId).then((opened) => {
+      if (!live || !opened) return;
+      if (reportFocus.target === "ai") {
+        setFocusAiSection(true);
+        setView("preview");
+      } else {
+        setFocusAiSection(false);
+        setView("closed");
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            const target = document.getElementById(
+              `v030-regression-${reportFocus.reportId}`,
+            );
+            target?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          });
+        });
+      }
+      window.dispatchEvent(
+        new CustomEvent("v030-report-focus-consumed", {
+          detail: { reportId: reportFocus.reportId },
+        }),
+      );
+    });
+    return () => {
+      live = false;
+    };
+  }, [reportFocus?.reportId, reportFocus?.target]);
   const [view, setView] = useState<ReportView>("closed");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   // undefined = 默认最新；null/[] = 用户明确选“无”，跨刷新保留。
@@ -62,6 +106,9 @@ export function V020ReportPanel({
     readSourceChoice(groupId),
   );
   const [historyIds, setHistoryIds] = useState<number[]>([]);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
+  const [sourcePreview, setSourcePreview] = useState<number | null>(null);
   const updateSourceChoice = (next: SourceChoice) => {
     setSourceChoice(next);
     window.localStorage.setItem(
@@ -132,6 +179,7 @@ export function V020ReportPanel({
 
   return (
     <>
+      <h3 className="v030-workflow-title">01 · 最终测试报告</h3>
       <div className="prototype-result-grid v030-result-grid">
         <V020ExecutionResultCard
           records={reports.executions}
@@ -153,47 +201,94 @@ export function V020ReportPanel({
         />
       </div>
       <div className="prototype-report-source-picker v030-history-source">
-        <details className="prototype-report-source-menu">
-          <summary>
-            历史最终报告（多选）：
-            {historyIds.length ? `已选 ${historyIds.length} 份` : "不纳入"}
-          </summary>
-          <div
-            className="prototype-report-source-options"
-            role="group"
-            aria-label="历史最终报告来源"
-          >
-            {reports.historicalOptions.map((item) => (
-              <label key={item.id}>
-                <input
-                  type="checkbox"
-                  aria-label={`选择历史报告 #${item.id}`}
-                  checked={historyIds.includes(item.id)}
-                  onChange={(event) =>
-                    setHistoryIds((current) =>
-                      event.target.checked
-                        ? [...current, item.id]
-                        : current.filter((id) => id !== item.id),
-                    )
-                  }
-                />
-                报告 #{item.id} · {item.product_version} · {item.test_group} ·{" "}
-                {item.created_at.slice(0, 16).replace("T", " ")}
-              </label>
-            ))}
-            {!reports.historicalOptions.length && (
-              <p className="prototype-muted">
-                当前项目暂无可选的有效历史最终报告。
-              </p>
-            )}
-            {reports.historicalError && (
-              <p role="alert">{reports.historicalError}</p>
-            )}
-          </div>
-        </details>
-        <p className="prototype-muted v030-report-source-note">
-          历史报告仅作独立对照，不计入当前版本统计。
+        <h4>历史对照报告（可选）</h4>
+        <p className="prototype-muted">
+          仅用于生成本次最终测试报告，独立对照，不计入当前版本统计。不是智能回归的辅助报告。
         </p>
+        <div className="v030-report-tag-list">
+          {chosenHistory.map((item) => (
+            <span className="v030-regression-tag" key={item.id}>
+              <button
+                type="button"
+                className="v030-report-link"
+                onClick={() => setSourcePreview(item.id)}
+              >
+                报告 #{item.id} · {item.product_version}
+              </button>
+              <button
+                type="button"
+                aria-label={`移除历史报告 #${item.id}`}
+                onClick={() =>
+                  setHistoryIds((ids) => ids.filter((id) => id !== item.id))
+                }
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          {!chosenHistory.length && (
+            <span className="prototype-muted">不纳入历史对照报告</span>
+          )}
+          <button
+            type="button"
+            className="prototype-secondary"
+            aria-expanded={historyExpanded}
+            onClick={() => setHistoryExpanded((value) => !value)}
+          >
+            搜索 / 添加历史对照报告
+          </button>
+        </div>
+        {historyExpanded && (
+          <div className="v030-regression-results">
+            <input
+              aria-label="搜索历史对照报告"
+              placeholder="搜索报告编号、版本、测试组"
+              value={historySearch}
+              onChange={(event) => setHistorySearch(event.target.value)}
+            />
+            <div
+              className="v030-regression-options"
+              aria-label="历史最终报告来源"
+            >
+              {reports.historicalOptions
+                .filter(
+                  (item) =>
+                    !historyIds.includes(item.id) &&
+                    `#${item.id} ${item.product_version} ${item.test_group}`
+                      .toLowerCase()
+                      .includes(historySearch.trim().toLowerCase()),
+                )
+                .map((item) => (
+                  <div className="v030-report-choice" key={item.id}>
+                    <button
+                      type="button"
+                      aria-label={`选择历史报告 #${item.id}`}
+                      onClick={() => setHistoryIds((ids) => [...ids, item.id])}
+                    >
+                      ＋ 报告 #{item.id} · {item.product_version} ·{" "}
+                      {item.test_group} ·{" "}
+                      {item.created_at.slice(0, 16).replace("T", " ")}
+                    </button>
+                    <button
+                      type="button"
+                      className="v030-report-link"
+                      onClick={() => setSourcePreview(item.id)}
+                    >
+                      查看报告 #{item.id}
+                    </button>
+                  </div>
+                ))}
+              {!reports.historicalOptions.length && (
+                <p className="prototype-muted">
+                  当前项目暂无有效历史最终报告。
+                </p>
+              )}
+              {reports.historicalError && (
+                <p role="alert">{reports.historicalError}</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       <div className="v030-report-generation">
         <p className="prototype-muted">
@@ -279,7 +374,10 @@ export function V020ReportPanel({
           <button
             className="prototype-secondary"
             disabled={!report}
-            onClick={() => setView("preview")}
+            onClick={() => {
+              void reports.refreshAnalysis().catch(() => undefined);
+              setView("preview");
+            }}
             type="button"
           >
             预览最新报告（HTML）
@@ -315,8 +413,19 @@ export function V020ReportPanel({
         groupId={groupId}
         reportId={report?.id ?? null}
         analysisStatus={report?.analysis.status ?? "missing"}
+        mainReport={report}
+        onViewMain={() => {
+          void reports.refreshAnalysis().catch(() => undefined);
+          setView("preview");
+        }}
       />
 
+      {sourcePreview !== null && (
+        <V030ReadOnlyReport
+          id={sourcePreview}
+          onClose={() => setSourcePreview(null)}
+        />
+      )}
       {reports.actionError && (
         <div className="prototype-inline-note" role="alert">
           {reports.actionError}
@@ -395,7 +504,10 @@ export function V020ReportPanel({
           onBack={() => setView("history")}
           onCancelCleanup={reports.cancelCleanup}
           onCancelAnalysis={reports.cancelAnalysis}
-          onClose={() => setView("closed")}
+          onClose={() => {
+            setFocusAiSection(false);
+            setView("closed");
+          }}
           onConfirmCleanup={() => void reports.confirmCleanup()}
           onPrepareCleanup={() => void reports.prepareCleanup()}
           onRefreshAnalysis={reports.refreshAnalysis}
@@ -407,6 +519,7 @@ export function V020ReportPanel({
             void reports.retryAnalysis(false, false, resumeChoice)
           }
           report={report}
+          focusAiSection={focusAiSection}
         />
       )}
       {deleteConfirm && report && (

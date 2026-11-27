@@ -18,7 +18,7 @@ from app.report_analysis_contract import (
     normalize_report_output,
     report_system_prompt,
 )
-from app.report_analysis_inputs import analysis_input, source_catalog_context
+from app.report_analysis_inputs import analysis_input, build_mock_analysis, source_catalog_context
 from app.siliconflow import ModelErrorKind, SiliconFlowError
 from app.structured_repair import RepairBudget
 
@@ -112,8 +112,33 @@ def test_professional_analysis_prompt_requires_coverage_and_conditional_regressi
             "条件式回归建议",
             "不能断言整个项目从未测试",
             "独立于确定性阶段结论",
+            "module:N 或 record:N:M",
         ):
             assert requirement in prompt
+
+
+def test_mock_report_analysis_emits_module_specific_regression_seeds():
+    output = build_mock_analysis(
+        {
+            "modules": [
+                {
+                    "ref": "module:0",
+                    "name": "蓝牙连接",
+                    "records": [
+                        {
+                            "ref": "record:0:0",
+                            "case_number": "BT-001",
+                            "status": "failed",
+                        }
+                    ],
+                },
+                {"ref": "module:1", "name": "无执行记录模块", "records": []},
+            ]
+        }
+    )
+    assert len(output.regression_recommendations) == 1
+    assert output.regression_recommendations[0].evidence_refs == ["record:0:0"]
+    assert output.test_directions[0].evidence_refs == ["record:0:0"]
 
 
 def test_simulation_mode_and_profile_references_survive_batching():

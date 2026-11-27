@@ -210,7 +210,7 @@ def test_v020_fixed_sample_covers_migrations_api_fallbacks_reports_and_trends(tm
         assert failed_body["status"] == "failed"
         assert failed_body["message"] == "分析未完成：模型服务不可用"
         assert failed_body["output"] is None
-        assert failed_body["error"]["kind"] == "temporary_service"
+        assert failed_body["error"]["kind"] == "timeout"
         assert client.get(f"/api/fact-reports/{report_body['id']}").json()["snapshot"] == report_body["snapshot"]
 
         # 仅清理报告已使用附件，随后人工结果更新使报告过期；趋势仍从该最终报告读取。

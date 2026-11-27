@@ -11,9 +11,15 @@ import "./V020AutomationExecutions.css";
 export function V020ExecutionResultsScreen({
   versionId,
   onOpenManual,
+  reportFocus,
 }: {
   versionId: number | null;
   onOpenManual: (group: { id: number; name: string }) => void;
+  reportFocus?: {
+    reportId: number;
+    groupId: number;
+    target: "ai" | "regression";
+  } | null;
 }) {
   const [groups, setGroups] = useState<TestGroupSummary[] | null>(null);
   const [groupId, setGroupId] = useState<number | null>(null);
@@ -39,6 +45,14 @@ export function V020ExecutionResultsScreen({
         setError(caught instanceof Error ? caught.message : "测试组加载失败"),
       );
   }, [versionId, reloadToken]);
+  useEffect(() => {
+    if (
+      reportFocus &&
+      groups?.some((item) => item.id === reportFocus.groupId)
+    ) {
+      setGroupId(reportFocus.groupId);
+    }
+  }, [reportFocus?.reportId, reportFocus?.groupId, groups]);
 
   const groupName =
     groups?.find((item) => item.id === groupId)?.name ?? "未选择测试组";
@@ -101,6 +115,7 @@ export function V020ExecutionResultsScreen({
           onOpenManual={onOpenManual}
           groupId={groupId}
           groupName={groupName}
+          reportFocus={reportFocus?.groupId === groupId ? reportFocus : null}
         />
       )}
     </>

@@ -22,13 +22,38 @@ def _extract_json_object(content: str | dict[str, object]) -> dict[str, object]:
     """报告分析等通用结构化任务只要求 JSON 对象，不套用诊断字段约束。"""
     if isinstance(content, dict):
         return content
-    cleaned = content.strip()
+    cleaned = content.lstrip("\ufeff").strip()
     if cleaned.startswith("```"):
-        cleaned = cleaned.removeprefix("```").removeprefix("json")
-        cleaned = cleaned.removesuffix("```").strip()
-    value = json.loads(cleaned)
+        first_line, separator, remainder = cleaned.partition("\n")
+        if first_line.strip().lower() not in {"```", "```json"} or not separator:
+            raise SiliconFlowError(
+                ModelErrorKind.INVALID_RESPONSE,
+                "模型内容代码围栏格式无效",
+                False,
+                diagnostic="content_fence_invalid",
+                response_chars=len(content),
+            )
+        cleaned = remainder
+        if cleaned.rstrip().endswith("```"):
+            cleaned = cleaned.rstrip()[:-3].strip()
+    try:
+        value = json.loads(cleaned)
+    except json.JSONDecodeError as error:
+        raise SiliconFlowError(
+            ModelErrorKind.INVALID_RESPONSE,
+            "模型内容不是合法 JSON",
+            False,
+            diagnostic="content_json_invalid",
+            response_chars=len(content),
+        ) from error
     if not isinstance(value, dict):
-        raise TypeError("模型 JSON 顶层必须是对象")
+        raise SiliconFlowError(
+            ModelErrorKind.INVALID_RESPONSE,
+            "模型 JSON 顶层必须是对象",
+            False,
+            diagnostic="content_json_not_object",
+            response_chars=len(content),
+        )
     return value
 
 
@@ -57,6 +82,7 @@ class ProviderAdapter(RequestRunner):
         self.network_mode = network_mode if network_mode in {"auto", "system_proxy", "direct"} else "auto"
         self.network_diagnostics: list[str] = []
         self.request_logs: list[dict[str, object]] = []
+        self.request_log_sink: Callable[[list[dict[str, object]]], None] | None = None
         self._cancel_event = cancel_event or (lambda: False)
         self.prompt_version = prompt_version
         self.max_calls = max_calls
@@ -217,6 +243,11 @@ class ProviderAdapter(RequestRunner):
         system_prompt: str,
         prompt_version: str = "report-analysis-v1",
         stage: str = "report_analysis",
+        stream: bool = False,
+        max_output_tokens: int | None = None,
+        thinking_budget: int | None = None,
+        enable_thinking: bool | None = None,
+        on_stream_progress: Callable[[int, int], None] | None = None,
     ) -> dict[str, object]:
         """为报告分析等独立结构化任务复用同一服务商、超时和重试策略。"""
         if not api_key:
@@ -236,20 +267,75 @@ class ProviderAdapter(RequestRunner):
         }
         if self.provider != "kimi":
             body["temperature"] = 0
+        if stream:
+            body["stream"] = True
+        if max_output_tokens is not None:
+            body["max_tokens"] = max_output_tokens
+        if self.provider == "siliconflow" and enable_thinking is not None:
+            body["enable_thinking"] = enable_thinking
+        if self.provider == "siliconflow" and thinking_budget is not None and enable_thinking is not False:
+            body["enable_thinking"] = True
+            body["thinking_budget"] = thinking_budget
         # 限定当前已知支持思考预算的硅基流动模型和报告分析场景；
         # 保留最终输出预算，不把内部推理长度限制当成质量保证。
         if (
             self.provider == "siliconflow"
             and model in {"Qwen/Qwen3.8-27B", "Qwen/Qwen3.8-27B-FP8"}
-            and stage in {"report_analysis", "report_analysis_batch", "report_analysis_repair"}
+            and stage
+            in {
+                "report_analysis",
+                "report_analysis_batch",
+                "report_analysis_repair",
+            }
+            and enable_thinking is None
         ):
             body["enable_thinking"] = True
             body["thinking_budget"] = 1024
         request_data = {"api_key": api_key, "endpoint": self._endpoint, "body": body}
+        if on_stream_progress is not None:
+            request_data["on_stream_progress"] = on_stream_progress
 
         def parse(text: str) -> dict[str, object]:
-            payload = json.loads(text)
-            choice = payload["choices"][0]
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError as error:
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型服务响应外层 JSON 无效",
+                    False,
+                    stage=stage,
+                    diagnostic="response_envelope_json_invalid",
+                    response_chars=len(text),
+                ) from error
+            if not isinstance(payload, dict):
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型服务响应顶层必须是对象",
+                    False,
+                    stage=stage,
+                    diagnostic="response_envelope_not_object",
+                    response_chars=len(text),
+                )
+            choices = payload.get("choices")
+            if not isinstance(choices, list) or not choices:
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型服务响应缺少 choices",
+                    False,
+                    stage=stage,
+                    diagnostic="response_choices_missing",
+                    response_chars=len(text),
+                )
+            choice = choices[0]
+            if not isinstance(choice, dict):
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型服务响应中的 choice 结构无效",
+                    False,
+                    stage=stage,
+                    diagnostic="response_choice_invalid",
+                    response_chars=len(text),
+                )
             if choice.get("finish_reason") == "length":
                 raise SiliconFlowError(
                     ModelErrorKind.OUTPUT_TRUNCATED,
@@ -259,11 +345,46 @@ class ProviderAdapter(RequestRunner):
                     finish_reason="length",
                     response_chars=len(text),
                 )
-            content = choice["message"]["content"]
+            message = choice.get("message")
+            if not isinstance(message, dict):
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型服务响应缺少 message",
+                    False,
+                    stage=stage,
+                    diagnostic="response_message_missing",
+                    response_chars=len(text),
+                )
+            if "content" not in message:
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型服务响应缺少 content",
+                    False,
+                    stage=stage,
+                    diagnostic="response_content_missing",
+                    response_chars=len(text),
+                )
+            content = message["content"]
             if isinstance(content, dict):
                 return content
             if not isinstance(content, str):
-                raise TypeError("content 不是允许的结构化内容")
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型 content 类型无效",
+                    False,
+                    stage=stage,
+                    diagnostic="response_content_type_invalid",
+                    response_chars=len(text),
+                )
+            if not content.strip():
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型 content 为空",
+                    False,
+                    stage=stage,
+                    diagnostic="response_content_empty",
+                    response_chars=len(text),
+                )
             return _extract_json_object(content)
 
         result = self._execute(self._transport, request_data, stage=stage, model=model, parse=parse)

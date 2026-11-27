@@ -99,38 +99,151 @@ export function V030RegressionResult({ result }: { result: RegressionResult }) {
   useEffect(() => {
     if (preview !== null) closeButton.current?.focus();
   }, [preview]);
+  if (result.generation_status === "legacy_incomplete" || !result.analysis_sections) {
+    return (
+      <section aria-label="旧版智能回归结果" className="v030-regression-current">
+        <header className="v030-regression-heading">
+          <h4>历史建议需要重新生成</h4>
+          <p role="alert">这份建议由旧版流程生成，尚未完成当前版本的回归分析，暂不可应用。请重新生成智能回归建议。</p>
+        </header>
+      </section>
+    );
+  }
+
   const sections = [
-    ["总体风险判断", result.overall_risk.content],
-    [
-      "重点变化",
-      result.key_changes?.content ??
-        "未选择辅助报告，仅分析主报告，不进行跨版本比较。",
-    ],
-    ["回归重点", result.regression_focus.content],
-    ["建议总结", result.summary],
+    ["01 回归必要性与范围判断", result.analysis_sections.regression_necessity],
+    ["02 影响链路与风险分析", result.analysis_sections.impact_analysis],
+    ["03 回归策略与执行顺序", result.analysis_sections.execution_strategy],
+    ["04 执行准备与验收边界", result.analysis_sections.execution_readiness],
   ] as const;
+  const existingRecommendations = result.existing_case_recommendations ?? [];
+  const evidenceButtons = (refs: { report_id: number; evidence_ref: string }[]) => (
+    <div className="v030-regression-source-list" aria-label="分析证据来源">
+      {[...new Set(refs.map((item) => item.report_id))].map((id) => (
+        <button
+          key={id}
+          type="button"
+          className="v030-regression-link"
+          disabled={sourceBusy !== null}
+          onClick={(event) => void openSource(id, event.currentTarget)}
+        >
+          查看报告 #{id}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <section aria-label="智能回归生成结果" className="v030-regression-current">
       <header className="v030-regression-heading">
-        <h4>智能回归分析 {result.is_mock ? "（Mock）" : ""}</h4>
+        <h4>智能回归方案 {result.is_mock ? "（Mock）" : "（AI 分析）"}</h4>
         <p className="prototype-muted">
           当前有效建议 · 主报告 #{result.main_report_id}
           {result.generated_at
-            ? ` · ${result.generated_at.slice(0, 19).replace("T", " ")}`
+            ? " · " + result.generated_at.slice(0, 19).replace("T", " ")
             : ""}
         </p>
+        <p className="prototype-muted">
+          基于冻结报告事实、产品画像、版本上下文及原用例定义独立分析生成；管理层最终测试报告仍由「最终测试报告」模块负责。
+        </p>
       </header>
-      <div className="v030-regression-analysis">
-        {sections.map(([title, content]) => (
+      <div className="v030-regression-analysis">        {sections.map(([title, section]) => (
           <article key={title}>
             <h5>{title}</h5>
-            <p>{content}</p>
+            <p>{section.content}</p>
+            {evidenceButtons(section.evidence_refs)}
           </article>
         ))}
+        {result.key_changes && (
+          <article>
+            <h5>辅助报告事实对照</h5>
+            <p>{result.key_changes.content}</p>
+            {evidenceButtons(result.key_changes.evidence_refs)}
+          </article>
+        )}
+        {result.review_notes.length > 0 && (
+          <article>
+            <h5>评审提示</h5>
+            <ul>
+              {result.review_notes.map((note, index) => (
+                <li key={index}>
+                  <p>{note.content}</p>
+                  {evidenceButtons(note.source_findings)}
+                </li>
+              ))}
+            </ul>
+          </article>
+        )}
+        {result.deferred_targets.length > 0 && (
+          <article>
+            <h5>暂不生成的回归目标</h5>
+            <p>以下覆盖缺口因缺少可验证条件或预期结果，未被伪装成可执行用例。</p>
+            <ul>
+              {result.deferred_targets.map((item, index) => (
+                <li key={index}>
+                  <strong>{item.module} · {item.title}</strong>
+                  <p>{item.reason}</p>
+                  {evidenceButtons(item.source_findings)}
+                </li>
+              ))}
+            </ul>
+          </article>
+        )}
+        <article>
+          <h5>分析总结</h5>
+          <p>{result.summary}</p>
+        </article>
       </div>
+      {existingRecommendations.length > 0 && (
+        <section className="v030-regression-existing" aria-label="已有用例复测建议">
+          <div className="v030-regression-table-heading">
+            <h4>优先复测已有用例</h4>
+            <p className="prototype-muted">
+              {existingRecommendations.length} 条报告已关联的原用例；直接复测，不创建重复用例。
+            </p>
+          </div>
+          <div className="v030-regression-table-scroll" role="region" aria-label="已有用例复测建议表格" tabIndex={0}>
+            <table className="v030-regression-table" aria-label="已有用例复测建议">
+              <thead>
+                <tr>
+                  <th>用例编号</th>
+                  <th>用例名称</th>
+                  <th>模块</th>
+                  <th>优先级</th>
+                  <th>建议原因</th>
+                  <th>来源报告</th>
+                </tr>
+              </thead>
+              <tbody>
+                {existingRecommendations.map((item) => (
+                  <tr key={`${item.module}:${item.case_number}`}>
+                    <td>{item.case_number}</td>
+                    <td>{item.title}</td>
+                    <td>{item.module}</td>
+                    <td>{priorityLabels[item.priority] ?? item.priority}</td>
+                    <td>{item.reason}</td>
+                    <td>
+                      {item.source_findings.map((source, index) => (
+                        <button
+                          key={`${source.report_id}:${source.evidence_ref}:${index}`}
+                          type="button"
+                          className="v030-regression-link"
+                          disabled={sourceBusy !== null}
+                          onClick={(event) => void openSource(source.report_id, event.currentTarget)}
+                        >
+                          报告 #{source.report_id} · {source.product_version}
+                        </button>
+                      ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       <div className="v030-regression-table-heading">
-        <h4>结构化回归用例</h4>
+        <h4>新增结构化回归用例</h4>
         <p className="prototype-muted" aria-live="polite">
           建议总数 {result.candidates.length} · 当前命中 {matched.length} · 已选{" "}
           {selected.size}
@@ -202,6 +315,7 @@ export function V030RegressionResult({ result }: { result: RegressionResult }) {
           <colgroup>
             <col className="v030-regression-col-check" />
             <col className="v030-regression-col-title" />
+            <col className="v030-regression-col-test-type" />
             <col className="v030-regression-col-type" />
             <col className="v030-regression-col-module" />
             <col className="v030-regression-col-priority" />
@@ -220,6 +334,7 @@ export function V030RegressionResult({ result }: { result: RegressionResult }) {
                 />
               </th>
               <th scope="col">用例标题</th>
+              <th scope="col">测试类型</th>
               <th scope="col">执行方式</th>
               <th scope="col">模块</th>
               <th scope="col">优先级</th>
@@ -229,7 +344,7 @@ export function V030RegressionResult({ result }: { result: RegressionResult }) {
           <tbody>
             {matched.length === 0 ? (
               <tr>
-                <td colSpan={6} className="v030-regression-empty">
+                <td colSpan={7} className="v030-regression-empty">
                   没有符合当前筛选条件的回归用例。
                 </td>
               </tr>
@@ -271,6 +386,7 @@ export function V030RegressionResult({ result }: { result: RegressionResult }) {
                           </span>
                         </button>
                       </td>
+                      <td>{item.test_type}</td>
                       <td>{item.case_type === "manual" ? "人工" : "自动化"}</td>
                       <td>{item.module}</td>
                       <td>{priorityLabels[item.priority] ?? item.priority}</td>
@@ -278,7 +394,7 @@ export function V030RegressionResult({ result }: { result: RegressionResult }) {
                     </tr>
                     {open && (
                       <tr className="v030-regression-detail-row">
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           <section
                             className="v030-regression-detail"
                             aria-label={`${item.title} 详情`}

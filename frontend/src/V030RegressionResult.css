@@ -1,4 +1,34 @@
-.v030-regression-current {
+.v030-regression-current {.v030-regression-existing {
+  margin: 18px 0 24px;
+}
+
+.v030-regression-existing .v030-regression-table-scroll {
+  margin-top: 10px;
+}
+
+.v030-regression-existing .v030-regression-table td {
+  vertical-align: top;
+}
+
+.v030-regression-incomplete {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #e6b566;
+  background: rgba(230, 181, 102, 0.12);
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.v030-regression-incomplete-note {
+  padding: 10px 12px;
+  border-left: 3px solid #d6a24c;
+  color: var(--prototype-color-muted);
+  background: rgba(214, 162, 76, 0.08);
+}
+
+
   min-width: 0;
   max-width: 100%;
   margin-top: 20px;

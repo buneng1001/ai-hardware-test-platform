@@ -7,6 +7,8 @@ import {
 } from "./aiGlobalState";
 import { cancelAiInvocation } from "./diagnosisApi";
 import { V030RegressionResult } from "./V030RegressionResult";
+import { V030ReadOnlyReport } from "./V030ReadOnlyReport";
+import "./V030ReportWorkflow.css";
 
 import {
   listRegressionAuxiliaryReports,
@@ -15,6 +17,7 @@ import {
   getIntelligentRegressionRepeatInfo,
   cancelIntelligentRegression,
   type RegressionResult,
+  type FactReport,
   validateRegressionAuxiliaryReports,
   type RegressionAuxiliaryReportOption,
 } from "./factReportsApi";
@@ -23,15 +26,52 @@ function label(item: RegressionAuxiliaryReportOption) {
   return `${item.product_version} · ${item.test_group} · #${item.id}`;
 }
 
+const regressionErrorKey = (reportId: number) =>
+  `v030-regression-error:${reportId}`;
+
+function readRegressionError(reportId: number): string {
+  try {
+    const saved = JSON.parse(
+      sessionStorage.getItem(regressionErrorKey(reportId)) ?? "null",
+    ) as { message?: unknown; createdAt?: unknown } | null;
+    if (
+      saved &&
+      typeof saved.message === "string" &&
+      typeof saved.createdAt === "number" &&
+      Date.now() - saved.createdAt < 7 * 24 * 60 * 60 * 1000
+    )
+      return saved.message;
+    sessionStorage.removeItem(regressionErrorKey(reportId));
+  } catch {
+    /* session storage is optional */
+  }
+  return "";
+}
+
+function saveRegressionError(reportId: number, message: string) {
+  try {
+    sessionStorage.setItem(
+      regressionErrorKey(reportId),
+      JSON.stringify({ message, createdAt: Date.now() }),
+    );
+  } catch {
+    /* session storage is optional */
+  }
+}
+
 /** Saved final-report inputs and the explicit, cancellable regression generation action. */
 export function V030AuxiliaryReportSelector({
   reportId,
   groupId,
   analysisStatus,
+  mainReport,
+  onViewMain,
 }: {
   reportId: number | null;
   groupId?: number;
   analysisStatus?: string;
+  mainReport?: FactReport | null;
+  onViewMain?: () => void;
 }) {
   const [options, setOptions] = useState<RegressionAuxiliaryReportOption[]>([]);
   const [selected, setSelected] = useState<RegressionAuxiliaryReportOption[]>(
@@ -44,12 +84,18 @@ export function V030AuxiliaryReportSelector({
   const [error, setError] = useState("");
   const [invalid, setInvalid] = useState(false);
   const [message, setMessage] = useState("");
+  const [sourcePreview, setSourcePreview] = useState<number | null>(null);
   const [result, setResult] = useState<RegressionResult | null>(null);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [currentError, setCurrentError] = useState("");
   const [repeat, setRepeat] = useState<{
     ids: number[];
     activeId: string | null;
+    resumeAvailable: boolean;
+    completedModules: string[];
+    totalModules: number;
+    completedBatches: number;
+    totalBatches: number;
   } | null>(null);
   const [checking, setChecking] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -70,6 +116,32 @@ export function V030AuxiliaryReportSelector({
   const [stopping, setStopping] = useState(false);
   const [invalidReportId, setInvalidReportId] = useState<number | null>(null);
   useEffect(() => {
+    if (reportId !== null) {
+      setGenerationError(readRegressionError(reportId));
+    } else {
+      setGenerationError("");
+    }
+  }, [reportId]);
+  useEffect(() => {
+    const onRegressionFailure = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ reportId?: number; message?: string }>
+      ).detail;
+      if (detail?.reportId === reportId && typeof detail.message === "string") {
+        setGenerationError(detail.message);
+      }
+    };
+    window.addEventListener(
+      "v030-intelligent-regression-failed",
+      onRegressionFailure,
+    );
+    return () =>
+      window.removeEventListener(
+        "v030-intelligent-regression-failed",
+        onRegressionFailure,
+      );
+  }, [reportId]);
+  useEffect(() => {
     if (analysisStatus === undefined) return;
     let current = true;
     const refresh = async () => {
@@ -81,12 +153,12 @@ export function V030AuxiliaryReportSelector({
         if (!current) return;
         setActiveCall(active);
         setGate(
-          !state.enabled
-            ? "请先开启 AI"
-            : !state.can_enable
-              ? state.reason || "请先验证 AI 配置"
-              : active
-                ? "当前有功能正在占用 AI，请稍后再试。"
+          active
+            ? "当前有功能正在运行，请稍后再试。"
+            : !state.enabled
+              ? "请先开启全局 AI"
+              : !state.can_enable
+                ? "请先完成 AI 配置并通过连接测试"
                 : "",
         );
       } catch {
@@ -134,7 +206,7 @@ export function V030AuxiliaryReportSelector({
       : analysisStatus !== "completed"
         ? "请先完成报告 AI 总体分析"
         : gate;
-  const execute = async (ids: number[], force: boolean) => {
+  const execute = async (ids: number[], force: boolean, resume = false) => {
     if (reportId === null || lock.current || !mounted.current) return;
     lock.current = true;
     setRunning(true);
@@ -142,19 +214,46 @@ export function V030AuxiliaryReportSelector({
     setInvalidReportId(null);
     setGenerationError("");
     try {
+      sessionStorage.removeItem(regressionErrorKey(reportId));
+    } catch {
+      /* session storage is optional */
+    }
+    try {
       const generated = await generateIntelligentRegression(
         reportId,
         ids,
         force,
+        resume,
       );
       if (mounted.current) {
         ++readEpoch.current;
         setResult(generated);
       }
+      try {
+        sessionStorage.removeItem(regressionErrorKey(reportId));
+      } catch {
+        /* session storage is optional */
+      }
     } catch (caught) {
-      if (!mounted.current) return;
       const detail =
         caught instanceof Error ? caught.message : "智能回归生成失败";
+      // A lost response may follow a successful commit. Read the current result;
+      // failed or cancelled runs leave the previous effective result untouched.
+      if (reportId !== null) {
+        try {
+          const saved = await getCurrentIntelligentRegression(groupId, reportId);
+          if (mounted.current && saved.result) setResult(saved.result);
+        } catch {
+          /* Preserve the original request error when current-result recovery is unavailable. */
+        }
+        saveRegressionError(reportId, detail);
+      }
+      window.dispatchEvent(
+        new CustomEvent("v030-intelligent-regression-failed", {
+          detail: { reportId, message: detail },
+        }),
+      );
+      if (!mounted.current) return;
       setGenerationError(detail);
       const match = detail.match(/报告 #(\d+)/);
       if (match && ids.includes(Number(match[1])))
@@ -167,8 +266,8 @@ export function V030AuxiliaryReportSelector({
       }
     }
   };
-  const start = (ids: number[], force: boolean) => {
-    const task = execute(ids, force);
+  const start = (ids: number[], force: boolean, resume = false) => {
+    const task = execute(ids, force, resume);
     generationPromise.current = task;
     void task.finally(() => {
       if (generationPromise.current === task) generationPromise.current = null;
@@ -192,9 +291,21 @@ export function V030AuxiliaryReportSelector({
       if (!mounted.current) return;
       if (info.occupied_other)
         setGenerationError("当前有功能正在占用 AI，请稍后再试。");
-      else if (info.same_input || info.running_same_operation) {
-        setRepeat({ ids, activeId: info.active_invocation_id });
-      } else void start(ids, false);
+      else if (
+        info.same_input ||
+        info.running_same_operation ||
+        info.resume_available
+      ) {
+        setRepeat({
+          ids,
+          activeId: info.active_invocation_id,
+          resumeAvailable: info.resume_available,
+          completedModules: info.completed_modules,
+          totalModules: info.total_modules,
+          completedBatches: info.completed_batches,
+          totalBatches: info.total_batches,
+        });
+      } else void start(ids, false, false);
     } catch (caught) {
       const detail =
         caught instanceof Error ? caught.message : "重复执行检查失败";
@@ -206,7 +317,8 @@ export function V030AuxiliaryReportSelector({
       if (mounted.current) setChecking(false);
     }
   };
-  const confirmRepeat = async () => {
+
+  const confirmRepeat = async (resume = false) => {
     if (!repeat || restarting) return;
     const choice = repeat;
     setRepeat(null);
@@ -226,12 +338,10 @@ export function V030AuxiliaryReportSelector({
           throw new Error("原调用尚未停止，请稍后重试");
         if (local) await local;
       }
-      if (mounted.current) await start(choice.ids, true);
+      if (mounted.current) await start(choice.ids, true, resume);
     } catch (caught) {
       if (mounted.current)
-        setGenerationError(
-          caught instanceof Error ? caught.message : "重新执行失败",
-        );
+        setGenerationError(caught instanceof Error ? caught.message : "重新执行失败");
     } finally {
       if (mounted.current) setRestarting(false);
     }
@@ -302,42 +412,102 @@ export function V030AuxiliaryReportSelector({
     setKeyword("");
     setVersion("");
   };
-  const validate = async () => {
-    if (reportId === null) return;
-    setInvalid(false);
-    setMessage("");
-    try {
-      await validateRegressionAuxiliaryReports(
-        reportId,
-        selected.map((item) => item.id),
-      );
-      setMessage("辅助报告选择已通过服务端校验。");
-    } catch (caught) {
-      setInvalid(true);
-      setMessage(
-        caught instanceof Error
-          ? caught.message
-          : "辅助报告已经失效，请移除后重试",
-      );
+  // Validate when a selection changes; the generate endpoint independently revalidates.
+  useEffect(() => {
+    if (reportId === null || !selected.length) {
+      setInvalid(false);
+      setMessage("");
+      return;
     }
-  };
+    let live = true;
+    void validateRegressionAuxiliaryReports(
+      reportId,
+      selected.map((item) => item.id),
+    )
+      .then(() => {
+        if (live) {
+          setInvalid(false);
+          setMessage("");
+        }
+      })
+      .catch((error) => {
+        if (live) {
+          setInvalid(true);
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : "辅助报告已失效，请移除后重试",
+          );
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [reportId, selected]);
 
   return (
     <section
+      id={reportId === null ? undefined : `v030-regression-${reportId}`}
       className="prototype-report-source-picker v030-regression-selector"
-      aria-label="智能回归辅助报告"
+      aria-label="智能回归建议"
     >
+      <h3 className="v030-workflow-title">02 · 智能回归建议</h3>
+      {reportId !== null ? (
+        <div className="v030-main-report">
+          <div>
+            <strong>✓ 主报告（已自动选中）</strong>
+            <p>
+              最终测试报告 #{reportId}
+              {mainReport
+                ? ` · ${mainReport.snapshot.basic_information.product_version} · ${mainReport.snapshot.basic_information.test_group}`
+                : ""}
+            </p>
+            <p role="status">
+              {analysisStatus === "completed"
+                ? "AI 分析已完成，可生成回归建议"
+                : analysisStatus === "pending"
+                  ? "AI 分析进行中，完成后自动开放生成入口"
+                  : analysisStatus === "cancelled"
+                    ? "AI 分析已取消，请查看报告并重新执行"
+                    : analysisStatus === "failed"
+                      ? "AI 分析失败，请查看报告重试"
+                      : "请完成主报告 AI 总体分析"}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="v030-report-link"
+            onClick={() =>
+              onViewMain ? onViewMain() : setSourcePreview(reportId)
+            }
+          >
+            查看主报告 #{reportId}
+          </button>
+        </div>
+      ) : (
+        <p className="prototype-muted">
+          尚未生成主报告，请先在上方生成最终报告。
+        </p>
+      )}
       {reportId !== null && (
         <>
-          <h4>智能回归辅助报告（可选）</h4>
+          <h4>辅助报告（可选）</h4>
           <p className="prototype-muted">
-            当前报告 #{reportId}{" "}
-            自动作为主报告；其他版本的有效最终报告可按需加入，不会自动选择，也不会纳入当前报告统计。
+            仅用于本次智能回归建议。
+            {selected.length
+              ? "已选 " + selected.length + " 份辅助报告。"
+              : "辅助报告为可选项；未添加时，仅依据主报告生成回归建议。"}
           </p>
           <div className="v030-regression-tags">
             {selected.map((item) => (
               <span className="v030-regression-tag" key={item.id}>
-                {label(item)}
+                <button
+                  type="button"
+                  className="v030-report-link"
+                  onClick={() => setSourcePreview(item.id)}
+                >
+                  {label(item)}
+                </button>
                 <button
                   type="button"
                   aria-label={`移除辅助报告 #${item.id}`}
@@ -439,16 +609,6 @@ export function V030AuxiliaryReportSelector({
         </>
       )}
       <div className="v030-regression-actions">
-        {reportId !== null && (
-          <button
-            type="button"
-            className="prototype-secondary"
-            disabled={running || ownCall}
-            onClick={() => void validate()}
-          >
-            校验辅助报告选择
-          </button>
-        )}
         {analysisStatus !== undefined && (
           <>
             <button
@@ -483,7 +643,7 @@ export function V030AuxiliaryReportSelector({
               </button>
             )}
             {running || ownCall ? (
-              <p role="status">智能回归生成中…</p>
+              <p role="status">智能回归分析与用例生成中…</p>
             ) : (
               reason && <p className="prototype-muted">{reason}</p>
             )}
@@ -493,15 +653,30 @@ export function V030AuxiliaryReportSelector({
                 <p>
                   {repeat.activeId
                     ? "当前智能回归仍在运行。重新执行将先停止原调用并等待其结束。"
-                    : "前置条件相同，生成结果可能重复。"}{" "}
+                    : repeat.resumeAvailable
+                      ? `上次已完成 ${repeat.completedBatches}/${repeat.totalBatches} 个分析单元（涉及 ${repeat.completedModules.length}/${repeat.totalModules} 个模块）。继续时将复用已完成的 AI 分析结果并完成发布。`
+                      : "前置条件相同，生成结果可能重复。"}{" "}
                   新建议完整成功保存后才替换当前建议。
                 </p>
+                {repeat.resumeAvailable && !repeat.activeId && (
+                  <button
+                    type="button"
+                    className="prototype-primary"
+                    onClick={() => void confirmRepeat(true)}
+                  >
+                    继续完成发布
+                  </button>
+                )}
                 <button
                   type="button"
-                  className="prototype-primary"
-                  onClick={() => void confirmRepeat()}
+                  className={
+                    repeat.resumeAvailable
+                      ? "prototype-secondary"
+                      : "prototype-primary"
+                  }
+                  onClick={() => void confirmRepeat(false)}
                 >
-                  重新执行
+                  {repeat.activeId ? "停止后重新执行" : "重新生成全部"}
                 </button>
                 <button
                   type="button"
@@ -556,6 +731,12 @@ export function V030AuxiliaryReportSelector({
           </button>
         )}
       </div>
+      {sourcePreview !== null && (
+        <V030ReadOnlyReport
+          id={sourcePreview}
+          onClose={() => setSourcePreview(null)}
+        />
+      )}
       {currentError && <p role="alert">{currentError}</p>}
       {result && (
         <V030RegressionResult key={result.invocation_id} result={result} />

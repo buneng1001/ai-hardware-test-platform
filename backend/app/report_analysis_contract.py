@@ -6,9 +6,9 @@ from copy import deepcopy
 from app.fact_report_models import ProfessionalReportAnalysisOutput, ReportAnalysisItem, ReportAnalysisOutput
 from app.testing_analysis_knowledge import TEST_ANALYSIS_KNOWLEDGE
 
-REPORT_PROMPT_VERSION = "report-analysis-v4"
-BATCH_PROMPT_VERSION = "report-analysis-batch-v4"
-REPAIR_PROMPT_VERSION = "report-analysis-repair-v4"
+REPORT_PROMPT_VERSION = "report-analysis-v5-regression-seeds"
+BATCH_PROMPT_VERSION = "report-analysis-batch-v5-regression-seeds"
+REPAIR_PROMPT_VERSION = "report-analysis-repair-v5-regression-seeds"
 OUTPUT_FIELDS = ["stage_recommendation", "test_directions", "regression_recommendations"]
 PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 DIMENSION_LABELS = {
@@ -58,6 +58,8 @@ def report_system_prompt(*, batch: bool = False, repair: bool = False) -> str:
         "已知模拟局限或覆盖缺口时不得返回空方向；不要为填满分类制造风险。"
         "regression_recommendations 独立保留，只针对已有验证对象及变更影响；缺少变更信息时给条件式回归建议，"
         "确实不能判断可返回空数组并在阶段说明原因；新增测试覆盖不混作回归。"
+        "每条可展开的回归建议应尽量引用具体 module:N 或 record:N:M；若确实无法定位到具体模块/记录，"
+        "不得只用 stage_progress 作为唯一证据来伪装成模块级回归建议，应返回空数组并说明无法定位的原因。"
         "【证据与格式】每项 evidence_refs 使用 allowed_evidence_refs 中的真实标识；引用是推断依据，"
         "不意味着风险已发生。scope_overview、execution_context、product_profile、version_ai_context、source_catalog"
         "对应范围、执行方式、画像、版本说明和目录。module:N、record:N:M、cross_issue:N、history_report:N 对应事实。"

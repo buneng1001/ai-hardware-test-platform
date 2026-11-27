@@ -142,7 +142,9 @@ test("AI 分析失败时展示接口原因，并支持单独重试成功", async
   expect(
     within(dialog).getByText("优先人工复核失败与结果不一致项。"),
   ).toBeVisible();
-  expect(within(dialog).getByText(/证据：stage_progress/)).toBeVisible();
+  expect(
+    within(dialog).getByRole("link", { name: "stage_progress" }),
+  ).toHaveAttribute("href", "#rpt-overview");
   expect(
     callsOf(fetchMock).filter(
       ([input, init]) =>
@@ -198,6 +200,49 @@ test("报告 AI 正在执行时允许就地取消，并显示正在停止状态"
   expect(
     within(dialog).getByRole("heading", { name: "总体结论与通过率" }),
   ).toBeVisible();
+});
+
+test("关闭报告预览后工作区持续刷新，重新查看不会停留在旧状态", async () => {
+  const state = {
+    ...baseState(),
+    history: [reportHistoryItem(5)],
+    reports: {
+      5: factReport({
+        analysis: {
+          status: "pending",
+          message: "AI 分析正在运行",
+          output: null,
+        },
+      }),
+    },
+  };
+  const fetchMock = stubReportApi(state);
+  await openReportView();
+  fireEvent.click(await screen.findByRole("button", { name: "查看主报告 #5" }));
+  const dialog = await screen.findByRole("dialog", {
+    name: "报告 #5 HTML 预览",
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "关闭报告预览" }));
+  expect(
+    screen.queryByRole("dialog", { name: "报告 #5 HTML 预览" }),
+  ).toBeNull();
+  state.reports[5] = { ...state.reports[5], analysis: completedAnalysis() };
+  await waitFor(
+    () =>
+      expect(screen.getByText("AI 分析已完成，可生成回归建议")).toBeVisible(),
+    { timeout: 3500 },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "查看主报告 #5" }));
+  const reopened = await screen.findByRole("dialog", {
+    name: "报告 #5 HTML 预览",
+  });
+  expect(within(reopened).getByText("分析已完成")).toBeVisible();
+  expect(
+    callsOf(fetchMock).filter(
+      ([url, init]) =>
+        String(url).endsWith("/analysis/cancel") && init?.method === "POST",
+    ),
+  ).toHaveLength(0);
 });
 
 test("超过五分钟仍查询后端，收到终态立即停止查询", async () => {

@@ -1,0 +1,32 @@
+.v030-report-progress {
+  padding: 10px 12px;
+  border: 1px solid #c5dce9;
+  border-radius: 8px;
+  margin: 8px 0;
+  min-width: 0;
+}
+.v030-report-progress-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.v030-report-progress-heading strong {
+  color: #155d82;
+  font-size: 0.98rem;
+  font-weight: 750;
+}
+.v030-report-progress-heading span {
+  color: #31536d;
+  font-weight: 650;
+}
+.v030-report-progress progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--prototype-color-brand-strong);
+  margin: 8px 0;
+}
+.v030-report-progress p {
+  margin: 4px 0 0;
+}

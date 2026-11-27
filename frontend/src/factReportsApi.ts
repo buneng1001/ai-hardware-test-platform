@@ -129,6 +129,7 @@ export type FactReportIssue = {
 
 export type FactReport = {
   id: number;
+  project_id?: number;
   test_group_id: number;
   product_version_id: number;
   automation_execution_id: number | null;
@@ -200,6 +201,15 @@ export type ReportAnalysis = {
   elapsed_ms?: number | null;
   reused?: boolean;
   stopping?: boolean;
+  progress?: {
+    invocation_id: string;
+    status: string;
+    started_at: string;
+    phase: string;
+    completed_batches: number | null;
+    total_batches: number | null;
+    saved_units: number;
+  } | null;
 };
 
 export function listHistoricalFactReports(groupId: number) {
@@ -247,6 +257,7 @@ export type RegressionCandidate = {
   id: number;
   title: string;
   case_type: "manual" | "automation";
+  test_type: "回归测试";
   module: string;
   priority: "high" | "medium" | "low";
   test_item: string;
@@ -256,12 +267,45 @@ export type RegressionCandidate = {
   steps: string;
   expected_result: string;
   sources: RegressionEvidence[];
+  completion_status?: "ready" | "needs_details";
   source_findings: (RegressionEvidence & {
     product_version: string;
     finding: string;
   })[];
 };
+export type RegressionExistingCaseRecommendation = {
+  id: number;
+  case_number: string;
+  title: string;
+  module: string;
+  source: string;
+  status: string;
+  priority: "high" | "medium" | "low";
+  reason: string;
+  sources: RegressionEvidence[];
+  source_findings: (RegressionEvidence & {
+    product_version: string;
+    finding: string;
+  })[];
+};
+
+export type IntelligentRegressionProgress = {
+  invocation_id: string;
+  status: string;
+  started_at: string;
+  stopping: boolean;
+  phase: string;
+  current_batch_index: number;
+  completed_batches: number;
+  total_batches: number | null;
+  current_module: string | null;
+  stream_response_chars: number;
+  stream_event_count: number;
+  stream_last_chunk_at: string | null;
+};
 export type RegressionResult = {
+  schema_version: number;
+  generation_status: "complete_ai" | "legacy_incomplete";
   project_id: number;
   main_report_id: number;
   main_product_version_id: number;
@@ -275,15 +319,29 @@ export type RegressionResult = {
   generated_at: string;
   prompt_version: string;
   invocation_status: "completed";
-  overall_risk: RegressionExplanation;
+  analysis_sections: {
+    regression_necessity: RegressionExplanation;
+    impact_analysis: RegressionExplanation;
+    execution_strategy: RegressionExplanation;
+    execution_readiness: RegressionExplanation;
+  } | null;
   key_changes: RegressionExplanation | null;
-  regression_focus: RegressionExplanation;
+  review_notes: {
+    content: string;
+    source_findings: (RegressionEvidence & { product_version: string; finding: string })[];
+  }[];
+  deferred_targets: {
+    module: string;
+    title: string;
+    reason: string;
+    source_findings: (RegressionEvidence & { product_version: string; finding: string })[];
+  }[];
   summary: string;
   modules: string[];
+  existing_case_recommendations?: RegressionExistingCaseRecommendation[];
   candidate_count: number;
   candidates: RegressionCandidate[];
 };
-
 export function getCurrentIntelligentRegression(
   groupId: number | undefined,
   reportId: number | null,
@@ -298,6 +356,13 @@ export function getCurrentIntelligentRegression(
   );
 }
 
+export function getIntelligentRegressionProgress(reportId: number) {
+  return request<IntelligentRegressionProgress | null>(
+    `/api/fact-reports/${reportId}/intelligent-regression/progress`,
+    { cache: "no-store" },
+  );
+}
+
 export function getIntelligentRegressionRepeatInfo(
   reportId: number,
   reportIds: number[],
@@ -308,7 +373,12 @@ export function getIntelligentRegressionRepeatInfo(
     running_same_operation: boolean;
     occupied_other: boolean;
     active_invocation_id: string | null;
-  }>(`/api/fact-reports/${reportId}/intelligent-regression/repeat-info`, {
+    resume_available: boolean;
+    completed_batches: number;
+    total_batches: number;
+    completed_modules: string[];
+    total_modules: number;
+  }>("/api/fact-reports/" + reportId + "/intelligent-regression/repeat-info", {
     method: "POST",
     headers: jsonHeaders,
     body: JSON.stringify({ report_ids: reportIds }),
@@ -319,23 +389,25 @@ export function generateIntelligentRegression(
   reportId: number,
   reportIds: number[],
   force = false,
+  resume = false,
 ) {
+  const suffix = force ? "?force=true" : "";
   return request<RegressionResult>(
-    `/api/fact-reports/${reportId}/intelligent-regression${force ? "?force=true" : ""}`,
+    "/api/fact-reports/" + reportId + "/intelligent-regression" + suffix,
     {
       method: "POST",
       headers: jsonHeaders,
-      body: JSON.stringify({ report_ids: reportIds }),
+      body: JSON.stringify({ report_ids: reportIds, resume }),
     },
   );
 }
+
 export function cancelIntelligentRegression(reportId: number) {
   return request<{ stopping: boolean }>(
-    `/api/fact-reports/${reportId}/intelligent-regression/cancel`,
+    "/api/fact-reports/" + reportId + "/intelligent-regression/cancel",
     { method: "POST" },
   );
 }
-
 export function createFactReport(
   groupId: number,
   input: {

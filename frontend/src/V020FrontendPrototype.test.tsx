@@ -1,9 +1,11 @@
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
   within,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -245,6 +247,75 @@ test("AI 配置可从后端刷新服务商实时模型目录", async () => {
         api_key: "",
         network_mode: "auto",
       }),
+    }),
+  );
+});
+
+test("后台报告通知会打开所属项目报告预览并定位 AI 分析章节", async () => {
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView,
+  });
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+    window.setTimeout(() => callback(0), 0),
+  );
+  vi.stubGlobal("cancelAnimationFrame", (id: number) =>
+    window.clearTimeout(id),
+  );
+  render(<FrontendRoot />);
+
+  await act(async () => {
+    window.dispatchEvent(
+      new CustomEvent("v030-open-report-target", {
+        detail: { reportId: 5, target: "ai" },
+      }),
+    );
+  });
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "报告 #5 HTML 预览",
+  });
+  expect(dialog).toBeVisible();
+  expect(
+    within(dialog).getByRole("heading", { name: "AI 区域状态" }),
+  ).toBeVisible();
+  await waitFor(() =>
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "smooth",
+      block: "start",
+    }),
+  );
+});
+
+test("智能回归通知打开对应报告并定位智能回归建议区域", async () => {
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView,
+  });
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+    window.setTimeout(() => callback(0), 0),
+  );
+  vi.stubGlobal("cancelAnimationFrame", (id: number) =>
+    window.clearTimeout(id),
+  );
+  render(<FrontendRoot />);
+
+  await act(async () => {
+    window.dispatchEvent(
+      new CustomEvent("v030-open-report-target", {
+        detail: { reportId: 5, target: "regression" },
+      }),
+    );
+  });
+
+  const section = await screen.findByLabelText("智能回归建议");
+  expect(section).toHaveAttribute("id", "v030-regression-5");
+  await waitFor(() =>
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "smooth",
+      block: "start",
     }),
   );
 });

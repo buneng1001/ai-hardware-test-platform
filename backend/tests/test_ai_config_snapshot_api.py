@@ -190,7 +190,7 @@ def test_network_mode_auto_falls_back_only_for_connection_errors():
         mode = request["network_mode"]
         calls.append(mode)
         if mode == "system_proxy":
-            raise SiliconFlowError(ModelErrorKind.NETWORK, "代理连接失败", False)
+            raise SiliconFlowError(ModelErrorKind.PROXY, "代理连接失败", False)
         return 200, json.dumps({"data": [{"id": "deepseek-flash"}]})
 
     adapter = SiliconFlowAdapter(network_mode="auto", transport=transport, catalog_transport=transport)

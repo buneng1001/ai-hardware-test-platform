@@ -38,8 +38,8 @@ class HistoricalReportOptions(BaseModel):
 
 class RegressionAuxiliarySelection(BaseModel):
     report_ids: list[int] = Field(default_factory=list, max_length=100)
-
-
+    # Resume is a technical recovery choice after an interrupted/failed AI run.
+    resume: bool = False
 class RegressionAuxiliaryReportOption(BaseModel):
     id: int
     product_version: str
@@ -115,10 +115,12 @@ class ReportAnalysis(BaseModel):
     elapsed_ms: int | None = None
     reused: bool = False
     stopping: bool = False
+    progress: dict[str, object] | None = None
 
 
 class FactReport(BaseModel):
     id: int
+    project_id: int
     test_group_id: int
     product_version_id: int
     automation_execution_id: int | None

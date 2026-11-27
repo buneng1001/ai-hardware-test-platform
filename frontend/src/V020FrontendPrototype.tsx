@@ -12,6 +12,8 @@ import { PrototypeWorkspaceShell } from "./V020PrototypeShell";
 import { WorkspaceContent } from "./V020PrototypeWorkspace";
 import { V020ProjectsScreen } from "./V020ProjectsScreen";
 import { useV020ProjectWorkspace } from "./useV020ProjectWorkspace";
+import { V030ReportTaskMonitor } from "./V030ReportTaskMonitor";
+import { getFactReport } from "./factReportsApi";
 
 const NAV_STORAGE_KEY = "iris-test-v020-navigation";
 const SECTION_KEYS: SectionKey[] = [
@@ -70,6 +72,13 @@ function storeNavigation(state: StoredNavigation) {
 export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
   const restored = useRef(readStoredNavigation());
   const projectWorkspace = useV020ProjectWorkspace();
+  const projectWorkspaceRef = useRef(projectWorkspace);
+  projectWorkspaceRef.current = projectWorkspace;
+  const [reportFocus, setReportFocus] = useState<{
+    reportId: number;
+    groupId: number;
+    target: "ai" | "regression";
+  } | null>(null);
   const [screen, setScreen] = useState<ScreenKey>(restored.current.screen);
   const [section, setSection] = useState<SectionKey>(restored.current.section);
   const [caseView, setCaseView] = useState<CaseView>("requirements");
@@ -96,6 +105,58 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
       projectId: projectWorkspace.detail?.id ?? null,
     });
   }, [screen, section, projectWorkspace.detail]);
+
+  useEffect(() => {
+    const openReportTarget = async (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ reportId: number; target: "ai" | "regression" }>
+      ).detail;
+      if (!detail || !Number.isInteger(detail.reportId) || detail.reportId <= 0)
+        return;
+      try {
+        const report = await getFactReport(detail.reportId);
+        if (typeof report.project_id !== "number")
+          throw new Error("报告缺少所属项目");
+        const opened = await projectWorkspaceRef.current.openProjectVersion(
+          report.project_id,
+          report.product_version_id,
+        );
+        if (!opened) throw new Error("报告所属产品版本不可用");
+        setReportFocus({
+          reportId: report.id,
+          groupId: report.test_group_id,
+          target: detail.target,
+        });
+        setSection("results");
+        setScreen("workspace");
+      } catch (error) {
+        window.dispatchEvent(
+          new CustomEvent("v030-report-navigation-error", {
+            detail: {
+              reportId: detail.reportId,
+              message: error instanceof Error ? error.message : "报告打开失败",
+            },
+          }),
+        );
+      }
+    };
+    const clearReportFocus = (event: Event) => {
+      const reportId = (event as CustomEvent<{ reportId: number }>).detail
+        ?.reportId;
+      setReportFocus((current) =>
+        current?.reportId === reportId ? null : current,
+      );
+    };
+    window.addEventListener("v030-open-report-target", openReportTarget);
+    window.addEventListener("v030-report-focus-consumed", clearReportFocus);
+    return () => {
+      window.removeEventListener("v030-open-report-target", openReportTarget);
+      window.removeEventListener(
+        "v030-report-focus-consumed",
+        clearReportFocus,
+      );
+    };
+  }, []);
 
   const openProjects = () => {
     // 进入项目列表时清空上一次的搜索条件，避免筛选状态跨页面残留。
@@ -155,6 +216,7 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
           caseView={caseView}
           setCaseView={setCaseView}
           onNavigate={onNavigate}
+          reportFocus={reportFocus}
           onOpenManual={(group) => {
             setManualGroup(group);
             setScreen("manual");
@@ -173,6 +235,7 @@ export function V020FrontendPrototype({ onNavigate }: PrototypeProps) {
       >
         {renderScreen()}
       </div>
+      <V030ReportTaskMonitor />
     </div>
   );
 }

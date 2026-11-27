@@ -65,7 +65,7 @@ def estimate_tokens(text: str) -> int:
     return max(1, math.ceil(len(text) / 4))
 
 
-def preflight_budget(text: str, config: BatchConfig) -> None:
+def preflight_budget(text: str, config: BatchConfig, *, stage: str = "report_analysis") -> None:
     """提示词 + 预留输出超过安全预算时立即拒绝，不发出请求。"""
     needed = estimate_tokens(text) + config.output_reserve_tokens
     if needed > config.context_token_limit:
@@ -73,7 +73,7 @@ def preflight_budget(text: str, config: BatchConfig) -> None:
             ModelErrorKind.INVALID_REQUEST,
             f"输入超出模型上下文预算（约 {needed} Token，上限 {config.context_token_limit}），请缩小单批范围或更换模型",
             False,
-            stage="report_analysis",
+            stage=stage,
             action="缩小单批模块/记录范围或更换更大上下文模型",
         )
 
@@ -112,20 +112,29 @@ def semantic_batches(analysis_input: dict[str, Any], config: BatchConfig) -> lis
         return [empty]
     batches: list[dict[str, Any]] = []
     current: list[dict[str, Any]] = []
+
+    def flush_current() -> None:
+        if current:
+            batches.append(
+                {
+                    "modules": list(current),
+                    "stage_progress": analysis_input.get("stage_progress"),
+                    **context,
+                }
+            )
+            current.clear()
+
     for module in modules:
+        module_identity = (module.get("ref"), module.get("name"))
         for part in _module_batches(module, config):
+            # Never put two chunks of the same module into one batch: the module
+            # analysis contract requires exactly one analysis per module per call.
+            if any((item.get("ref"), item.get("name")) == module_identity for item in current):
+                flush_current()
             current.append(part["modules"][0])
             if len(current) >= config.modules_per_batch:
-                batches.append(
-                    {
-                        "modules": current,
-                        "stage_progress": analysis_input.get("stage_progress"),
-                        **context,
-                    }
-                )
-                current = []
-    if current:
-        batches.append({"modules": current, "stage_progress": analysis_input.get("stage_progress"), **context})
+                flush_current()
+    flush_current()
     for batch in batches:
         batch["key"] = _batch_key(batch)
         batch["refs"] = _refs_for(batch)

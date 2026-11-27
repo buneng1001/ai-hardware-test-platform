@@ -6,6 +6,7 @@ import socket
 import ssl
 from collections.abc import Callable
 from enum import StrEnum
+from http.client import RemoteDisconnected
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import ProxyHandler, Request, build_opener
@@ -31,11 +32,12 @@ class ModelErrorKind(StrEnum):
 
 
 ERROR_ACTIONS = {
+    ModelErrorKind.NETWORK: "模型响应连接中断；检查网络与代理后再重试，本次不会自动重放以避免重复调用",
+    ModelErrorKind.CONNECTION: "模型连接失败；检查网络连通性后重试",
     ModelErrorKind.DNS: "检查 DNS、网络或 Endpoint 配置后重试",
     ModelErrorKind.TLS: "检查证书、代理或系统时间后重试",
     ModelErrorKind.PROXY: "检查系统代理设置，或切换到直连后重试",
-    ModelErrorKind.CONNECTION: "检查网络连通性后重试",
-    ModelErrorKind.TIMEOUT: "检查网络或缩小请求范围后重试",
+    ModelErrorKind.TIMEOUT: "请求可能已到达服务商，本次不会自动重放以避免重复调用；检查网络或缩小请求范围后再手动重试",
     ModelErrorKind.AUTHENTICATION: "检查 API Key 和账户状态后重新测试",
     ModelErrorKind.PERMISSION: "确认账户和模型访问权限",
     ModelErrorKind.INVALID_MODEL: "从最新模型目录重新选择模型",
@@ -154,7 +156,7 @@ PROVIDER_MODEL_ENDPOINTS = {
     "kimi": "https://api.moonshot.cn/v1/models",
 }
 
-CONNECTION_ERROR_KINDS = {ModelErrorKind.NETWORK, ModelErrorKind.TIMEOUT}
+CONNECTION_ERROR_KINDS = {ModelErrorKind.CONNECTION, ModelErrorKind.DNS, ModelErrorKind.TLS, ModelErrorKind.PROXY}
 
 
 def _open_url(request: Request, timeout: float, network_mode: str):
@@ -164,6 +166,10 @@ def _open_url(request: Request, timeout: float, network_mode: str):
 
 
 def _network_error_kind(reason: object) -> ModelErrorKind:
+    # A peer that disconnects after request dispatch may already have processed it.
+    # Keep this distinct from safe pre-request connection failures.
+    if isinstance(reason, RemoteDisconnected | ConnectionResetError):
+        return ModelErrorKind.NETWORK
     if isinstance(reason, socket.gaierror):
         return ModelErrorKind.DNS
     if isinstance(reason, ssl.SSLError):
@@ -174,6 +180,118 @@ def _network_error_kind(reason: object) -> ModelErrorKind:
     return ModelErrorKind.CONNECTION
 
 
+def _read_sse_response(response, on_progress: Callable[[int, int], None] | None = None) -> str:
+    """Collect SSE deltas and report received output without exposing partial JSON."""
+    content_parts: list[str] = []
+    finish_reason = None
+    token_usage = None
+    saw_done = False
+    event_count = 0
+
+    def partial_size() -> int:
+        return sum(len(part) for part in content_parts)
+
+    def notify_progress() -> None:
+        if on_progress is not None:
+            try:
+                on_progress(partial_size(), event_count)
+            except Exception:
+                # Progress telemetry must never interrupt a billable model response.
+                pass
+
+    try:
+        for raw_line in response:
+            line = raw_line.decode("utf-8").strip() if isinstance(raw_line, bytes) else str(raw_line).strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if not data:
+                continue
+            if data == "[DONE]":
+                saw_done = True
+                break
+            try:
+                event = json.loads(data)
+            except json.JSONDecodeError as error:
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型流式响应格式无效",
+                    False,
+                    diagnostic="JSONDecodeError",
+                    response_chars=partial_size(),
+                ) from error
+            if not isinstance(event, dict):
+                continue
+            event_count += 1
+            usage = event.get("usage")
+            if isinstance(usage, dict):
+                token_usage = usage
+            choices = event.get("choices")
+            if not isinstance(choices, list):
+                notify_progress()
+                continue
+            for choice in choices:
+                if not isinstance(choice, dict):
+                    continue
+                delta = choice.get("delta")
+                if isinstance(delta, dict):
+                    content = delta.get("content")
+                    if isinstance(content, str):
+                        content_parts.append(content)
+                if choice.get("finish_reason") is not None:
+                    finish_reason = choice["finish_reason"]
+            notify_progress()
+    except TimeoutError as error:
+        raise SiliconFlowError(
+            ModelErrorKind.TIMEOUT,
+            "模型流式响应读取超时",
+            False,
+            diagnostic=type(error).__name__,
+            response_chars=partial_size(),
+            token_usage=token_usage,
+        ) from error
+    except OSError as error:
+        raise SiliconFlowError(
+            ModelErrorKind.NETWORK,
+            "模型流式响应传输中断",
+            False,
+            diagnostic=type(error).__name__,
+            response_chars=partial_size(),
+            token_usage=token_usage,
+        ) from error
+    except UnicodeError as error:
+        raise SiliconFlowError(
+            ModelErrorKind.INVALID_RESPONSE,
+            "模型流式响应编码无效",
+            False,
+            diagnostic=type(error).__name__,
+            response_chars=partial_size(),
+            token_usage=token_usage,
+        ) from error
+
+    if not saw_done and finish_reason is None:
+        raise SiliconFlowError(
+            ModelErrorKind.NETWORK,
+            "模型流式响应未完整结束",
+            False,
+            diagnostic="IncompleteStream",
+            response_chars=partial_size(),
+            token_usage=token_usage,
+        )
+
+    result = {
+        "choices": [
+            {
+                "message": {"content": "".join(content_parts)},
+                "finish_reason": finish_reason,
+            }
+        ]
+    }
+    if token_usage is not None:
+        result["usage"] = token_usage
+    return json.dumps(result, ensure_ascii=False)
+
+
 def _default_transport(request_data: dict[str, object]) -> tuple[int, str]:
     request = Request(
         str(request_data["endpoint"]),
@@ -181,27 +299,36 @@ def _default_transport(request_data: dict[str, object]) -> tuple[int, str]:
         headers={
             "Authorization": f"Bearer {request_data['api_key']}",
             "Content-Type": "application/json",
+            "Accept": "text/event-stream" if request_data["body"].get("stream") else "application/json",
         },
         method="POST",
     )
     timeout = float(request_data.get("timeout", configured_timeout("business")))
     try:
         with _open_url(request, timeout, str(request_data.get("network_mode", "auto"))) as response:
-            return response.status, response.read().decode("utf-8")
+            body = request_data["body"]
+            text = (
+                _read_sse_response(response, request_data.get("on_stream_progress"))
+                if body.get("stream")
+                else response.read().decode("utf-8")
+            )
+            return response.status, text
     except HTTPError as error:
         return error.code, error.read().decode("utf-8", errors="replace")
     except TimeoutError as error:
         raise SiliconFlowError(
             ModelErrorKind.TIMEOUT,
             f"模型请求超时（业务请求层，{timeout:g} 秒）",
-            True,
+            False,
             stage="business",
         ) from error
     except URLError as error:
         is_timeout = isinstance(error.reason, TimeoutError | socket.timeout)
         kind = ModelErrorKind.TIMEOUT if is_timeout else _network_error_kind(error.reason)
         message = f"模型请求超时（业务请求层，{timeout:g} 秒）" if is_timeout else f"模型网络请求失败（{kind}）"
-        raise SiliconFlowError(kind, message, is_timeout, stage="business") from error
+        # A POST may have reached the provider before a timeout/disconnect.
+        # Do not replay an ambiguous request automatically.
+        raise SiliconFlowError(kind, message, False, stage="business") from error
 
 
 def _default_catalog_transport(request_data: dict[str, object]) -> tuple[int, str]:

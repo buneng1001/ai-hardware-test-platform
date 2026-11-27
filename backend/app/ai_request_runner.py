@@ -1,8 +1,10 @@
 """模型请求统一执行：分层超时、有限重试、脱敏请求日志。"""
 
 import json
+import logging
 import time
 from collections.abc import Callable
+from http.client import HTTPException as HTTPTransportError
 
 from app.ai_provider_core import (
     CONNECTION_ERROR_KINDS,
@@ -26,6 +28,29 @@ class RequestRunner:
                 if index > 0:
                     self.network_diagnostics.append(f"自动网络回退：系统代理失败，已改用直连（{last_error}）")
                 return result
+            except TimeoutError as error:
+                raise SiliconFlowError(
+                    ModelErrorKind.TIMEOUT,
+                    "模型响应读取超时",
+                    False,
+                    diagnostic=type(error).__name__,
+                ) from error
+            except (OSError, HTTPTransportError) as error:
+                # A dropped response may have consumed a provider request.
+                # Do not blindly replay it; retain a sanitized failure log.
+                raise SiliconFlowError(
+                    ModelErrorKind.NETWORK,
+                    "模型响应传输中断",
+                    False,
+                    diagnostic=type(error).__name__,
+                ) from error
+            except UnicodeError as error:
+                raise SiliconFlowError(
+                    ModelErrorKind.INVALID_RESPONSE,
+                    "模型响应编码无效",
+                    False,
+                    diagnostic=type(error).__name__,
+                ) from error
             except SiliconFlowError as error:
                 if error.kind not in CONNECTION_ERROR_KINDS or index == len(modes) - 1:
                     raise
@@ -72,12 +97,24 @@ class RequestRunner:
                 "attempt": attempt + 1,
                 "http_status": status,
                 "finish_reason": finish_reason,
-                "response_chars": len(text) if text is not None else None,
-                "token_usage": token_usage,
+                "response_chars": len(text) if text is not None else error.response_chars if error else None,
+                "token_usage": token_usage or (error.token_usage if error else None),
                 "error_kind": str(error.kind) if error else None,
                 "error_stage": error.stage if error else None,
             }
         )
+        self.flush_request_logs()
+
+    def flush_request_logs(self) -> None:
+        """Persist safe metadata early; logging failure must not mask a model result."""
+        sink = getattr(self, "request_log_sink", None)
+        if sink is not None and self.request_logs:
+            try:
+                sink(self.request_logs)
+            except Exception as error:
+                logging.getLogger(__name__).warning("AI request metadata persistence failed: %s", type(error).__name__)
+            else:
+                self.request_logs.clear()
 
     def _execute(
         self,
@@ -88,7 +125,7 @@ class RequestRunner:
         model: str,
         parse: Callable[[str], object],
     ) -> object:
-        """统一最多一次重试、退避、调用上限和脱敏请求日志。"""
+        """按业务阶段控制重试，并统一调用上限、退避与脱敏请求日志。"""
         for attempt in range(2):
             if self._cancel_event():
                 raise SiliconFlowError(
@@ -156,7 +193,10 @@ class RequestRunner:
                     error=error,
                     attempt=attempt,
                 )
-                if not error.retryable or attempt >= 1:
+                # Regression synthesis is an expensive, user-triggered one-shot.
+                # A timeout/transport failure may have been processed remotely;
+                # never replay it automatically or silently double the wait/cost.
+                if not error.retryable or attempt >= 1 or stage.startswith("intelligent_regression"):
                     raise
                 if self._cancel_event():
                     raise
@@ -173,7 +213,7 @@ class RequestRunner:
                     network_mode=self.network_mode,
                     response_chars=len(text) if text is not None else None,
                     # 保留具体异常类型，避免把代码问题误认成模型输出格式问题。
-                    diagnostic=f"{type(error).__name__}: {error}",
+                    diagnostic=type(error).__name__,
                 )
                 self._record_request(
                     stage=stage,

@@ -38,6 +38,13 @@ def _source_case_snapshot(case: dict[str, object]) -> dict[str, str]:
         "title": str(case.get("title", "")),
         "module": str(case.get("module", "") or "未分类"),
         "test_item": str(case.get("test_item", "") or "未分类"),
+        "priority": str(case.get("priority", "") or ""),
+        "preconditions": str(case.get("preconditions", "") or ""),
+        "input": str(case.get("input", "") or ""),
+        "steps": str(case.get("steps", "") or ""),
+        "expected_result": str(case.get("expected_result", "") or ""),
+        "test_type": str(case.get("test_type", "") or ""),
+        "case_type": str(case.get("case_type", "") or ""),
     }
 
 
@@ -394,7 +401,13 @@ def _from_row(connection: sqlite3.Connection, row: sqlite3.Row) -> FactReport:
 
 
 def _get_report(connection: sqlite3.Connection, report_id: int) -> FactReport:
-    row = connection.execute("SELECT * FROM online_reports WHERE id = ?", (report_id,)).fetchone()
+    row = connection.execute(
+        """SELECT report.*, version.project_id AS project_id
+           FROM online_reports report
+           JOIN product_versions version ON version.id = report.product_version_id
+           WHERE report.id = ?""",
+        (report_id,),
+    ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="事实报告不存在")
     return _from_row(connection, row)

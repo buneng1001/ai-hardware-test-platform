@@ -205,7 +205,17 @@
 
 .prototype-report-ai-output small {
   margin-left: 6px;
-  color: var(--prototype-color-muted);
+  color: #3d556b;
+  font-weight: 600;
+}
+.prototype-report-module-records .prototype-report-case-number,
+.prototype-report-fact-grid .prototype-report-case-number {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #eaf4fb;
+  color: #075f91;
+  font-weight: 750;
 }
 
 /* AI 专业分析：保留报告原有视觉语言，以分层阅读取代重复列表。 */
@@ -325,8 +335,39 @@
 .v030-direction .v030-direction-evidence {
   display: block;
   margin: 0;
+  color: #36556d;
   font-size: 12px;
+  font-weight: 600;
   overflow-wrap: anywhere;
+}
+.v030-evidence-note {
+  color: #36556d !important;
+  font-weight: 600;
+}
+.v030-evidence-refs {
+  display: inline;
+  color: #36556d;
+}
+.v030-evidence-refs a,
+.v030-evidence-refs > span > span {
+  display: inline-block;
+  margin: 1px 2px;
+  padding: 0 5px;
+  border: 1px solid #bfdced;
+  border-radius: 4px;
+  background: #edf6fb;
+  color: #075f91;
+  font-weight: 700;
+  text-decoration: none;
+}
+.v030-evidence-refs a:hover {
+  color: #06466b;
+  background: #dceef8;
+  text-decoration: underline;
+}
+.v030-evidence-refs a:focus-visible {
+  outline: 2px solid #0c76ad;
+  outline-offset: 2px;
 }
 .v030-regression-list {
   padding-left: 20px;

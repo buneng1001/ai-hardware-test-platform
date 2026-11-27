@@ -47,3 +47,23 @@
 .prototype-report-toc a:hover {
   text-decoration: underline;
 }
+
+.prototype-report-ai-section.v030-report-ai-focus {
+  border-radius: 12px;
+  outline: 2px solid #83c9ff;
+  outline-offset: 8px;
+  background: linear-gradient(90deg, rgb(232 245 253 / 72%), transparent 72%);
+  transition:
+    background 180ms ease,
+    outline-color 180ms ease;
+  scroll-margin-top: 28px;
+}
+
+.prototype-report-module-records .prototype-report-case-number {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #eaf4fb;
+  color: #075f91;
+  font-weight: 750;
+}

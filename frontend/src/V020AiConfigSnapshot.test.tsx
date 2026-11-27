@@ -345,7 +345,13 @@ test("独立测试不同模型不能让未保存表单显示正式验证通过",
   expect(await screen.findByText(/连接成功：DeepSeek/)).toBeVisible();
   await waitFor(() =>
     expect(
-      fetchMock.mock.calls.filter(([url]) => url !== "/api/settings/ai/state"),
+      fetchMock.mock.calls.filter(
+        ([url]) =>
+          ![
+            "/api/settings/ai/state",
+            "/api/settings/ai/active-invocation",
+          ].includes(String(url)),
+      ),
     ).toHaveLength(3),
   );
   expect(screen.getByText(/验证状态：验证已失效/)).toBeVisible();

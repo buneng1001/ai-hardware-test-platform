@@ -94,12 +94,11 @@ test("T13 报告来源明确无、人工多批次、历史跨版本独立对照"
 
   fireEvent.click(within(manualDetails!).getByLabelText("选择人工批次 #1"));
   fireEvent.click(within(manualDetails!).getByLabelText("选择人工批次 #2"));
-  const historyDetails = screen
-    .getByText(/^历史最终报告（多选）/)
-    .closest("details");
-  expect(historyDetails).not.toBeNull();
-  fireEvent.click(within(historyDetails!).getByText(/^历史最终报告（多选）/));
-  fireEvent.click(within(historyDetails!).getByLabelText("选择历史报告 #7"));
+  fireEvent.click(
+    screen.getByRole("button", { name: "搜索 / 添加历史对照报告" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "选择历史报告 #7" }));
+  expect(screen.getByRole("button", { name: "移除历史报告 #7" })).toBeVisible();
 
   fireEvent.click(screen.getByRole("button", { name: "生成最终报告" }));
   const confirm = await screen.findByRole("dialog", {
@@ -184,7 +183,7 @@ test("合并后的来源卡片实时更新所选记录统计，所有来源均�
     }),
   ).toBeVisible();
   const generate = screen.getByRole("button", { name: "生成最终报告" });
-  const history = screen.getByText(/^历史最终报告（多选）/);
+  const history = screen.getByText("历史对照报告（可选）");
   for (const source of [autoCard, manualCard, history]) {
     expect(
       source.compareDocumentPosition(generate) &

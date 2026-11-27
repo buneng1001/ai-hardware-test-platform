@@ -7,6 +7,7 @@ import type {
 export function factReport(overrides: Partial<FactReport> = {}): FactReport {
   return {
     id: 5,
+    project_id: 1,
     test_group_id: 21,
     product_version_id: 11,
     automation_execution_id: 3,

@@ -1,9 +1,11 @@
 import json
 import time
+from http.client import RemoteDisconnected
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app import ai_provider_core
 from app import diagnosis as diagnosis_module
 from app.main import app
 from app.siliconflow import (
@@ -52,6 +54,62 @@ def enable_formal_ai(client, monkeypatch, *, provider="siliconflow", model="demo
     assert enabled.status_code == 200 and enabled.json()["enabled"], enabled.text
 
 
+def test_generate_json_classifies_invalid_inner_json_without_exposing_response_body():
+    content = '{"summary": "unterminated'
+    response = json.dumps({"choices": [{"message": {"content": content}, "finish_reason": "stop"}]})
+
+    adapter = SiliconFlowAdapter(transport=lambda _request: (200, response))
+
+    with pytest.raises(SiliconFlowError) as captured:
+        adapter.generate_json(
+            api_key="temporary-secret",
+            model="demo-model",
+            evidence_json="{}",
+            system_prompt="只返回 JSON",
+            stage="intelligent_regression_global",
+        )
+
+    error = captured.value
+    assert error.kind == ModelErrorKind.INVALID_RESPONSE
+    assert error.stage == "intelligent_regression_global"
+    assert error.diagnostic == "content_json_invalid"
+    assert error.response_chars == len(content)
+    assert content not in str(error)
+
+
+def test_generate_json_accepts_json_code_fence_with_case_insensitive_language_tag():
+    content = " " + chr(96) * 3 + 'JSON\n{"summary":"ok"}\n' + chr(96) * 3 + " "
+    response = json.dumps({"choices": [{"message": {"content": content}, "finish_reason": "stop"}]})
+    adapter = SiliconFlowAdapter(transport=lambda _request: (200, response))
+
+    result = adapter.generate_json(
+        api_key="temporary-secret",
+        model="demo-model",
+        evidence_json="{}",
+        system_prompt="只返回 JSON",
+        stage="intelligent_regression_global",
+    )
+
+    assert result == {"summary": "ok"}
+
+
+def test_generate_json_classifies_missing_message_as_invalid_response():
+    response = json.dumps({"choices": [{"finish_reason": "stop"}]})
+    adapter = SiliconFlowAdapter(transport=lambda _request: (200, response))
+
+    with pytest.raises(SiliconFlowError) as captured:
+        adapter.generate_json(
+            api_key="temporary-secret",
+            model="demo-model",
+            evidence_json="{}",
+            system_prompt="只返回 JSON",
+            stage="intelligent_regression_global",
+        )
+
+    assert captured.value.kind == ModelErrorKind.INVALID_RESPONSE
+    assert captured.value.diagnostic == "response_message_missing"
+
+
 def test_adapter_returns_structured_json_from_openai_compatible_response():
     def transport(_request):
         return 200, json.dumps({"choices": [{"message": {"content": '{"diagnosis_status":"completed"}'}}]})
@@ -70,6 +128,7 @@ def test_adapter_returns_structured_json_from_openai_compatible_response():
     [
         ("Qwen/Qwen3.8-27B", "report_analysis", True),
         ("Qwen/Qwen3.8-27B", "report_analysis_repair", True),
+        ("Qwen/Qwen3.8-27B", "intelligent_regression_module", False),
         ("Qwen/Qwen3.8-27B", "conversion", False),
         ("demo-model", "report_analysis", False),
     ],
@@ -94,6 +153,106 @@ def test_report_thinking_budget_is_scoped(model, stage, bounded):
         )
         == {}
     )
+
+
+def test_qwen_regression_request_streams_without_forcing_thinking():
+    def transport(request):
+        body = request["body"]
+        assert body["stream"] is True
+        assert body["max_tokens"] == 8192
+        assert "enable_thinking" not in body
+        assert "thinking_budget" not in body
+        return 200, json.dumps({"choices": [{"message": {"content": "{}"}}]})
+
+    assert (
+        SiliconFlowAdapter(transport=transport).generate_json(
+            api_key="temporary-secret",
+            model="Qwen/Qwen3.8-27B",
+            system_prompt="Return JSON",
+            evidence_json="{}",
+            stage="intelligent_regression_module",
+            stream=True,
+            max_output_tokens=8192,
+        )
+        == {}
+    )
+
+
+def test_default_transport_reassembles_sse_and_ignores_reasoning_content(monkeypatch):
+    class StreamResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def __iter__(self):
+            return iter(
+                [
+                    b'data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}\n',
+                    b'data: {"choices":[{"delta":{"content":"{"}}]}\n',
+                    b'data: {"choices":[{"delta":{"content":"}"}}]}\n',
+                    b'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n',
+                    b"data: [DONE]\n",
+                ]
+            )
+
+    monkeypatch.setattr(ai_provider_core, "_open_url", lambda *_args: StreamResponse())
+    adapter = SiliconFlowAdapter()
+    progress = []
+    result = adapter.generate_json(
+        api_key="temporary-secret",
+        model="Qwen/Qwen3.8-27B",
+        system_prompt="Return JSON",
+        evidence_json="{}",
+        stage="intelligent_regression_module",
+        stream=True,
+        max_output_tokens=8192,
+        on_stream_progress=lambda chars, events: progress.append((chars, events)),
+    )
+
+    assert result == {}
+    assert adapter.request_logs[-1]["response_chars"] is not None
+    assert progress[-1] == (2, 4)
+
+
+def test_stream_disconnect_preserves_partial_length_and_is_not_retried(monkeypatch):
+    class BrokenStreamResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def __iter__(self):
+            yield b'data: {"choices":[{"delta":{"content":"{"}}]}\n'
+            raise RemoteDisconnected("Remote end closed connection without response")
+
+    monkeypatch.setattr(ai_provider_core, "_open_url", lambda *_args: BrokenStreamResponse())
+    adapter = SiliconFlowAdapter()
+
+    progress = []
+    with pytest.raises(SiliconFlowError) as captured:
+        adapter.generate_json(
+            api_key="temporary-secret",
+            model="Qwen/Qwen3.8-27B",
+            system_prompt="Return JSON",
+            evidence_json="{}",
+            stage="intelligent_regression_module",
+            stream=True,
+            max_output_tokens=8192,
+            on_stream_progress=lambda chars, events: progress.append((chars, events)),
+        )
+
+    assert captured.value.kind == ModelErrorKind.NETWORK
+    assert captured.value.retryable is False
+    assert captured.value.response_chars > 0
+    assert progress[-1] == (1, 1)
+    assert adapter.call_count == 1
 
 
 def test_connection_check_accepts_normal_model_reply_without_diagnosis_schema():
@@ -176,6 +335,28 @@ def test_adapter_retries_retryable_errors_at_most_twice():
         )
 
     assert calls == 2
+
+
+def test_intelligent_regression_does_not_replay_retryable_model_failures():
+    calls = 0
+
+    def transport(_request):
+        nonlocal calls
+        calls += 1
+        return 503, "temporarily unavailable"
+
+    with pytest.raises(SiliconFlowError) as captured:
+        SiliconFlowAdapter(transport=transport, sleep=lambda _seconds: None).generate_json(
+            api_key="temporary-secret",
+            model="demo-model",
+            system_prompt="Return JSON",
+            evidence_json="{}",
+            stage="intelligent_regression",
+        )
+
+    assert captured.value.retryable is True
+    assert captured.value.attempts == 1
+    assert calls == 1
 
 
 def test_settings_api_exposes_configuration_state_without_key_or_mask(tmp_path, monkeypatch):

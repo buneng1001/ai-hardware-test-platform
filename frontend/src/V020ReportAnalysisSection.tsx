@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
+import { V030ReportProgress } from "./V030ReportProgress";
 import type { FactReport, ReportTestDirection } from "./factReportsApi";
 
 const statusLabels: Record<string, string> = {
@@ -142,14 +143,16 @@ export function V020ReportAnalysisSection({
       setWaited(0);
       return;
     }
-    const startedAt = Date.now();
+    const parsed = Date.parse(analysis.progress?.started_at ?? "");
+    const startedAt = Number.isFinite(parsed) ? parsed : Date.now();
+    setWaited(Math.max(0, Math.round((Date.now() - startedAt) / 1000)));
     const timer = setInterval(() => {
       const elapsed = Math.round((Date.now() - startedAt) / 1000);
       setWaited(elapsed);
       void refreshRef.current();
     }, 3000);
     return () => clearInterval(timer);
-  }, [analysis.status]);
+  }, [analysis.status, analysis.progress?.started_at]);
   return (
     <section
       aria-label="报告 AI 分析区域"
@@ -171,6 +174,7 @@ export function V020ReportAnalysisSection({
             : (statusLabels[analysis.status] ?? analysis.status)}
         </Status>
         <p role={failed ? "alert" : undefined}>{analysis.message}</p>
+        <V030ReportProgress progress={analysis.progress} />
         {analysis.status === "pending" && (
           <p className="prototype-muted">
             已等待 {waited} 秒，系统每 3 秒自动检查状态，直至任务结束。
@@ -179,6 +183,12 @@ export function V020ReportAnalysisSection({
               : waited > 300
                 ? " 当前等待时间较长，可请求停止，或继续等待结果。"
                 : " 可以关闭弹窗，稍后重新打开查看结果。"}
+          </p>
+        )}
+        {failed && analysis.error?.kind && (
+          <p className="prototype-muted">
+            错误类型：{analysis.error.kind}
+            {analysis.error.stage ? ` · ${analysis.error.stage}` : ""}
           </p>
         )}
         {failed && analysis.error?.action && (
@@ -415,6 +425,12 @@ function ProfessionalAnalysis({
       <section className="v030-analysis-block">
         <h3>03 下一阶段测试重点</h3>
         <p>{output.stage_recommendation.content}</p>
+        <small className="v030-evidence-note">
+          依据：
+          <EvidenceRefs
+            references={output.stage_recommendation.evidence_refs}
+          />
+        </small>
       </section>
       <section className="v030-analysis-block">
         <h3>04 AI 回归建议</h3>
@@ -425,13 +441,66 @@ function ProfessionalAnalysis({
             {output.regression_recommendations.map((item, index) => (
               <li key={index}>
                 <p>{item.content}</p>
-                <small>依据：{item.evidence_refs.join("、")}</small>
+                <small className="v030-evidence-note">
+                  依据：
+                  <EvidenceRefs references={item.evidence_refs} />
+                </small>
               </li>
             ))}
           </ul>
         )}
       </section>
     </div>
+  );
+}
+
+function evidenceTarget(reference: string): string | null {
+  if (reference === "execution_context" || reference === "product_profile")
+    return "rpt-basic";
+  if (reference === "stage_progress") return "rpt-overview";
+  if (reference === "scope_overview") return "rpt-modules";
+  const parts = reference.split(":");
+  if (parts[0] === "module" && parts.length === 2 && /^\d+$/.test(parts[1]))
+    return `rpt-module-${Number(parts[1])}`;
+  if (
+    parts[0] === "record" &&
+    parts.length === 3 &&
+    parts.slice(1).every((part) => /^\d+$/.test(part))
+  ) {
+    return `rpt-record-${Number(parts[1])}-${Number(parts[2])}`;
+  }
+  if (
+    parts[0] === "cross_issue" &&
+    parts.length === 2 &&
+    /^\d+$/.test(parts[1])
+  )
+    return `rpt-cross-issue-${Number(parts[1])}`;
+  if (
+    parts[0] === "history_report" &&
+    parts.length === 2 &&
+    /^\d+$/.test(parts[1])
+  )
+    return `rpt-history-report-${Number(parts[1])}`;
+  return null;
+}
+
+function EvidenceRefs({ references }: { references: string[] }) {
+  return (
+    <span className="v030-evidence-refs">
+      {references.map((reference, index) => {
+        const target = evidenceTarget(reference);
+        return (
+          <span key={`${reference}-${index}`}>
+            {index > 0 ? "、" : ""}
+            {target ? (
+              <a href={`#${target}`}>{reference}</a>
+            ) : (
+              <span>{reference}</span>
+            )}
+          </span>
+        );
+      })}
+    </span>
   );
 }
 
@@ -461,7 +530,8 @@ function DirectionItem({ item }: { item: ReportTestDirection }) {
         <dd>{item.direction}</dd>
       </dl>
       <small className="v030-direction-evidence">
-        依据：{item.evidence_refs.join("、")}
+        依据：
+        <EvidenceRefs references={item.evidence_refs} />
       </small>
     </details>
   );
@@ -484,7 +554,10 @@ function AnalysisItems({
           {items.map((item) => (
             <li key={item.content}>
               {item.content}
-              <small>（证据：{item.evidence_refs.join("、")}）</small>
+              <small className="v030-evidence-note">
+                （证据：
+                <EvidenceRefs references={item.evidence_refs} />）
+              </small>
             </li>
           ))}
         </ul>

@@ -137,6 +137,31 @@ def test_report_resume_and_restart_requires_explicit_choice(prepared, monkeypatc
     monkeypatch.setattr(report_analysis, "get_provider_adapter", lambda _: failed_adapter)
     first = client.post(url)
     assert first.status_code == 201 and first.json()["status"] == "failed", first.text
+    progress = client.get(f"/api/fact-reports/{report_id}").json()["analysis"]["progress"]
+    assert progress["status"] == "failed"
+    assert (progress["completed_batches"], progress["total_batches"]) == (1, 2)
+    # Simulate the pre-fix persisted lineage: the environment model differed
+    # from the formally selected model, although the provider used the latter.
+    monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-chat")
+    proposed = report_analysis.selected_snapshot_payload()
+    with open_database() as connection:
+        inputs, _, _ = report_analysis._report_analysis_input(connection, report_id)
+        canonical = report_analysis.run_fingerprint(
+            inputs, proposed, proposed["model"], report_analysis.BATCH_PROMPT_VERSION
+        )
+        legacy = report_analysis.run_fingerprint(
+            inputs, proposed, "deepseek-chat", report_analysis.BATCH_PROMPT_VERSION
+        )
+        run = connection.execute(
+            """SELECT invocation_id, input_fingerprint FROM ai_batch_runs
+               WHERE resource_id=? AND operation_type='report_analysis'""",
+            (report_id,),
+        ).fetchone()
+        assert run["input_fingerprint"] == canonical
+        assert canonical != legacy
+        connection.execute(
+            "UPDATE ai_batch_runs SET input_fingerprint=? WHERE invocation_id=?", (legacy, run["invocation_id"])
+        )
     info = client.get(f"{url}/repeat-info")
     assert info.status_code == 200 and info.json()["resume_available"] is True
     assert client.post(url).status_code == 409
@@ -155,6 +180,9 @@ def test_report_resume_and_restart_requires_explicit_choice(prepared, monkeypatc
     monkeypatch.setattr(report_analysis, "get_provider_adapter", lambda _: adapter)
     resumed = client.post(f"{url}?resume_choice=continue")
     assert resumed.status_code == 201 and resumed.json()["status"] == "completed", resumed.text
+    progress = client.get(f"/api/fact-reports/{report_id}").json()["analysis"]["progress"]
+    assert progress["status"] == "completed"
+    assert (progress["completed_batches"], progress["total_batches"]) == (2, 2)
     assert adapter.calls == 1
     with open_database() as connection:
         runs = connection.execute(

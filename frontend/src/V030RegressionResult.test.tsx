@@ -21,6 +21,7 @@ const makeCandidate = (
   title,
   module,
   case_type: type,
+  test_type: "回归测试",
   priority: "high",
   test_item: title,
   reason: "复核报告中已发现的异常",
@@ -39,33 +40,51 @@ const makeCandidate = (
   ],
 });
 
-const result = (invocationId = "run-1"): RegressionResult => ({
-  project_id: 1,
-  main_report_id: 20,
-  main_product_version_id: 3,
-  auxiliary_report_ids: [21],
-  input_fingerprint: "input",
-  ai_context_fingerprint: "context",
-  report_fingerprints: {},
-  invocation_id: invocationId,
-  config_fingerprint: "config",
-  is_mock: true,
-  generated_at: "2026-11-24T13:00:00Z",
-  prompt_version: "intelligent-regression-v1",
-  invocation_status: "completed",
-  overall_risk: { content: "风险", evidence_refs: [] },
-  key_changes: { content: "变化", evidence_refs: [] },
-  regression_focus: { content: "回归方向", evidence_refs: [] },
-  summary: "共 3 条候选",
-  modules: ["录像", "连接"],
-  candidate_count: 3,
-  candidates: [
-    makeCandidate(1, "录像启动", "录像", "manual", 20),
-    makeCandidate(2, "录像完整性", "录像", "automation", 21),
-    makeCandidate(3, "蓝牙连接", "连接", "manual", 99),
-  ],
-});
-afterEach(() => {
+const result = (invocationId = "run-1"): RegressionResult => {
+  const evidence = [{ report_id: 20, evidence_ref: "record:0:0" }];
+  const explanation = (content: string) => ({ content, evidence_refs: evidence });
+  return {
+    schema_version: 2,
+    generation_status: "complete_ai",
+    project_id: 1,
+    main_report_id: 20,
+    main_product_version_id: 3,
+    auxiliary_report_ids: [21],
+    input_fingerprint: "input",
+    ai_context_fingerprint: "context",
+    report_fingerprints: {},
+    invocation_id: invocationId,
+    config_fingerprint: "config",
+    is_mock: true,
+    generated_at: "2026-11-24T13:00:00Z",
+    prompt_version: "intelligent-regression-v9-full-ai-analysis",
+    invocation_status: "completed",
+    analysis_sections: {
+      regression_necessity: explanation("需要针对已发现问题开展定向回归。"),
+      impact_analysis: explanation("录像异常可能影响恢复后的文件完整性。"),
+      execution_strategy: explanation("先复测已有用例，再补充独立覆盖。"),
+      execution_readiness: explanation("执行前确认设备、版本、环境和数据。"),
+    },
+    key_changes: {
+      content: "辅助报告事实对照",
+      evidence_refs: [
+        { report_id: 20, evidence_ref: "record:0:0" },
+        { report_id: 21, evidence_ref: "record:0:0" },
+      ],
+    },
+    review_notes: [],
+    deferred_targets: [],
+    summary: "共 3 条候选",
+    modules: ["录像", "连接"],
+    existing_case_recommendations: [],
+    candidate_count: 3,
+    candidates: [
+      makeCandidate(1, "录像启动", "录像", "manual", 20),
+      makeCandidate(2, "录像完整性", "录像", "automation", 21),
+      makeCandidate(3, "蓝牙连接", "连接", "manual", 99),
+    ],
+  };
+};afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
@@ -84,7 +103,7 @@ const typeFilter = () =>
 test("T17 continuous table and intersection filters retain out-of-filter selection", () => {
   render(<V030RegressionResult result={result()} />);
   expect(screen.getAllByRole("table")).toHaveLength(1);
-  expect(screen.getAllByRole("columnheader")).toHaveLength(6);
+  expect(screen.getAllByRole("columnheader")).toHaveLength(7);
   expect(screen.getByText("建议总数 3 · 当前命中 3 · 已选 0")).toBeTruthy();
   fireEvent.click(checkbox("蓝牙连接"));
   expect(headerBox().indeterminate).toBe(true);

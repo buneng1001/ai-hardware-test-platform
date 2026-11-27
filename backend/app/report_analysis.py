@@ -1,9 +1,11 @@
 """事实报告的可选 AI 分析；只消费已保存快照，且不进入报告生成关键路径。"""
 
 import json
+import logging
 import os
 import sqlite3
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
@@ -46,6 +48,7 @@ from app.report_analysis_inputs import (
     build_mock_analysis,
     source_catalog_context,
 )
+from app.report_analysis_progress import report_progress, set_phase
 from app.settings import configured_api_key, current_settings, get_provider_adapter
 from app.siliconflow import ModelErrorKind, SiliconFlowError
 from app.structured_repair import RepairBudget, run_repair_ladder
@@ -115,6 +118,11 @@ def _from_row(row: sqlite3.Row) -> ReportAnalysis:
 
 
 def latest_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalysis:
+    analysis = _latest_analysis(connection, report_id)
+    return analysis.model_copy(update={"progress": report_progress(connection, report_id)})
+
+
+def _latest_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAnalysis:
     active = connection.execute(
         """SELECT cancel_requested_at FROM ai_active_invocation
            WHERE status = 'running' AND operation_type = 'report_analysis' AND resource_id = ?""",
@@ -128,6 +136,33 @@ def latest_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAna
             output=None,
             stopping=stopping,
         )
+    # A previous backend process may have exited mid-request. Recover the
+    # visible outcome from the durable batch run, not a stale report status.
+    interrupted = connection.execute(
+        """SELECT status, created_at FROM ai_batch_runs
+           WHERE operation_type = 'report_analysis' AND resource_id = ?
+           ORDER BY created_at DESC, rowid DESC LIMIT 1""",
+        (report_id,),
+    ).fetchone()
+    if interrupted is not None and interrupted["status"] == "interrupted":
+        previous = connection.execute(
+            """SELECT * FROM report_analysis_runs WHERE report_id = ? AND is_visible = 1
+               ORDER BY (status = 'completed' AND is_active = 1) DESC, id DESC LIMIT 1""",
+            (report_id,),
+        ).fetchone()
+        if previous is None or (
+            previous["status"] != "completed" and previous["created_at"] <= interrupted["created_at"]
+        ):
+            return ReportAnalysis(
+                status="failed",
+                message="报告 AI 分析意外中断，已保留有效检查点；请主动继续进行或重新运行",
+                output=None,
+                error={
+                    "kind": "interrupted",
+                    "stage": "report_analysis",
+                    "action": "检查可用检查点后选择继续进行或重新运行",
+                },
+            )
     # 初次报告创建期间 pending 可能先于全局租约入库，应优先展示待运行状态。
     pending = connection.execute(
         "SELECT * FROM report_analysis_runs WHERE report_id = ? AND status = 'pending' ORDER BY id DESC LIMIT 1",
@@ -137,7 +172,7 @@ def latest_analysis(connection: sqlite3.Connection, report_id: int) -> ReportAna
         return _from_row(pending)
     row = connection.execute(
         """SELECT * FROM report_analysis_runs WHERE report_id = ? AND is_visible = 1
-           ORDER BY is_active DESC, id DESC LIMIT 1""",
+           ORDER BY (status = 'completed' AND is_active = 1) DESC, id DESC LIMIT 1""",
         (report_id,),
     ).fetchone()
     return _from_row(row) if row else _not_enabled()
@@ -203,14 +238,21 @@ def _save(
     config_snapshot: dict[str, object] | None = None,
     overwrite_previous: bool = False,
 ) -> ReportAnalysis:
+    if lease is not None and output is not None:
+        set_phase(lease.invocation_id, "saving")
     snapshot = config_snapshot if config_snapshot is not None else selected_snapshot_payload()
     if lease is not None:
         connection.execute("BEGIN IMMEDIATE")
         lease.assert_can_commit(connection)
     fingerprint = run_fingerprint(analysis_input, snapshot, model, REPORT_PROMPT_VERSION)
-    # Only a fully validated output may replace the effective result.
-    # A failed/partial retry remains auditable without masking the previous success.
-    if output is not None:
+    # Preserve an effective successful analysis, never a stale failed/cancelled row.
+    previous_success = connection.execute(
+        """SELECT 1 FROM report_analysis_runs WHERE report_id = ?
+           AND status = 'completed' AND is_active = 1 AND is_visible = 1""",
+        (report_id,),
+    ).fetchone()
+    activate = output is not None or previous_success is None
+    if activate:
         connection.execute(
             "UPDATE report_analysis_runs SET is_active = 0 WHERE report_id = ?",
             (report_id,),
@@ -243,7 +285,7 @@ def _save(
             stage,
             elapsed_ms,
             reused_from_id,
-            int(output is not None),
+            int(activate),
         ),
     )
     if lease is not None:
@@ -272,6 +314,7 @@ def _generate_validated_output(
     lease: AiInvocationLease,
     repair_budget: RepairBudget,
     batch: bool = False,
+    progress: Callable[[str], None] | None = None,
 ) -> ReportAnalysisOutput:
     """首次输出与一次受约束修复使用同一 Schema、同一证据白名单。"""
     payload = evidence_payload(data, refs)
@@ -280,6 +323,8 @@ def _generate_validated_output(
     preflight_budget(prompt + evidence, config)
     if lease.cancel_requested():
         raise AiInvocationCancelled("报告 AI 分析已取消")
+    if progress is not None:
+        progress("model_request")
     raw = adapter.generate_json(
         api_key=api_key,
         model=model,
@@ -300,6 +345,8 @@ def _generate_validated_output(
             ensure_ascii=False,
         )
         preflight_budget(repair_system + repair_evidence, config)
+        if progress is not None:
+            progress("repair")
         fixed = adapter.generate_json(
             api_key=api_key,
             model=model,
@@ -316,6 +363,8 @@ def _generate_validated_output(
         repair_budget.remaining_calls,
         max(0, getattr(adapter, "max_calls", config.call_limit) - getattr(adapter, "call_count", 1)),
     )
+    if progress is not None:
+        progress("validation")
     output, _steps = run_repair_ladder(
         raw,
         validate=lambda value: validate_professional_output(value, refs),
@@ -360,6 +409,7 @@ def _run_batched_analysis(
             lease=lease,
             repair_budget=repair_budget,
             batch=True,
+            progress=lambda phase: set_phase(lease.invocation_id, phase),
         ).model_dump()
 
     def ensure_active() -> bool:
@@ -505,6 +555,8 @@ def _perform_analysis(
     started = time.monotonic()
     try:
         adapter = get_provider_adapter(provider)
+        if hasattr(adapter, "request_log_sink"):
+            adapter.request_log_sink = save_request_logs
         if hasattr(adapter, "network_mode"):
             adapter.network_mode = str(config_snapshot.get("network_mode", "auto"))
         config = batch_config()
@@ -535,9 +587,11 @@ def _perform_analysis(
                 config=config,
                 lease=lease,
                 repair_budget=RepairBudget(config.call_limit),
+                progress=lambda phase: set_phase(lease.invocation_id, phase),
             )
         if lease.cancel_requested():
             raise AiInvocationCancelled("报告 AI 分析已取消")
+        set_phase(lease.invocation_id, "aggregate_validation")
         if missing_simulation_analysis(output, analysis_input):
             raise SiliconFlowError(
                 ModelErrorKind.INVALID_RESPONSE,
@@ -549,10 +603,23 @@ def _perform_analysis(
             )
     except AiInvocationCancelled:
         raise
-    except (SiliconFlowError, ValidationError, ValueError) as error:
+    except (SiliconFlowError, ValidationError, ValueError, TimeoutError) as error:
         if lease.cancel_requested():
             raise AiInvocationCancelled("报告 AI 分析已取消") from error
-        if isinstance(error, SiliconFlowError):
+        if isinstance(error, TimeoutError):
+            failure = SiliconFlowError(
+                ModelErrorKind.TIMEOUT,
+                "模型调用超时",
+                False,
+                stage="report_analysis",
+                provider=provider,
+                model=model,
+                diagnostic=type(error).__name__,
+                action="检查网络与服务商状态后重试；为避免重复请求，本次不会自动重放",
+            )
+            detail = failure.to_dict()
+            message = "模型服务不可用"
+        elif isinstance(error, SiliconFlowError):
             detail = error.to_dict()
             message = "模型分析结构无效" if error.kind == ModelErrorKind.SCHEMA_VALIDATION else str(error)
         else:
@@ -592,18 +659,20 @@ def _perform_analysis(
         elapsed = int((time.monotonic() - started) * 1000)
         detail = SiliconFlowError(
             ModelErrorKind.TEMPORARY_SERVICE,
-            "模型服务不可用",
+            "报告分析发生未分类异常，不能确定为模型服务故障",
             False,
             stage="report_analysis",
             provider=provider,
             model=model,
+            diagnostic=type(error).__name__,
+            action="查看请求日志及分析阶段，确认故障原因后再重试",
         ).to_dict()
         return _save(
             connection,
             report_id,
             analysis_input,
             output=None,
-            error="模型服务不可用",
+            error="报告分析发生未分类异常，不能确定为模型服务故障",
             error_detail={
                 **detail,
                 "elapsed_ms": elapsed,
@@ -614,7 +683,12 @@ def _perform_analysis(
         )
     finally:
         if adapter is not None:
-            save_request_logs(getattr(adapter, "request_logs", []))
+            try:
+                save_request_logs(getattr(adapter, "request_logs", []))
+            except Exception as error:
+                logging.getLogger(__name__).warning(
+                    "Report request metadata persistence failed: %s", type(error).__name__
+                )
     return _save(
         connection,
         report_id,
@@ -634,6 +708,33 @@ def _resume_plan() -> dict[str, int]:
     }
 
 
+def _resume_for_config(
+    connection: sqlite3.Connection,
+    report_id: int,
+    analysis_input: dict[str, object],
+    proposed: dict[str, object],
+    configured_model: str,
+    is_mock: bool,
+) -> tuple[str, str | None, str]:
+    """Use the formal model for new runs; keep compatible legacy checkpoint lineage."""
+    model = configured_model if is_mock else str(proposed.get("model") or configured_model)
+    canonical = run_fingerprint(analysis_input, proposed, model, BATCH_PROMPT_VERSION)
+    legacy = run_fingerprint(analysis_input, proposed, configured_model, BATCH_PROMPT_VERSION)
+    config_fingerprint = str(proposed.get("fingerprint", ""))
+    latest = connection.execute(
+        """SELECT input_fingerprint FROM ai_batch_runs
+           WHERE operation_type = 'report_analysis' AND resource_id = ?
+             AND config_fingerprint = ? AND input_fingerprint IN (?, ?)
+           ORDER BY created_at DESC, rowid DESC LIMIT 1""",
+        (report_id, config_fingerprint, canonical, legacy),
+    ).fetchone()
+    candidate_fingerprint = latest["input_fingerprint"] if latest else canonical
+    candidate = resume_source(
+        "report_analysis", report_id, candidate_fingerprint, config_fingerprint, expected_plan=_resume_plan()
+    )
+    return canonical, candidate, candidate_fingerprint
+
+
 def run_analysis(
     connection: sqlite3.Connection,
     report_id: int,
@@ -648,13 +749,8 @@ def run_analysis(
         return _not_enabled()
     provider, model, api_key, is_mock = configuration
     proposed = selected_snapshot_payload()
-    model_fingerprint = run_fingerprint(analysis_input, proposed, model, BATCH_PROMPT_VERSION)
-    eligible = resume_source(
-        "report_analysis",
-        report_id,
-        model_fingerprint,
-        str(proposed.get("fingerprint", provider)),
-        expected_plan=_resume_plan(),
+    model_fingerprint, eligible, resume_fingerprint = _resume_for_config(
+        connection, report_id, analysis_input, proposed, model, is_mock
     )
     if eligible and resume_choice not in ("continue", "restart"):
         raise HTTPException(status_code=409, detail="存在有效检查点，请选择继续进行、重新运行或取消")
@@ -668,7 +764,7 @@ def run_analysis(
         project_id=project_id,
         resource_id=report_id,
         execution_mode="checkpointed_batch",
-        input_fingerprint=model_fingerprint,
+        input_fingerprint=resume_fingerprint if resumed_from else model_fingerprint,
         resumed_from_invocation_id=resumed_from,
     )
     config_snapshot = dict(lease.config_snapshot)
@@ -678,7 +774,10 @@ def run_analysis(
         api_key = configured_api_key(provider)
     outcome = "failed"
     try:
-        save_plan(lease.invocation_id, _resume_plan())
+        plan: dict[str, object] = dict(_resume_plan())
+        if not is_mock:
+            plan["report_batch_keys"] = [batch["key"] for batch in semantic_batches(analysis_input, batch_config())]
+        save_plan(lease.invocation_id, {**plan, "phase": "preparing"})
         result = _perform_analysis(
             connection,
             report_id,
@@ -725,20 +824,16 @@ def report_repeat_info(report_id: int) -> dict[str, object]:
                 "running_same_operation": False,
                 "occupied_other": False,
             }
-        _, model, _, _ = configuration
-        fingerprint = run_fingerprint(analysis_input, selected_snapshot_payload(), model, REPORT_PROMPT_VERSION)
+        _, model, _, is_mock = configuration
+        proposed = selected_snapshot_payload()
+        formal_model = model if is_mock else str(proposed.get("model") or model)
+        fingerprint = run_fingerprint(analysis_input, proposed, formal_model, REPORT_PROMPT_VERSION)
         previous = connection.execute(
             "SELECT 1 FROM report_analysis_runs WHERE report_id = ? AND status = 'completed' AND is_visible = 1",
             (report_id,),
         ).fetchone()
         active = get_active_invocation().active
-        candidate = resume_source(
-            "report_analysis",
-            report_id,
-            run_fingerprint(analysis_input, selected_snapshot_payload(), model, BATCH_PROMPT_VERSION),
-            str(selected_snapshot_payload().get("fingerprint", "")),
-            expected_plan=_resume_plan(),
-        )
+        _, candidate, _ = _resume_for_config(connection, report_id, analysis_input, proposed, model, is_mock)
         return {
             **({"resume_available": True} if candidate else {}),
             "same_input": find_reusable_analysis(connection, report_id, fingerprint) is not None,

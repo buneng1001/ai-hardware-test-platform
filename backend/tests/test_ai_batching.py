@@ -98,6 +98,21 @@ def test_semantic_batches_split_modules_and_records_not_characters():
     assert any("module:" in ref for ref in batches[0]["refs"])
 
 
+def test_semantic_batches_never_repeat_the_same_module_in_one_batch():
+    config = BatchConfig(modules_per_batch=2, records_per_batch=2)
+    batches = semantic_batches(_analysis_input(2, records_per_module=5), config)
+
+    seen_records = []
+    for batch in batches:
+        identities = [(module["ref"], module["name"]) for module in batch["modules"]]
+        assert len(identities) == len(set(identities))
+        seen_records.extend(record["ref"] for module in batch["modules"] for record in module["records"])
+
+    assert sorted(seen_records) == sorted(
+        record["ref"] for module in _analysis_input(2, records_per_module=5)["modules"] for record in module["records"]
+    )
+
+
 def test_split_batch_halves_records_then_modules():
     config = BatchConfig(modules_per_batch=2, records_per_batch=4)
     batch = semantic_batches(_analysis_input(2, records_per_module=4), config)[0]
@@ -258,6 +273,7 @@ def test_report_batched_analysis_saves_and_resumes_checkpoints(tmp_path, monkeyp
 
     store = MemoryCheckpoints()
     monkeypatch.setattr("app.report_analysis.DatabaseCheckpoints", lambda *_args, **_kwargs: store)
+    monkeypatch.setattr("app.report_analysis.set_phase", lambda *_args: None)
 
     with open_database():
         pass
@@ -290,6 +306,7 @@ def test_report_batched_analysis_saves_and_resumes_checkpoints(tmp_path, monkeyp
     adapter = FakeAdapter()
 
     class FakeLease:
+        invocation_id = "test-report-analysis-invocation"
         config_snapshot = {"fingerprint": "test-fixed-configuration"}
 
         def cancel_requested(self):

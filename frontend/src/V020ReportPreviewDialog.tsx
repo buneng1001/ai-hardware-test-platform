@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Status } from "./V020PrototypeShared";
 import { V020ReportAnalysisSection } from "./V020ReportAnalysisSection";
@@ -38,6 +38,7 @@ export function V020ReportPreviewDialog({
   onPrepareCleanup,
   onCancelCleanup,
   onConfirmCleanup,
+  focusAiSection = false,
 }: {
   report: FactReport;
   groupName: string;
@@ -62,6 +63,7 @@ export function V020ReportPreviewDialog({
   onPrepareCleanup: () => void;
   onCancelCleanup: () => void;
   onConfirmCleanup: () => void;
+  focusAiSection?: boolean;
 }) {
   const snapshot = report.snapshot;
   const [failedExpanded, setFailedExpanded] = useState(false);
@@ -70,6 +72,25 @@ export function V020ReportPreviewDialog({
     ...snapshot.issues.blocked,
     ...snapshot.issues.not_executed,
   ];
+  useEffect(() => {
+    if (!focusAiSection) return;
+    let timer: number | undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const heading = document.getElementById("rpt-ai");
+      const section = heading?.closest(".prototype-report-ai-section");
+      if (!heading || !section) return;
+      section.classList.add("v030-report-ai-focus");
+      heading.scrollIntoView({ behavior: "smooth", block: "start" });
+      timer = window.setTimeout(
+        () => section.classList.remove("v030-report-ai-focus"),
+        2400,
+      );
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [focusAiSection, report.id]);
   return (
     <div className="prototype-report-overlay prototype-report-overlay--preview">
       <section
@@ -205,7 +226,10 @@ export function V020ReportPreviewDialog({
                   </thead>
                   <tbody>
                     {snapshot.historical_reports.map((item) => (
-                      <tr key={item.report_id}>
+                      <tr
+                        id={`rpt-history-report-${item.report_id}`}
+                        key={item.report_id}
+                      >
                         <td>#{item.report_id}</td>
                         <td>{item.product_version}</td>
                         <td>{item.test_group}</td>
@@ -368,8 +392,10 @@ export function V020ReportPreviewDialog({
                 <ul className="prototype-report-fact-grid">
                   {snapshot.issues.failed.map((item) => (
                     <li key={`${item.case_number}-${item.source}`}>
-                      <strong>{item.case_number}</strong> {item.title}（
-                      {item.module}）：{item.actual_result}
+                      <strong className="prototype-report-case-number">
+                        {item.case_number}
+                      </strong>{" "}
+                      {item.title}（{item.module}）：{item.actual_result}
                     </li>
                   ))}
                 </ul>
@@ -418,8 +444,11 @@ export function V020ReportPreviewDialog({
                     <li
                       key={`${item.status}-${item.case_number}-${item.source}`}
                     >
-                      <strong>{item.case_number}</strong> {item.title}（
-                      {statusLabels[item.status] ?? item.status}）：
+                      <strong className="prototype-report-case-number">
+                        {item.case_number}
+                      </strong>{" "}
+                      {item.title}（{statusLabels[item.status] ?? item.status}
+                      ）：
                       {item.actual_result}
                     </li>
                   ))}
@@ -451,8 +480,12 @@ export function V020ReportPreviewDialog({
           </section>
           <section>
             <h2 id="rpt-details">模块详情</h2>
-            {snapshot.modules.map((module) => (
-              <div className="prototype-report-module" key={module.name}>
+            {snapshot.modules.map((module, moduleIndex) => (
+              <div
+                className="prototype-report-module"
+                id={`rpt-module-${moduleIndex}`}
+                key={module.name}
+              >
                 <h3>{module.name}</h3>
                 <Status
                   tone={
@@ -463,8 +496,14 @@ export function V020ReportPreviewDialog({
                 </Status>
                 <ul className="prototype-report-module-records">
                   {module.records.map((record, index) => (
-                    <li key={`${record.case_number}-${record.source}-${index}`}>
-                      <strong>{record.case_number}</strong> · {record.source} ·{" "}
+                    <li
+                      id={`rpt-record-${moduleIndex}-${index}`}
+                      key={`${record.case_number}-${record.source}-${index}`}
+                    >
+                      <strong className="prototype-report-case-number">
+                        {record.case_number}
+                      </strong>{" "}
+                      · {record.source} ·{" "}
                       {statusLabels[record.status] ?? record.status}：
                       {record.message}
                       {record.result_consistency && (
@@ -493,9 +532,12 @@ export function V020ReportPreviewDialog({
               <p>无跨模块冲突。</p>
             ) : (
               <ul>
-                {snapshot.cross_module_issues.map((item) => (
-                  <li key={item.case_number}>
-                    <strong>{item.case_number}</strong>：{item.message}
+                {snapshot.cross_module_issues.map((item, index) => (
+                  <li id={`rpt-cross-issue-${index}`} key={item.case_number}>
+                    <strong className="prototype-report-case-number">
+                      {item.case_number}
+                    </strong>
+                    ：{item.message}
                   </li>
                 ))}
               </ul>

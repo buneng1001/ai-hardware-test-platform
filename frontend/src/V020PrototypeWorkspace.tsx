@@ -51,6 +51,7 @@ export function WorkspaceContent(props: WorkspaceProps) {
     <V020ExecutionResultsScreen
       versionId={props.projectWorkspace.openedVersion?.id ?? null}
       onOpenManual={onOpenManual}
+      reportFocus={props.reportFocus}
     />
   );
 }

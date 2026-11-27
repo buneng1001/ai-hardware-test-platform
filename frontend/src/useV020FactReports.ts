@@ -204,7 +204,9 @@ export function useV020FactReports(groupId: number | null) {
         overwrite,
         resumeChoice,
       );
-      setReport({ ...report, analysis });
+      setReport((current) =>
+        current?.id === report.id ? { ...current, analysis } : current,
+      );
       setHistoryQuery("");
       setMessage(
         analysis.reused
@@ -215,7 +217,12 @@ export function useV020FactReports(groupId: number | null) {
       );
       return true;
     } catch (caught) {
-      setReport(report);
+      try {
+        const latest = await getFactReport(report.id);
+        setReport((current) => (current?.id === report.id ? latest : current));
+      } catch {
+        /* keep the last visible state; polling can recover it */
+      }
       setActionError(errorMessage(caught, "报告分析重试失败"));
       return false;
     } finally {
@@ -301,6 +308,32 @@ export function useV020FactReports(groupId: number | null) {
       refreshingAnalysis.current = false;
     }
   };
+
+  // The report workspace owns polling, not the preview modal. It continues when the modal closes.
+  const refreshRef = useRef(refreshAnalysis);
+  refreshRef.current = refreshAnalysis;
+  const reportId = report?.id;
+  const reportStatus = report?.analysis.status;
+  useEffect(() => {
+    if (reportId === undefined) return;
+    const refresh = () => void refreshRef.current().catch(() => undefined);
+    const onSettled = (event: Event) => {
+      if (
+        (event as CustomEvent<{ reportId: number }>).detail?.reportId ===
+        reportId
+      )
+        refresh();
+    };
+    window.addEventListener("v030-report-task-settled", onSettled);
+    const timer =
+      reportStatus === "pending"
+        ? window.setInterval(refresh, 2000)
+        : undefined;
+    return () => {
+      window.removeEventListener("v030-report-task-settled", onSettled);
+      if (timer !== undefined) window.clearInterval(timer);
+    };
+  }, [reportId, reportStatus]);
 
   const searchHistory = async () => {
     if (groupId === null) return;

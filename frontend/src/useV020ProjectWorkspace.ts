@@ -107,6 +107,34 @@ export function useV020ProjectWorkspace() {
     }
   };
 
+  const openProjectVersion = async (
+    projectId: number,
+    versionId: number,
+  ): Promise<boolean> => {
+    setLastProjectId(projectId);
+    setDetailLoading(true);
+    setDetailError(null);
+    setTrendError(null);
+    try {
+      const project = await getProject(projectId);
+      const version = project.product_versions.find(
+        (item) => item.id === versionId,
+      );
+      setDetail(project);
+      setOpenedVersion(version ?? null);
+      await loadTrend(projectId);
+      return version !== undefined;
+    } catch (caught) {
+      setDetail(null);
+      setOpenedVersion(null);
+      setTrend(null);
+      setDetailError(errorMessage(caught, "报告所属项目打开失败"));
+      return false;
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const reloadProject = async (): Promise<boolean> => {
     const projectId = detail?.id ?? lastProjectId;
     if (projectId === null) return false;
@@ -348,6 +376,7 @@ export function useV020ProjectWorkspace() {
     openedVersion,
     setOpenedVersion,
     openProject,
+    openProjectVersion,
     submitVersion,
     editVersion,
     saveVersionAiContext,

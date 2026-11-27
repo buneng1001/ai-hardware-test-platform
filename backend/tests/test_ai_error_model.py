@@ -1,6 +1,7 @@
 import json
 import socket
 import ssl
+from http.client import RemoteDisconnected
 
 import pytest
 from fastapi.testclient import TestClient
@@ -66,6 +67,77 @@ def test_network_errors_distinguish_dns_tls_proxy_and_connection():
     assert _network_error_kind(ssl.SSLError("certificate verify failed")) == ModelErrorKind.TLS
     assert _network_error_kind("proxy tunnel failed") == ModelErrorKind.PROXY
     assert _network_error_kind("connection refused") == ModelErrorKind.CONNECTION
+
+
+def test_auto_network_mode_falls_back_for_proxy_connection_failure_without_replaying_request():
+    calls = []
+
+    def transport(request):
+        calls.append(request["network_mode"])
+        if request["network_mode"] == "system_proxy":
+            raise SiliconFlowError(
+                ModelErrorKind.PROXY,
+                "proxy connection failed before provider request",
+                False,
+            )
+        return 200, json.dumps({"choices": [{"message": {"content": "{}"}}]})
+
+    adapter = _adapter(transport, network_mode="auto")
+    result = adapter.generate_json(
+        api_key="secret",
+        model="demo-model",
+        evidence_json="{}",
+        system_prompt="Return JSON",
+        stage="intelligent_regression",
+    )
+
+    assert result == {}
+    assert calls == ["system_proxy", "direct"]
+    assert any("已改用直连" in item for item in adapter.network_diagnostics)
+
+
+def test_auto_network_mode_never_replays_ambiguous_remote_disconnect():
+    calls = []
+
+    def transport(request):
+        calls.append(request["network_mode"])
+        raise RemoteDisconnected("Remote end closed connection without response")
+
+    adapter = _adapter(transport, network_mode="auto")
+    with pytest.raises(SiliconFlowError) as captured:
+        adapter.generate_json(
+            api_key="secret",
+            model="demo-model",
+            evidence_json="{}",
+            system_prompt="Return JSON",
+            stage="intelligent_regression",
+        )
+
+    assert captured.value.kind == ModelErrorKind.NETWORK
+    assert captured.value.retryable is False
+    assert calls == ["system_proxy"]
+
+
+def test_ambiguous_timeout_is_not_automatically_replayed():
+    calls = []
+
+    def transport(request):
+        calls.append(request["network_mode"])
+        raise TimeoutError("response read timed out")
+
+    adapter = _adapter(transport, network_mode="auto")
+    with pytest.raises(SiliconFlowError) as captured:
+        adapter.generate_json(
+            api_key="secret",
+            model="demo-model",
+            evidence_json="{}",
+            system_prompt="Return JSON",
+            stage="intelligent_regression",
+        )
+
+    assert captured.value.kind == ModelErrorKind.TIMEOUT
+    assert captured.value.retryable is False
+    assert calls == ["system_proxy"]
 
 
 def test_layered_timeouts_are_configurable_per_stage(monkeypatch):

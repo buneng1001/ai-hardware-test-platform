@@ -141,6 +141,7 @@ def begin_invocation(
     execution_mode: ExecutionMode = "single_request",
     input_fingerprint: str | None = None,
     resumed_from_invocation_id: str | None = None,
+    allow_local: bool = False,
 ) -> AiInvocationLease:
     """唯一调用原子准入；无等待队列，冲突立即返回 409。"""
     if operation_type not in DISPLAY_NAMES or execution_mode not in ("single_request", "checkpointed_batch"):
@@ -153,13 +154,26 @@ def begin_invocation(
     with open_database() as connection:
         connection.execute("BEGIN IMMEDIATE")
         state = _read_state(connection)
-        if not state.enabled:
+        if not allow_local and not state.enabled:
             raise HTTPException(status_code=409, detail="全局 AI 已关闭，请先开启")
-        if not state.can_enable:
+        if not allow_local and not state.can_enable:
             raise HTTPException(status_code=409, detail=state.reason or "当前 AI 配置尚未验证")
         if _active_row(connection) is not None:
             raise HTTPException(status_code=409, detail=OCCUPIED_MESSAGE)
         selected = get_selected_snapshot(connection)
+        if allow_local:
+            # Local deterministic workflows still use the shared invocation lock,
+            # but must not depend on whichever AI provider happens to be selected.
+            import hashlib
+            selected = {
+                "provider": "local",
+                "endpoint": "local://deterministic",
+                "model": "local-regression-v1",
+                "key_source": "none",
+                "network_mode": "none",
+                "prompt_version": "local-regression-v1",
+                "fingerprint": hashlib.sha256(b"local-regression-v1").hexdigest(),
+            }
         if selected is None:
             raise HTTPException(status_code=409, detail="当前正式 AI 配置不可用")
         invocation_id = uuid4().hex

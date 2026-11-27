@@ -7,6 +7,7 @@ from app.fact_report_models import (
     ReportAnalysisItem,
     ReportAnalysisOutput,
     ReportStageRecommendation,
+    ReportTestDirection,
 )
 
 
@@ -122,14 +123,42 @@ def _item(content: str, evidence_ref: str) -> ReportAnalysisItem:
 
 
 def build_mock_analysis(analysis_input: dict[str, object]) -> ReportAnalysisOutput:
-    """离线演示使用固定结构化输出，避免 Mock 随输入产生不可复现结论。"""
+    """离线演示使用固定结构化输出，并为智能回归提供可定位的模块级种子。"""
+    modules = analysis_input.get("modules", [])
+    recommendations = []
+    directions = []
+    for module in modules:
+        records = module.get("records", [])
+        if not records:
+            continue
+        evidence_refs = [record["ref"] for record in records[:20]]
+        title = str(module["name"])
+        has_unresolved = any(record.get("status") in ("failed", "blocked") for record in records)
+        recommendations.append(
+            ReportAnalysisItem(
+                content=(f"复测{title}中已验证的关键场景，确认目标版本中相关行为及已记录异常是否仍然存在。"),
+                evidence_refs=evidence_refs[:20],
+            )
+        )
+        directions.append(
+            ReportTestDirection(
+                dimension="reliability" if has_unresolved else "functional",
+                priority="high" if has_unresolved else "medium",
+                title=f"{title}关键场景复测",
+                coverage_gap="当前报告仅反映已选执行记录，仍需在目标版本复核",
+                risk="来源报告中存在需要确认的已验证行为或异常",
+                direction="复现来源场景，核对可观察结果并记录差异",
+                evidence_refs=evidence_refs[:20],
+            )
+        )
     return ReportAnalysisOutput(
         risks=[_item("请优先人工复核已保存报告中的失败、阻塞和结果不一致项。", "stage_progress")],
         additional_verifications=[_item("请依据现有事实记录补充验证，不新增未记录的阈值。", "stage_progress")],
-        regression_recommendations=[_item("请从已保存报告范围内选择后续回归项。", "stage_progress")],
+        regression_recommendations=recommendations,
         stage_recommendation=ReportStageRecommendation(
             suggestion="请依据已保存事实报告补充验证后，再决定是否推进阶段。",
             content="阶段建议仅作为参考，不构成强制质量门禁。",
             evidence_refs=["stage_progress"],
         ),
+        test_directions=directions,
     )
